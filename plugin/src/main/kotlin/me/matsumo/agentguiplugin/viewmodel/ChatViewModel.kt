@@ -6,18 +6,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import me.matsumo.agentguiplugin.bridge.client.BridgeClient
 import me.matsumo.agentguiplugin.bridge.model.BridgeEvent
 import me.matsumo.agentguiplugin.bridge.model.ContentBlock
 import me.matsumo.agentguiplugin.bridge.model.PermissionResult
 import me.matsumo.agentguiplugin.bridge.model.SessionOptions
-import java.util.UUID
+import java.util.*
 
 class ChatViewModel(
     private val client: BridgeClient,
     private val projectBasePath: String,
+    private val claudeCodePath: String? = null,
     private val scope: CoroutineScope,
 ) {
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -212,7 +212,10 @@ class ChatViewModel(
                 // First message - start session
                 client.startSession(
                     prompt = text,
-                    options = SessionOptions(cwd = projectBasePath),
+                    options = SessionOptions(
+                        cwd = projectBasePath,
+                        claudeCodePath = claudeCodePath,
+                    ),
                 )
             } else {
                 // Follow-up message

@@ -14,6 +14,7 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import me.matsumo.agentguiplugin.bridge.model.BridgeEvent
 import me.matsumo.agentguiplugin.service.SessionService
+import me.matsumo.agentguiplugin.service.SettingsService
 import me.matsumo.agentguiplugin.ui.ChatPanel
 import me.matsumo.agentguiplugin.ui.dialog.AskUserQuestionDialog
 import me.matsumo.agentguiplugin.ui.dialog.PermissionDialog
@@ -27,6 +28,7 @@ class AgentToolWindowFactory : ToolWindowFactory {
         toolWindow.addComposeTab("Claude Code", focusOnClickInside = true) {
             val scope = rememberCoroutineScope()
             val sessionService = remember { project.service<SessionService>() }
+            val settings = remember { service<SettingsService>() }
             var viewModel by remember { mutableStateOf<ChatViewModel?>(null) }
 
             LaunchedEffect(Unit) {
@@ -35,6 +37,7 @@ class AgentToolWindowFactory : ToolWindowFactory {
                 val vm = ChatViewModel(
                     client = client,
                     projectBasePath = sessionService.projectBasePath,
+                    claudeCodePath = settings.claudeCodePath,
                     scope = scope,
                 )
                 viewModel = vm

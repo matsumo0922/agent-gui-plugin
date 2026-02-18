@@ -5,12 +5,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import me.matsumo.agentguiplugin.bridge.model.BridgeCommand
 import me.matsumo.agentguiplugin.bridge.model.BridgeEvent
 import me.matsumo.agentguiplugin.bridge.model.PermissionResult
@@ -84,8 +79,7 @@ class BridgeClient(
     }
 
     suspend fun abort() {
-        val command = BridgeCommand.Abort()
-        sendCommand(command)
+        sendCommand(BridgeCommand.Abort)
     }
 
     private suspend fun sendCommand(command: BridgeCommand) {

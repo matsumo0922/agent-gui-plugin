@@ -8997,7 +8997,8 @@ var sdkOptions = {
   abortController,
   canUseTool: userOptions.permissionMode === "default" ? canUseTool : void 0,
   permissionMode: userOptions.permissionMode ?? "default",
-  includePartialMessages: userOptions.includePartialMessages !== false
+  includePartialMessages: userOptions.includePartialMessages !== false,
+  pathToClaudeCodeExecutable: userOptions.claudeCodePath || void 0
 };
 var currentSessionId = null;
 try {

@@ -1,5 +1,5 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import { createInterface } from "node:readline";
+import {query} from "@anthropic-ai/claude-agent-sdk";
+import {createInterface} from "node:readline";
 
 // --- stdout ---
 function send(obj) {
@@ -191,6 +191,7 @@ const sdkOptions = {
   canUseTool: userOptions.permissionMode === "default" ? canUseTool : undefined,
   permissionMode: userOptions.permissionMode ?? "default",
   includePartialMessages: userOptions.includePartialMessages !== false,
+  pathToClaudeCodeExecutable: userOptions.claudeCodePath || undefined,
 };
 
 let currentSessionId = null;

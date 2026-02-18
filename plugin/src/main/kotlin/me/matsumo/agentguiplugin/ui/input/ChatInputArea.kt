@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
@@ -34,6 +38,15 @@ fun ChatInputArea(
 
     val isStreaming = sessionState == SessionState.Streaming
 
+    var textFieldValue by remember { mutableStateOf(TextFieldValue(inputText)) }
+
+    // Sync when inputText changes externally (e.g., cleared after send)
+    LaunchedEffect(inputText) {
+        if (textFieldValue.text != inputText) {
+            textFieldValue = TextFieldValue(inputText)
+        }
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -41,8 +54,11 @@ fun ChatInputArea(
         verticalAlignment = Alignment.Bottom,
     ) {
         TextArea(
-            value = TextFieldValue(inputText),
-            onValueChange = { onInputChanged(it.text) },
+            value = textFieldValue,
+            onValueChange = {
+                textFieldValue = it
+                onInputChanged(it.text)
+            },
             modifier = Modifier
                 .weight(1f)
                 .onPreviewKeyEvent { event ->

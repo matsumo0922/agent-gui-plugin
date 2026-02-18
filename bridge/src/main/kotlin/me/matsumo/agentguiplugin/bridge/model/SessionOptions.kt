@@ -16,4 +16,5 @@ data class SessionOptions(
     val maxBudgetUsd: Double? = null,
     val settingSources: List<String>? = null,
     val env: JsonObject? = null,
+    val claudeCodePath: String? = null,
 )
