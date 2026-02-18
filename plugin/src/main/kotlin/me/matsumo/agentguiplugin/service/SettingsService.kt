@@ -31,7 +31,7 @@ class SettingsService : PersistentStateComponent<SettingsService.State> {
         set(value) { myState.nodePath = value }
 
     var claudeCodePath: String?
-        get() = "/opt/homebrew/bin/claude"
+        get() = myState.claudeCodePath
         set(value) { myState.claudeCodePath = value }
 
     var permissionMode: String

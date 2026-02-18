@@ -10,6 +10,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import me.matsumo.agentguiplugin.bridge.client.BridgeClient
 import me.matsumo.agentguiplugin.bridge.process.BridgeScriptExtractor
+import me.matsumo.agentguiplugin.bridge.process.ClaudeCodeResolver
 import me.matsumo.agentguiplugin.bridge.process.NodeResolver
 
 @Service(Service.Level.PROJECT)
@@ -22,10 +23,15 @@ class SessionService(
 
     val client: BridgeClient? get() = bridgeClient
 
+    var resolvedClaudeCodePath: String? = null
+        private set
+
     fun connect() {
         val settings = service<SettingsService>()
         val nodePath = NodeResolver.resolve(settings.nodePath)
             ?: error("Node.js not found. Please install Node.js or set the path in settings.")
+
+        resolvedClaudeCodePath = ClaudeCodeResolver.resolve(settings.claudeCodePath)
 
         val scriptPath = BridgeScriptExtractor.extract()
 
