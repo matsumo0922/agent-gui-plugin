@@ -1,0 +1,51 @@
+package me.matsumo.agentguiplugin.viewmodel
+
+import kotlinx.serialization.json.JsonObject
+import me.matsumo.agentguiplugin.bridge.model.BridgeEvent
+
+enum class SessionState {
+    Disconnected,
+    Connecting,
+    Ready,
+    Streaming,
+    WaitingForInput,
+    Error,
+}
+
+data class ChatUiState(
+    val messages: List<ChatMessage> = emptyList(),
+    val inputText: String = "",
+    val sessionState: SessionState = SessionState.Disconnected,
+    val isStreaming: Boolean = false,
+    val sessionId: String? = null,
+    val model: String? = null,
+    val totalCostUsd: Double = 0.0,
+    val pendingPermission: BridgeEvent.PermissionRequest? = null,
+    val pendingQuestion: BridgeEvent.PermissionRequest? = null,
+    val errorMessage: String? = null,
+)
+
+sealed interface ChatMessage {
+    val id: String
+
+    data class User(
+        override val id: String,
+        val text: String,
+    ) : ChatMessage
+
+    data class Assistant(
+        override val id: String,
+        val blocks: List<UiContentBlock> = emptyList(),
+        val isComplete: Boolean = false,
+    ) : ChatMessage
+}
+
+sealed interface UiContentBlock {
+    data class Text(val text: String) : UiContentBlock
+    data class Thinking(val text: String, val isExpanded: Boolean = false) : UiContentBlock
+    data class ToolUse(
+        val toolName: String,
+        val inputJson: JsonObject,
+        val elapsed: Double? = null,
+    ) : UiContentBlock
+}
