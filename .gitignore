@@ -4,6 +4,7 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 .kotlin
+/bridge-scripts/node_modules
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
