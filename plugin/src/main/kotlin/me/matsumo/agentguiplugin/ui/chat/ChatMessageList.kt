@@ -1,15 +1,21 @@
 package me.matsumo.agentguiplugin.ui.chat
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
+import org.jetbrains.jewel.ui.component.Text
 
 @Composable
 fun ChatMessageList(
@@ -18,29 +24,49 @@ fun ChatMessageList(
 ) {
     val listState = rememberLazyListState()
 
-    // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(messages.size, messages.lastOrNull()) {
+    // Auto-scroll to bottom when message count changes
+    LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
 
-    LazyColumn(
-        modifier = modifier,
-        state = listState,
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        items(
-            items = messages,
-            key = { it.id },
-        ) { message ->
-            when (message) {
-                is ChatMessage.User -> {
-                    UserMessageBubble(text = message.text)
-                }
-                is ChatMessage.Assistant -> {
-                    AssistantMessageBlock(blocks = message.blocks)
+    if (messages.isEmpty()) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "Start a conversation...",
+                fontSize = 14.sp,
+                color = ChatTheme.Text.muted,
+            )
+        }
+    } else {
+        LazyColumn(
+            modifier = modifier,
+            state = listState,
+            contentPadding = PaddingValues(
+                horizontal = ChatTheme.Spacing.messageListPadding,
+                vertical = ChatTheme.Spacing.messageListPadding,
+            ),
+            verticalArrangement = Arrangement.spacedBy(ChatTheme.Spacing.messageGap),
+        ) {
+            items(
+                items = messages,
+                key = { it.id },
+            ) { message ->
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = when (message) {
+                        is ChatMessage.User -> Alignment.CenterEnd
+                        is ChatMessage.Assistant -> Alignment.CenterStart
+                    },
+                ) {
+                    when (message) {
+                        is ChatMessage.User -> UserMessageBubble(text = message.text)
+                        is ChatMessage.Assistant -> AssistantMessageBlock(blocks = message.blocks)
+                    }
                 }
             }
         }

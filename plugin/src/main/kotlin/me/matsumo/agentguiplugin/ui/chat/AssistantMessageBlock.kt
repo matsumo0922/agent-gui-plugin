@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.matsumo.agentguiplugin.ui.component.MarkdownText
+import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 
 @Composable
@@ -17,9 +19,10 @@ fun AssistantMessageBlock(
 ) {
     Column(
         modifier = modifier
+            .widthIn(max = ChatTheme.Spacing.messageMaxWidth)
             .fillMaxWidth()
-            .padding(end = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 4.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(ChatTheme.Spacing.blockGap),
     ) {
         blocks.forEach { block ->
             when (block) {
