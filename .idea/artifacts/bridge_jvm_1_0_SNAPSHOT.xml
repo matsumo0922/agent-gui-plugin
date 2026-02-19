@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="bridge-jvm-1.0-SNAPSHOT">
+    <output-path>$PROJECT_DIR$/bridge/build/libs</output-path>
+    <root id="archive" name="bridge-jvm-1.0-SNAPSHOT.jar">
+      <element id="module-output" name="agent-gui-plugin.bridge.jvmMain" />
+    </root>
+  </artifact>
+</component>

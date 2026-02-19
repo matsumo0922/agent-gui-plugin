@@ -1,7 +1,8 @@
 package me.matsumo.agentguiplugin.bridge.model
 
-import kotlinx.serialization.*
-import kotlinx.serialization.json.*
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 
 @Serializable(with = BridgeEventSerializer::class)
 sealed interface BridgeEvent {

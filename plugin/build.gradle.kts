@@ -13,7 +13,14 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":bridge"))
+    implementation(project(":bridge")) {
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-json")
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-json-jvm")
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-core")
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-core-jvm")
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
+    }
 
     intellijPlatform {
         intellijIdea("2025.2.4")
@@ -39,6 +46,20 @@ tasks {
     withType<JavaCompile> {
         sourceCompatibility = "17"
         targetCompatibility = "17"
+    }
+
+    register<Exec>("bundleBridgeScript") {
+        dependsOn(":bridge:jsProductionExecutableCompileSync")
+        workingDir = file("${rootDir}/bridge-scripts")
+
+        // Gradle の Exec タスクはユーザーのログインシェル PATH を継承しないため、
+        // シェル経由で node を実行して PATH を解決する
+        val userShell = System.getenv("SHELL") ?: "/bin/zsh"
+        commandLine(userShell, "-l", "-c", "node esbuild.config.mjs")
+    }
+
+    named("processResources") {
+        dependsOn("bundleBridgeScript")
     }
 }
 
