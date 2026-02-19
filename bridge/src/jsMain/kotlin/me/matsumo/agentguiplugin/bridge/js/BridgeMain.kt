@@ -11,6 +11,7 @@ import me.matsumo.agentguiplugin.bridge.js.external.AbortController
 import me.matsumo.agentguiplugin.bridge.js.external.ClaudeAgentSdk
 import me.matsumo.agentguiplugin.bridge.js.external.Readline
 import me.matsumo.agentguiplugin.bridge.js.external.process
+import me.matsumo.agentguiplugin.bridge.model.BridgeCommandTypes
 import me.matsumo.agentguiplugin.bridge.model.BridgeEvent
 import me.matsumo.agentguiplugin.bridge.model.BridgeEventSerializer
 
@@ -22,90 +23,47 @@ private val json = Json {
 
 private var requestCounter = 0
 
+/** BridgeEvent を JSONL で stdout に送出 */
 private fun send(event: BridgeEvent) {
     val jsonStr = json.encodeToString(BridgeEventSerializer, event)
     process.stdout.write(jsonStr + "\n")
 }
 
 fun main() {
-    // Setup readline
     val rl = Readline.createInterface(js("({input: process.stdin})"))
-    val stdinReader = StdinReader(rl)
+    val abortController = AbortController()
+
+    // StdinReader に abort 検知コールバックを渡し、二重購読を回避
+    val stdinReader = StdinReader(rl, onAbort = { abortController.abort() })
     stdinReader.setup()
 
-    // Setup abort handling
-    val abortController = AbortController()
-    rl.on("line") { line ->
-        try {
-            val msg = js("JSON.parse(line)")
-            if ((msg.type as? String) == "abort") {
-                abortController.abort()
-            }
-        } catch (_: Throwable) {
-            // ignore
-        }
-    }
-
-    // Global error handler
+    // グローバルエラーハンドラ
     process.on("uncaughtException") { err ->
-        send(BridgeEvent.Error(message = err.message as? String ?: "Unknown error", fatal = true))
+        send(BridgeEvent.Error(message = dynamicString(err.message, "Unknown error"), fatal = true))
         process.exit(1)
     }
 
-    // Send ready event
+    // ready イベントを送出してコマンド待ちへ
     send(BridgeEvent.Ready)
 
-    // Main flow as a coroutine
     GlobalScope.promise {
         try {
-            // Wait for start command
-            val startMsg = stdinReader.waitForMessage("start")
-            val prompt = startMsg.prompt as? String ?: ""
+            // start コマンドを待機
+            val startMsg = stdinReader.waitForMessage(BridgeCommandTypes.START)
+            val prompt = dynamicString(startMsg.prompt)
             val userOptions = startMsg.options ?: js("{}")
 
-            // Build canUseTool callback
-            val canUseTool: dynamic = if ((userOptions.permissionMode as? String) == "default") {
-                { toolName: String, toolInput: dynamic, sdkOptions: dynamic ->
-                    GlobalScope.promise {
-                        val requestId = "req_${++requestCounter}"
-                        val toolUseId = sdkOptions.toolUseID as? String
-
-                        send(
-                            BridgeEvent.PermissionRequest(
-                                requestId = requestId,
-                                toolName = toolName,
-                                toolInput = dynamicToJsonObject(toolInput),
-                                toolUseId = toolUseId,
-                            )
-                        )
-
-                        val result = stdinReader.waitForPermissionResponse(requestId)
-                        result
-                    }
-                }
-            } else {
-                undefined
-            }
-
-            // Build SDK options
+            val canUseTool = buildCanUseToolCallback(userOptions, stdinReader)
             val sdkOptions = buildSdkOptions(userOptions, abortController, canUseTool)
-
-            // Create async iterable for messages
             val messageIterable = createMessageAsyncIterable(prompt, stdinReader)
 
-            // Call SDK query()
+            // SDK query() を呼び出しイベントをストリーミング
             val queryParams = js("{}")
             queryParams.prompt = messageIterable
             queryParams.options = sdkOptions
 
-            val messageIter = ClaudeAgentSdk.query(queryParams)
-
-            // Iterate over async iterable using for-await pattern via JS interop
-            iterateAsyncIterable(messageIter) { message ->
-                val events = mapSdkMessageToBridgeEvents(message)
-                for (event in events) {
-                    send(event)
-                }
+            iterateAsyncIterable(ClaudeAgentSdk.query(queryParams)) { message ->
+                mapSdkMessageToBridgeEvents(message).forEach(::send)
             }
         } catch (e: Throwable) {
             send(BridgeEvent.Error(message = e.message ?: "Unknown error", fatal = true))
@@ -115,59 +73,71 @@ fun main() {
     }
 }
 
-private fun buildSdkOptions(userOptions: dynamic, abortController: AbortController, canUseTool: dynamic): dynamic {
+/**
+ * permissionMode が "default" の場合、パーミッション要求→応答のコールバックを生成。
+ * それ以外は undefined を返す（SDK にコールバックを渡さない）。
+ */
+private fun buildCanUseToolCallback(userOptions: dynamic, stdinReader: StdinReader): dynamic {
+    val permissionMode = dynamicStringOrNull(userOptions.permissionMode)
+    if (permissionMode != PermissionModes.DEFAULT) return undefined
+
+    return { toolName: String, toolInput: dynamic, sdkOptions: dynamic ->
+        GlobalScope.promise {
+            val requestId = "req_${++requestCounter}"
+
+            send(
+                BridgeEvent.PermissionRequest(
+                    requestId = requestId,
+                    toolName = toolName,
+                    toolInput = dynamicToJsonObject(toolInput),
+                    toolUseId = dynamicStringOrNull(sdkOptions.toolUseID),
+                )
+            )
+
+            stdinReader.waitForPermissionResponse(requestId)
+        }
+    }
+}
+
+/** SDK に渡すオプションオブジェクトを組み立てる */
+private fun buildSdkOptions(
+    userOptions: dynamic,
+    abortController: AbortController,
+    canUseTool: dynamic,
+): dynamic {
     val opts = js("{}")
 
-    val cwd = userOptions.cwd as? String
-    if (cwd != null) opts.cwd = cwd
+    // 文字列オプション（null/undefined なら省略）
+    dynamicStringOrNull(userOptions.cwd)?.let { opts.cwd = it }
+    dynamicStringOrNull(userOptions.resume)?.let { opts.resume = it }
+    dynamicStringOrNull(userOptions.model)?.let { opts.model = it }
+    dynamicStringOrNull(userOptions.systemPrompt)?.let { opts.systemPrompt = it }
 
-    val resume = userOptions.resume as? String
-    if (resume != null) opts.resume = resume
-
-    val model = userOptions.model as? String
-    if (model != null) opts.model = model
-
-    val systemPrompt = userOptions.systemPrompt as? String
-    if (systemPrompt != null) opts.systemPrompt = systemPrompt
-
+    // 配列・数値オプション（null/undefined でなければそのままコピー）
     opts.settingSources = userOptions.settingSources ?: js("['user', 'project', 'local']")
+    if (!isNullOrUndefined(userOptions.disallowedTools)) opts.disallowedTools = userOptions.disallowedTools
+    if (!isNullOrUndefined(userOptions.maxTurns)) opts.maxTurns = userOptions.maxTurns
+    if (!isNullOrUndefined(userOptions.maxThinkingTokens)) opts.maxThinkingTokens = userOptions.maxThinkingTokens
+    if (!isNullOrUndefined(userOptions.maxBudgetUsd)) opts.maxBudgetUsd = userOptions.maxBudgetUsd
+    if (!isNullOrUndefined(userOptions.env)) opts.env = userOptions.env
 
-    val disallowedTools = userOptions.disallowedTools
-    if (disallowedTools != null && disallowedTools != undefined) opts.disallowedTools = disallowedTools
-
-    val maxTurns = userOptions.maxTurns
-    if (maxTurns != null && maxTurns != undefined) opts.maxTurns = maxTurns
-
-    val maxThinkingTokens = userOptions.maxThinkingTokens
-    if (maxThinkingTokens != null && maxThinkingTokens != undefined) opts.maxThinkingTokens = maxThinkingTokens
-
-    val maxBudgetUsd = userOptions.maxBudgetUsd
-    if (maxBudgetUsd != null && maxBudgetUsd != undefined) opts.maxBudgetUsd = maxBudgetUsd
-
-    val env = userOptions.env
-    if (env != null && env != undefined) opts.env = env
-
+    // 固定オプション
     opts.abortController = abortController
+    if (!isNullOrUndefined(canUseTool)) opts.canUseTool = canUseTool
+    opts.permissionMode = dynamicStringOrNull(userOptions.permissionMode) ?: PermissionModes.DEFAULT
+    opts.includePartialMessages = dynamicBool(userOptions.includePartialMessages, default = true)
 
-    if (canUseTool != null && canUseTool != undefined) {
-        opts.canUseTool = canUseTool
-    }
-
-    val permissionMode = userOptions.permissionMode as? String
-    opts.permissionMode = permissionMode ?: "default"
-
-    val includePartial = userOptions.includePartialMessages
-    opts.includePartialMessages = if (includePartial == false) false else true
-
-    val claudeCodePath = userOptions.claudeCodePath as? String
-    if (!claudeCodePath.isNullOrEmpty()) opts.pathToClaudeCodeExecutable = claudeCodePath
+    // Claude Code CLI パス
+    dynamicStringOrNull(userOptions.claudeCodePath)
+        ?.takeIf { it.isNotEmpty() }
+        ?.let { opts.pathToClaudeCodeExecutable = it }
 
     return opts
 }
 
 /**
- * Iterates over a JS async iterable using the Symbol.asyncIterator protocol.
- * Kotlin/JS does not support `for await` natively, so we manually call the iterator.
+ * JS の async iterable を手動で走査する。
+ * Kotlin/JS は for-await をサポートしないため、Symbol.asyncIterator プロトコルを直接呼ぶ。
  */
 private suspend fun iterateAsyncIterable(asyncIterable: dynamic, handler: (dynamic) -> Unit) {
     val iterator = js("asyncIterable[Symbol.asyncIterator]()")

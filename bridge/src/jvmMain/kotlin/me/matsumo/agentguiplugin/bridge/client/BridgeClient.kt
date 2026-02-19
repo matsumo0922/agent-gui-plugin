@@ -12,6 +12,10 @@ import me.matsumo.agentguiplugin.bridge.model.PermissionResult
 import me.matsumo.agentguiplugin.bridge.model.SessionOptions
 import me.matsumo.agentguiplugin.bridge.process.NodeProcess
 
+/**
+ * Node.js ブリッジプロセスとの JSONL 通信クライアント。
+ * コマンド送信とイベント受信を提供する。
+ */
 class BridgeClient(
     private val nodePath: String,
     private val bridgeScriptPath: String,
@@ -30,6 +34,7 @@ class BridgeClient(
 
     val isConnected: Boolean get() = connected && nodeProcess?.isAlive == true
 
+    /** ブリッジプロセスを起動し、stdout の監視を開始する */
     suspend fun connect(scope: CoroutineScope) {
         val process = NodeProcess(nodePath, bridgeScriptPath)
         nodeProcess = process
@@ -37,26 +42,25 @@ class BridgeClient(
         scope.launch {
             try {
                 process.start().collect { line ->
-                    val event = parseLine(line)
-                    if (event != null) {
-                        _events.emit(event)
-                    }
+                    parseLine(line)?.let { _events.emit(it) }
                 }
             } catch (e: Exception) {
-                _events.emit(BridgeEvent.Error(
-                    message = "Bridge process terminated: ${e.message}",
-                    fatal = true,
-                ))
+                _events.emit(
+                    BridgeEvent.Error(
+                        message = "Bridge process terminated: ${e.message}",
+                        fatal = true,
+                    )
+                )
             } finally {
                 connected = false
             }
         }
 
-        // Wait for ready event
-        // The first event should be Ready
+        // プロセス起動完了（ready イベントは events Flow で受信される）
         connected = true
     }
 
+    /** ブリッジプロセスを切断・終了する */
     fun disconnect() {
         connected = false
         nodeProcess?.destroy()
@@ -64,18 +68,15 @@ class BridgeClient(
     }
 
     suspend fun startSession(prompt: String, options: SessionOptions = SessionOptions()) {
-        val command = BridgeCommand.Start(prompt = prompt, options = options)
-        sendCommand(command)
+        sendCommand(BridgeCommand.Start(prompt = prompt, options = options))
     }
 
     suspend fun sendUserMessage(text: String) {
-        val command = BridgeCommand.UserMessage(text = text)
-        sendCommand(command)
+        sendCommand(BridgeCommand.UserMessage(text = text))
     }
 
     suspend fun respondPermission(requestId: String, result: PermissionResult) {
-        val command = BridgeCommand.PermissionResponse(requestId = requestId, result = result)
-        sendCommand(command)
+        sendCommand(BridgeCommand.PermissionResponse(requestId = requestId, result = result))
     }
 
     suspend fun abort() {
@@ -87,11 +88,9 @@ class BridgeClient(
         nodeProcess?.writeLine(jsonStr)
     }
 
-    private fun parseLine(line: String): BridgeEvent? {
-        return try {
-            json.decodeFromString<BridgeEvent>(line)
-        } catch (_: Exception) {
-            null
-        }
+    private fun parseLine(line: String): BridgeEvent? = try {
+        json.decodeFromString<BridgeEvent>(line)
+    } catch (_: Exception) {
+        null
     }
 }

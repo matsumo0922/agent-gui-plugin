@@ -6,7 +6,13 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.BufferedWriter
+import java.io.File
 
+/**
+ * Node.js 子プロセスの起動と stdin/stdout 通信を管理する。
+ * IntelliJ のプロセス環境はユーザーの PATH を継承しないため、
+ * ログインシェルから PATH を解決する仕組みを持つ。
+ */
 class NodeProcess(
     private val nodePath: String,
     private val scriptPath: String,
@@ -17,30 +23,26 @@ class NodeProcess(
 
     val isAlive: Boolean get() = process?.isAlive == true
 
+    /** プロセスを起動し、stdout の行を Flow で返す */
     fun start(): Flow<String> {
         val pb = ProcessBuilder(nodePath, scriptPath).apply {
             redirectErrorStream(false)
-            workingDir?.let { directory(java.io.File(it)) }
+            workingDir?.let { directory(File(it)) }
 
-            // IntelliJ spawns processes without the user's shell PATH,
-            // so the SDK can't find the `claude` executable.
-            // Resolve the full PATH from the user's default shell.
-            val shellPath = resolveShellPath()
-            if (shellPath != null) {
-                environment()["PATH"] = shellPath
-            }
+            // ユーザーのログインシェルから PATH を解決して設定
+            resolveShellPath()?.let { environment()["PATH"] = it }
         }
 
         val proc = pb.start()
         process = proc
         stdinWriter = proc.outputStream.bufferedWriter()
 
-        // Log stderr in background
+        // stderr をログに転送（デーモンスレッド）
         Thread({
             proc.errorStream.bufferedReader().forEachLine { line ->
-                System.err.println("[bridge-stderr] $line")
+                System.err.println("$STDERR_LOG_PREFIX $line")
             }
-        }, "bridge-stderr-reader").apply { isDaemon = true }.start()
+        }, STDERR_THREAD_NAME).apply { isDaemon = true }.start()
 
         return flow {
             proc.inputStream.bufferedReader().use { reader ->
@@ -52,6 +54,7 @@ class NodeProcess(
         }.flowOn(Dispatchers.IO)
     }
 
+    /** stdin に 1 行書き込む */
     suspend fun writeLine(json: String) = withContext(Dispatchers.IO) {
         stdinWriter?.let {
             it.write(json)
@@ -60,10 +63,26 @@ class NodeProcess(
         }
     }
 
+    /** プロセスと子孫を強制終了 */
+    fun destroy() {
+        process?.let { proc ->
+            if (proc.isAlive) {
+                proc.descendants().forEach { it.destroyForcibly() }
+                proc.destroyForcibly()
+            }
+        }
+        process = null
+        stdinWriter = null
+    }
+
+    /**
+     * ユーザーのログインシェルから完全な PATH を取得する。
+     * 取得できない場合は、現在の PATH に一般的なディレクトリを追加する。
+     */
     private fun resolveShellPath(): String? {
-        // Try to get full PATH from user's login shell
+        // ログインシェルから PATH を取得
         val shellPath = try {
-            val shell = System.getenv("SHELL") ?: "/bin/zsh"
+            val shell = System.getenv("SHELL") ?: DEFAULT_SHELL
             val proc = ProcessBuilder(shell, "-l", "-i", "-c", "printf '%s' \"\$PATH\"")
                 .redirectErrorStream(false)
                 .start()
@@ -76,19 +95,19 @@ class NodeProcess(
 
         if (shellPath != null) return shellPath
 
-        // Fallback: extend current PATH with common directories
-        val currentPath = System.getenv("PATH") ?: "/usr/bin:/bin"
+        // フォールバック: 現在の PATH に一般的なディレクトリを追加
+        val currentPath = System.getenv("PATH") ?: DEFAULT_PATH
+        val home = System.getProperty("user.home")
         val extraDirs = listOf(
             "/opt/homebrew/bin",
             "/usr/local/bin",
-            System.getProperty("user.home") + "/.nvm/current/bin",
-            System.getProperty("user.home") + "/.volta/bin",
-            System.getProperty("user.home") + "/.local/bin",
+            "$home/.nvm/current/bin",
+            "$home/.volta/bin",
+            "$home/.local/bin",
         )
-        val pathSet = currentPath.split(":").toMutableSet()
-        val additions = extraDirs.filter { dir ->
-            dir !in pathSet && java.io.File(dir).isDirectory
-        }
+        val pathSet = currentPath.split(":").toSet()
+        val additions = extraDirs.filter { it !in pathSet && File(it).isDirectory }
+
         return if (additions.isNotEmpty()) {
             currentPath + ":" + additions.joinToString(":")
         } else {
@@ -96,14 +115,10 @@ class NodeProcess(
         }
     }
 
-    fun destroy() {
-        process?.let { proc ->
-            if (proc.isAlive) {
-                proc.descendants().forEach { it.destroyForcibly() }
-                proc.destroyForcibly()
-            }
-        }
-        process = null
-        stdinWriter = null
+    companion object {
+        private const val DEFAULT_SHELL = "/bin/zsh"
+        private const val DEFAULT_PATH = "/usr/bin:/bin"
+        private const val STDERR_LOG_PREFIX = "[bridge-stderr]"
+        private const val STDERR_THREAD_NAME = "bridge-stderr-reader"
     }
 }

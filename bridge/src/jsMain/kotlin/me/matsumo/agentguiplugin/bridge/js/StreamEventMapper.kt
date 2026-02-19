@@ -1,147 +1,173 @@
 package me.matsumo.agentguiplugin.bridge.js
 
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
 import me.matsumo.agentguiplugin.bridge.model.BridgeEvent
 import me.matsumo.agentguiplugin.bridge.model.ContentBlock
+import me.matsumo.agentguiplugin.bridge.model.ContentBlockTypes
 import me.matsumo.agentguiplugin.bridge.model.McpServerInfo
 import me.matsumo.agentguiplugin.bridge.model.TokenUsage
 
+/**
+ * SDK の query() が返すメッセージを BridgeEvent に変換する。
+ * メッセージ type ごとにハンドラへ振り分ける。
+ */
 internal fun mapSdkMessageToBridgeEvents(message: dynamic): List<BridgeEvent> {
-    val type = message.type as? String ?: return emptyList()
+    val type = dynamicStringOrNull(message.type) ?: return emptyList()
 
     return when (type) {
-        "system" -> handleSystemMessage(message)
-        "stream_event" -> handleStreamEvent(message.session_id as? String ?: "", message.event)
-        "assistant" -> handleAssistantMessage(message)
-        "tool_progress" -> handleToolProgress(message)
-        "result" -> handleResult(message)
+        SdkMessageTypes.SYSTEM -> handleSystemMessage(message)
+        SdkMessageTypes.STREAM_EVENT -> handleStreamEvent(
+            sessionId = dynamicString(message.session_id),
+            event = message.event,
+        )
+        SdkMessageTypes.ASSISTANT -> handleAssistantMessage(message)
+        SdkMessageTypes.TOOL_PROGRESS -> handleToolProgress(message)
+        SdkMessageTypes.RESULT -> handleResult(message)
         else -> emptyList()
     }
 }
 
+// --- system メッセージ ---
+
 private fun handleSystemMessage(message: dynamic): List<BridgeEvent> {
-    val subtype = message.subtype as? String ?: return emptyList()
-    val sessionId = message.session_id as? String ?: ""
+    val subtype = dynamicStringOrNull(message.subtype) ?: return emptyList()
+    val sessionId = dynamicString(message.session_id)
 
     return when (subtype) {
-        "init" -> {
-            val tools = dynamicArrayToStringList(message.tools)
-            val mcpServers = dynamicArrayToMcpServers(message.mcp_servers)
-
-            listOf(
-                BridgeEvent.SessionInit(
-                    sessionId = sessionId,
-                    model = message.model as? String ?: "",
-                    claudeCodeVersion = message.claude_code_version as? String,
-                    tools = tools,
-                    mcpServers = mcpServers,
-                    permissionMode = message.permissionMode as? String,
-                )
+        SdkSystemSubtypes.INIT -> listOf(
+            BridgeEvent.SessionInit(
+                sessionId = sessionId,
+                model = dynamicString(message.model),
+                claudeCodeVersion = dynamicStringOrNull(message.claude_code_version),
+                tools = dynamicToList(message.tools) { dynamicString(it) },
+                mcpServers = dynamicToList(message.mcp_servers) { item ->
+                    McpServerInfo(
+                        name = dynamicString(item.name),
+                        status = dynamicStringOrNull(item.status),
+                    )
+                },
+                permissionMode = dynamicStringOrNull(message.permissionMode),
             )
-        }
-        "status" -> listOf(
+        )
+        SdkSystemSubtypes.STATUS -> listOf(
             BridgeEvent.Status(
                 sessionId = sessionId,
-                status = message.status as? String ?: "",
+                status = dynamicString(message.status),
             )
         )
         else -> emptyList()
     }
 }
 
+// --- ストリームイベント ---
+
 private fun handleStreamEvent(sessionId: String, event: dynamic): List<BridgeEvent> {
-    val eventType = event.type as? String ?: return emptyList()
+    val eventType = dynamicStringOrNull(event.type) ?: return emptyList()
 
     return when (eventType) {
-        "message_start" -> listOf(BridgeEvent.StreamMessageStart(sessionId))
+        SdkStreamEventTypes.MESSAGE_START -> listOf(
+            BridgeEvent.StreamMessageStart(sessionId),
+        )
 
-        "content_block_start" -> {
+        SdkStreamEventTypes.CONTENT_BLOCK_START -> {
             val block = event.content_block
-            val blockType = block.type as? String ?: ""
-            val blockId = if (blockType == "tool_use") block.id as? String else null
-            val toolName = if (blockType == "tool_use") block.name as? String else null
+            val blockType = dynamicString(block.type)
+            val isToolUse = blockType == ContentBlockTypes.TOOL_USE
 
             listOf(
                 BridgeEvent.StreamContentStart(
                     sessionId = sessionId,
-                    index = (event.index as? Number)?.toInt() ?: 0,
+                    index = dynamicInt(event.index),
                     blockType = blockType,
-                    blockId = blockId,
-                    toolName = toolName,
+                    blockId = if (isToolUse) dynamicStringOrNull(block.id) else null,
+                    toolName = if (isToolUse) dynamicStringOrNull(block.name) else null,
                 )
             )
         }
 
-        "content_block_delta" -> {
+        SdkStreamEventTypes.CONTENT_BLOCK_DELTA -> {
             val delta = event.delta
-            val deltaType = delta.type as? String ?: return emptyList()
+            val deltaType = dynamicStringOrNull(delta.type) ?: return emptyList()
             val text = when (deltaType) {
-                "text_delta" -> delta.text as? String ?: ""
-                "thinking_delta" -> delta.thinking as? String ?: ""
-                "input_json_delta" -> delta.partial_json as? String ?: ""
+                SdkDeltaTypes.TEXT_DELTA -> dynamicString(delta.text)
+                SdkDeltaTypes.THINKING_DELTA -> dynamicString(delta.thinking)
+                SdkDeltaTypes.INPUT_JSON_DELTA -> dynamicString(delta.partial_json)
                 else -> return emptyList()
             }
 
             listOf(
                 BridgeEvent.StreamContentDelta(
                     sessionId = sessionId,
-                    index = (event.index as? Number)?.toInt() ?: 0,
+                    index = dynamicInt(event.index),
                     deltaType = deltaType,
                     text = text,
                 )
             )
         }
 
-        "content_block_stop" -> listOf(
+        SdkStreamEventTypes.CONTENT_BLOCK_STOP -> listOf(
             BridgeEvent.StreamContentStop(
                 sessionId = sessionId,
-                index = (event.index as? Number)?.toInt() ?: 0,
+                index = dynamicInt(event.index),
             )
         )
 
-        "message_stop" -> listOf(BridgeEvent.StreamMessageStop(sessionId))
+        SdkStreamEventTypes.MESSAGE_STOP -> listOf(
+            BridgeEvent.StreamMessageStop(sessionId),
+        )
 
-        "message_delta" -> emptyList()
+        SdkStreamEventTypes.MESSAGE_DELTA -> emptyList()
 
         else -> emptyList()
     }
 }
 
+// --- アシスタントメッセージ ---
+
 private fun handleAssistantMessage(message: dynamic): List<BridgeEvent> {
-    val sessionId = message.session_id as? String ?: ""
-    val parentToolUseId = message.parent_tool_use_id as? String
-    val content = dynamicArrayToContentBlocks(message.message?.content)
+    val content = dynamicToList(message.message?.content) { item ->
+        when (dynamicStringOrNull(item.type)) {
+            ContentBlockTypes.TEXT -> ContentBlock.Text(text = dynamicString(item.text))
+            ContentBlockTypes.THINKING -> ContentBlock.Thinking(thinking = dynamicString(item.thinking))
+            ContentBlockTypes.TOOL_USE -> ContentBlock.ToolUse(
+                id = dynamicString(item.id),
+                name = dynamicString(item.name),
+                input = dynamicToJsonObject(item.input),
+            )
+            else -> ContentBlock.Unknown(dynamicToJsonObject(item))
+        }
+    }
 
     return listOf(
         BridgeEvent.AssistantMessage(
-            sessionId = sessionId,
-            parentToolUseId = parentToolUseId,
+            sessionId = dynamicString(message.session_id),
+            parentToolUseId = dynamicStringOrNull(message.parent_tool_use_id),
             content = content,
         )
     )
 }
 
-private fun handleToolProgress(message: dynamic): List<BridgeEvent> {
-    return listOf(
-        BridgeEvent.ToolProgress(
-            sessionId = message.session_id as? String ?: "",
-            toolName = message.tool_name as? String ?: "",
-            toolUseId = message.tool_use_id as? String,
-            elapsedSeconds = (message.elapsed_time_seconds as? Number)?.toDouble() ?: 0.0,
-        )
+// --- ツール進捗 ---
+
+private fun handleToolProgress(message: dynamic): List<BridgeEvent> = listOf(
+    BridgeEvent.ToolProgress(
+        sessionId = dynamicString(message.session_id),
+        toolName = dynamicString(message.tool_name),
+        toolUseId = dynamicStringOrNull(message.tool_use_id),
+        elapsedSeconds = dynamicDouble(message.elapsed_time_seconds),
     )
-}
+)
+
+// --- ターン結果 ---
 
 private fun handleResult(message: dynamic): List<BridgeEvent> {
-    val subtype = message.subtype as? String ?: ""
+    val subtype = dynamicString(message.subtype)
     val u = message.usage
-    val usage = if (u != null && u != undefined) {
+    val usage = if (!isNullOrUndefined(u)) {
         TokenUsage(
-            inputTokens = (u.input_tokens as? Number)?.toInt() ?: 0,
-            outputTokens = (u.output_tokens as? Number)?.toInt() ?: 0,
-            cacheCreationInputTokens = (u.cache_creation_input_tokens as? Number)?.toInt() ?: 0,
-            cacheReadInputTokens = (u.cache_read_input_tokens as? Number)?.toInt() ?: 0,
+            inputTokens = dynamicInt(u.input_tokens),
+            outputTokens = dynamicInt(u.output_tokens),
+            cacheCreationInputTokens = dynamicInt(u.cache_creation_input_tokens),
+            cacheReadInputTokens = dynamicInt(u.cache_read_input_tokens),
         )
     } else {
         null
@@ -149,74 +175,13 @@ private fun handleResult(message: dynamic): List<BridgeEvent> {
 
     return listOf(
         BridgeEvent.TurnResult(
-            sessionId = message.session_id as? String ?: "",
+            sessionId = dynamicString(message.session_id),
             subtype = subtype,
-            totalCostUsd = (message.total_cost_usd as? Number)?.toDouble() ?: 0.0,
-            numTurns = (message.num_turns as? Number)?.toInt() ?: 0,
-            isError = message.is_error as? Boolean ?: false,
+            totalCostUsd = dynamicDouble(message.total_cost_usd),
+            numTurns = dynamicInt(message.num_turns),
+            isError = dynamicBool(message.is_error),
             usage = usage,
-            result = if (subtype == "success") message.result as? String else null,
+            result = if (subtype == "success") dynamicStringOrNull(message.result) else null,
         )
     )
-}
-
-// --- Helper functions for dynamic → typed conversion ---
-
-private fun dynamicArrayToStringList(arr: dynamic): List<String> {
-    if (arr == null || arr == undefined) return emptyList()
-    val result = mutableListOf<String>()
-    val length = (arr.length as? Number)?.toInt() ?: return emptyList()
-    for (i in 0 until length) {
-        val item = arr[i] as? String
-        if (item != null) result.add(item)
-    }
-    return result
-}
-
-private fun dynamicArrayToMcpServers(arr: dynamic): List<McpServerInfo> {
-    if (arr == null || arr == undefined) return emptyList()
-    val result = mutableListOf<McpServerInfo>()
-    val length = (arr.length as? Number)?.toInt() ?: return emptyList()
-    for (i in 0 until length) {
-        val item = arr[i]
-        result.add(
-            McpServerInfo(
-                name = item.name as? String ?: "",
-                status = item.status as? String,
-            )
-        )
-    }
-    return result
-}
-
-private fun dynamicArrayToContentBlocks(arr: dynamic): List<ContentBlock> {
-    if (arr == null || arr == undefined) return emptyList()
-    val result = mutableListOf<ContentBlock>()
-    val length = (arr.length as? Number)?.toInt() ?: return emptyList()
-    for (i in 0 until length) {
-        val item = arr[i]
-        val blockType = item.type as? String
-        val block = when (blockType) {
-            "text" -> ContentBlock.Text(text = item.text as? String ?: "")
-            "thinking" -> ContentBlock.Thinking(thinking = item.thinking as? String ?: "")
-            "tool_use" -> ContentBlock.ToolUse(
-                id = item.id as? String ?: "",
-                name = item.name as? String ?: "",
-                input = dynamicToJsonObject(item.input),
-            )
-            else -> ContentBlock.Unknown(dynamicToJsonObject(item))
-        }
-        result.add(block)
-    }
-    return result
-}
-
-internal fun dynamicToJsonObject(obj: dynamic): JsonObject {
-    if (obj == null || obj == undefined) return buildJsonObject {}
-    return try {
-        val jsonStr = js("JSON.stringify(obj)") as String
-        kotlinx.serialization.json.Json.parseToJsonElement(jsonStr) as? JsonObject ?: buildJsonObject {}
-    } catch (_: Throwable) {
-        buildJsonObject {}
-    }
 }

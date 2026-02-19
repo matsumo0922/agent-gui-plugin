@@ -28,35 +28,46 @@ sealed interface ContentBlock {
     data class Unknown(val raw: JsonObject) : ContentBlock
 }
 
+/**
+ * ContentBlock の JSON シリアライザ。
+ * `{"type": "text", ...}` 形式で読み書きする。
+ */
 internal object ContentBlockSerializer : KSerializer<ContentBlock> {
     override val descriptor: SerialDescriptor = buildClassSerialDescriptor("ContentBlock")
+
     override fun serialize(encoder: Encoder, value: ContentBlock) {
         val jsonEncoder = encoder as? JsonEncoder ?: error("JSON only")
+
+        // Unknown はそのまま raw を出力
+        if (value is ContentBlock.Unknown) {
+            jsonEncoder.encodeJsonElement(value.raw)
+            return
+        }
+
         val json = jsonEncoder.json
         val (type, fields) = when (value) {
-            is ContentBlock.Text -> "text" to json.encodeToJsonElement(ContentBlock.Text.serializer(), value).jsonObject
-            is ContentBlock.Thinking -> "thinking" to json.encodeToJsonElement(ContentBlock.Thinking.serializer(), value).jsonObject
-            is ContentBlock.ToolUse -> "tool_use" to json.encodeToJsonElement(ContentBlock.ToolUse.serializer(), value).jsonObject
-            is ContentBlock.Unknown -> {
-                jsonEncoder.encodeJsonElement(value.raw)
-                return
-            }
+            is ContentBlock.Text -> ContentBlockTypes.TEXT to json.encodeToJsonElement(ContentBlock.Text.serializer(), value).jsonObject
+            is ContentBlock.Thinking -> ContentBlockTypes.THINKING to json.encodeToJsonElement(ContentBlock.Thinking.serializer(), value).jsonObject
+            is ContentBlock.ToolUse -> ContentBlockTypes.TOOL_USE to json.encodeToJsonElement(ContentBlock.ToolUse.serializer(), value).jsonObject
+            is ContentBlock.Unknown -> error("unreachable") // 上で早期 return 済み
         }
+
         val obj = buildJsonObject {
             put("type", type)
             fields.forEach { (key, v) -> put(key, v) }
         }
         jsonEncoder.encodeJsonElement(obj)
     }
+
     override fun deserialize(decoder: Decoder): ContentBlock {
         val jsonDecoder = decoder as? JsonDecoder ?: error("JSON only")
         val element = jsonDecoder.decodeJsonElement().jsonObject
         val type = element["type"]?.jsonPrimitive?.contentOrNull
         val json = jsonDecoder.json
         return when (type) {
-            "text" -> json.decodeFromJsonElement<ContentBlock.Text>(element)
-            "thinking" -> json.decodeFromJsonElement<ContentBlock.Thinking>(element)
-            "tool_use" -> json.decodeFromJsonElement<ContentBlock.ToolUse>(element)
+            ContentBlockTypes.TEXT -> json.decodeFromJsonElement<ContentBlock.Text>(element)
+            ContentBlockTypes.THINKING -> json.decodeFromJsonElement<ContentBlock.Thinking>(element)
+            ContentBlockTypes.TOOL_USE -> json.decodeFromJsonElement<ContentBlock.ToolUse>(element)
             else -> ContentBlock.Unknown(element)
         }
     }
