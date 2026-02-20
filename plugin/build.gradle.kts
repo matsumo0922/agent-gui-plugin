@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":bridge")) {
+    implementation("com.anthropic:agent") {
         exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-json")
         exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-json-jvm")
         exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-core")
@@ -46,20 +46,6 @@ tasks {
     withType<JavaCompile> {
         sourceCompatibility = "17"
         targetCompatibility = "17"
-    }
-
-    register<Exec>("bundleBridgeScript") {
-        dependsOn(":bridge:jsProductionExecutableCompileSync")
-        workingDir = file("${rootDir}/bridge-scripts")
-
-        // Gradle の Exec タスクはユーザーのログインシェル PATH を継承しないため、
-        // シェル経由で node を実行して PATH を解決する
-        val userShell = System.getenv("SHELL") ?: "/bin/zsh"
-        commandLine(userShell, "-l", "-c", "node esbuild.config.mjs")
-    }
-
-    named("processResources") {
-        dependsOn("bundleBridgeScript")
     }
 }
 

@@ -1,5 +1,5 @@
 rootProject.name = "agent-gui-plugin"
 
-include(":bridge", ":plugin")
+include(":plugin")
 
 includeBuild("claude-agent-sdk-kotlin")

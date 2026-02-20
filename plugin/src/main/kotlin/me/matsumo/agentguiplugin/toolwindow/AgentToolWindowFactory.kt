@@ -12,12 +12,17 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
-import me.matsumo.agentguiplugin.bridge.model.BridgeEvent
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import me.matsumo.agentguiplugin.service.SessionService
 import me.matsumo.agentguiplugin.ui.ChatPanel
 import me.matsumo.agentguiplugin.ui.dialog.AskUserQuestionDialog
 import me.matsumo.agentguiplugin.ui.dialog.PermissionDialog
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
+import me.matsumo.agentguiplugin.viewmodel.PendingPermission
+import me.matsumo.agentguiplugin.viewmodel.PendingQuestion
 import org.jetbrains.jewel.bridge.addComposeTab
 
 class AgentToolWindowFactory : ToolWindowFactory {
@@ -30,12 +35,9 @@ class AgentToolWindowFactory : ToolWindowFactory {
             var viewModel by remember { mutableStateOf<ChatViewModel?>(null) }
 
             LaunchedEffect(Unit) {
-                sessionService.connect()
-                val client = sessionService.client ?: return@LaunchedEffect
                 val vm = ChatViewModel(
-                    client = client,
                     projectBasePath = sessionService.projectBasePath,
-                    claudeCodePath = sessionService.resolvedClaudeCodePath,
+                    claudeCodePath = sessionService.claudeCodePath,
                     scope = scope,
                 )
                 viewModel = vm
@@ -67,13 +69,13 @@ class AgentToolWindowFactory : ToolWindowFactory {
 }
 
 private fun showPermissionDialog(
-    request: BridgeEvent.PermissionRequest,
+    request: PendingPermission,
     viewModel: ChatViewModel,
 ) {
     invokeLater {
         val dialog = PermissionDialog(
             toolName = request.toolName,
-            toolInput = request.toolInput,
+            toolInput = request.toolInput.toJsonObject(),
         )
         dialog.show()
         viewModel.respondPermission(dialog.isAllowed)
@@ -81,15 +83,32 @@ private fun showPermissionDialog(
 }
 
 private fun showQuestionDialog(
-    request: BridgeEvent.PermissionRequest,
+    request: PendingQuestion,
     viewModel: ChatViewModel,
 ) {
     invokeLater {
-        val dialog = AskUserQuestionDialog(toolInput = request.toolInput)
+        val dialog = AskUserQuestionDialog(toolInput = request.toolInput.toJsonObject())
         if (dialog.showAndGet()) {
             viewModel.respondQuestion(dialog.answers)
         } else {
             viewModel.respondPermission(false)
         }
     }
+}
+
+private fun Map<String, Any?>.toJsonObject(): JsonObject {
+    return JsonObject(this.mapValues { (_, v) -> v.toJsonElement() })
+}
+
+private fun Any?.toJsonElement(): kotlinx.serialization.json.JsonElement = when (this) {
+    null -> JsonNull
+    is String -> JsonPrimitive(this)
+    is Number -> JsonPrimitive(this)
+    is Boolean -> JsonPrimitive(this)
+    is Map<*, *> -> JsonObject(
+        this.entries.associate { (k, v) -> k.toString() to v.toJsonElement() }
+    )
+    is List<*> -> JsonArray(this.map { it.toJsonElement() })
+    is kotlinx.serialization.json.JsonElement -> this
+    else -> JsonPrimitive(this.toString())
 }

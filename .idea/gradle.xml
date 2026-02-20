@@ -21,7 +21,6 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/bridge" />
             <option value="$PROJECT_DIR$/claude-agent-sdk-kotlin" />
             <option value="$PROJECT_DIR$/claude-agent-sdk-kotlin/agent" />
             <option value="$PROJECT_DIR$/claude-agent-sdk-kotlin/demo" />

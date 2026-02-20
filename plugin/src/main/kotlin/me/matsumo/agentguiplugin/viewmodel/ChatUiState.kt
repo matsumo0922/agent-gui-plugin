@@ -1,7 +1,6 @@
 package me.matsumo.agentguiplugin.viewmodel
 
 import kotlinx.serialization.json.JsonObject
-import me.matsumo.agentguiplugin.bridge.model.BridgeEvent
 
 enum class SessionState {
     Disconnected,
@@ -12,6 +11,16 @@ enum class SessionState {
     Error,
 }
 
+data class PendingPermission(
+    val toolName: String,
+    val toolInput: Map<String, Any?>,
+)
+
+data class PendingQuestion(
+    val toolName: String,
+    val toolInput: Map<String, Any?>,
+)
+
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val inputText: String = "",
@@ -20,8 +29,8 @@ data class ChatUiState(
     val sessionId: String? = null,
     val model: String? = null,
     val totalCostUsd: Double = 0.0,
-    val pendingPermission: BridgeEvent.PermissionRequest? = null,
-    val pendingQuestion: BridgeEvent.PermissionRequest? = null,
+    val pendingPermission: PendingPermission? = null,
+    val pendingQuestion: PendingQuestion? = null,
     val errorMessage: String? = null,
 )
 
