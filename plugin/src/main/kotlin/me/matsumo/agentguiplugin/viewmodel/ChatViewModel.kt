@@ -22,8 +22,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import java.util.*
 
 class ChatViewModel(
@@ -170,12 +174,33 @@ class ChatViewModel(
     }
 
     fun respondQuestion(answers: Map<String, String>) {
+        val pendingQ = _uiState.value.pendingQuestion ?: return
         _uiState.update { it.copy(pendingQuestion = null) }
-        val updatedInput = JsonObject(
-            answers.mapValues { (_, v) -> JsonPrimitive(v) }
-        )
+
+        // Build updatedInput preserving original questions array + adding answers object.
+        // Format expected by AskUserQuestion: { questions: [...], answers: { "question_text": "answer" } }
+        val originalQuestionsJson = pendingQ.toolInput.toJsonElement()
+            .let { it as? JsonObject }
+            ?.get("questions")
+
+        val updatedInput = buildJsonObject {
+            originalQuestionsJson?.let { put("questions", it) }
+            put("answers", JsonObject(answers.mapValues { (_, v) -> JsonPrimitive(v) }))
+        }
+
         permissionDeferred?.complete(PermissionResultAllow(updatedInput = updatedInput))
         permissionDeferred = null
+    }
+
+    private fun Any?.toJsonElement(): JsonElement = when (this) {
+        null -> JsonNull
+        is Boolean -> JsonPrimitive(this)
+        is Number -> JsonPrimitive(this)
+        is String -> JsonPrimitive(this)
+        is Map<*, *> -> JsonObject(entries.associate { (k, v) -> k.toString() to v.toJsonElement() })
+        is List<*> -> JsonArray(map { it.toJsonElement() })
+        is JsonElement -> this
+        else -> JsonPrimitive(toString())
     }
 
     fun abortSession() {
