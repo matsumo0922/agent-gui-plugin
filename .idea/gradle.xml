@@ -4,11 +4,27 @@
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="$PROJECT_DIR$/claude-agent-sdk-kotlin" name="claude-agent-sdk-kotlin">
+                <projects>
+                  <project path="$PROJECT_DIR$/claude-agent-sdk-kotlin" />
+                  <project path="$PROJECT_DIR$/claude-agent-sdk-kotlin/agent" />
+                  <project path="$PROJECT_DIR$/claude-agent-sdk-kotlin/demo" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/bridge" />
+            <option value="$PROJECT_DIR$/claude-agent-sdk-kotlin" />
+            <option value="$PROJECT_DIR$/claude-agent-sdk-kotlin/agent" />
+            <option value="$PROJECT_DIR$/claude-agent-sdk-kotlin/demo" />
             <option value="$PROJECT_DIR$/plugin" />
           </set>
         </option>
