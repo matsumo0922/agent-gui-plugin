@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.matsumo.agentguiplugin.ui.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.input.ChatInputArea
+import me.matsumo.agentguiplugin.ui.interaction.AskUserQuestionCard
+import me.matsumo.agentguiplugin.ui.interaction.PermissionCard
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
@@ -87,14 +89,34 @@ fun ChatPanel(
                 .background(dividerColor),
         )
 
-        // Input area
-        ChatInputArea(
-            inputText = uiState.inputText,
-            sessionState = uiState.sessionState,
-            onInputChanged = viewModel::updateInputText,
-            onSend = viewModel::sendMessage,
-            onAbort = viewModel::abortSession,
-        )
+        // Bottom interaction area: permission card, question card, or normal input
+        val pendingPermission = uiState.pendingPermission
+        val pendingQuestion = uiState.pendingQuestion
+        when {
+            pendingPermission != null -> {
+                PermissionCard(
+                    permission = pendingPermission,
+                    onAllow = { viewModel.respondPermission(allow = true) },
+                    onDeny = { msg -> viewModel.respondPermission(allow = false, denyMessage = msg) },
+                )
+            }
+            pendingQuestion != null -> {
+                AskUserQuestionCard(
+                    question = pendingQuestion,
+                    onSubmit = { answers -> viewModel.respondQuestion(answers) },
+                    onCancel = { viewModel.respondPermission(allow = false) },
+                )
+            }
+            else -> {
+                ChatInputArea(
+                    inputText = uiState.inputText,
+                    sessionState = uiState.sessionState,
+                    onInputChanged = viewModel::updateInputText,
+                    onSend = viewModel::sendMessage,
+                    onAbort = viewModel::abortSession,
+                )
+            }
+        }
     }
 }
 

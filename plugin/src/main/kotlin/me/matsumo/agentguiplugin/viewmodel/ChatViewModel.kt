@@ -89,7 +89,6 @@ class ChatViewModel(
         scope.launch {
             try {
                 session.send(text)
-
                 session.receiveResponse().collect { msg ->
                     when (msg) {
                         is SystemMessage -> {
@@ -159,12 +158,12 @@ class ChatViewModel(
         return deferred.await()
     }
 
-    fun respondPermission(allow: Boolean) {
+    fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
         _uiState.update { it.copy(pendingPermission = null) }
         val result: PermissionResult = if (allow) {
             PermissionResultAllow()
         } else {
-            PermissionResultDeny(message = "Denied by user")
+            PermissionResultDeny(message = denyMessage)
         }
         permissionDeferred?.complete(result)
         permissionDeferred = null
