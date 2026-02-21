@@ -11,6 +11,7 @@ import me.matsumo.agentguiplugin.viewmodel.mapper.ParsedStreamEvent
 import me.matsumo.agentguiplugin.viewmodel.mapper.parseStreamEvent
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -116,6 +117,10 @@ class ChatViewModel(
                         is UserMessage -> { /* tool results - ignore */ }
                     }
                 }
+            } catch (e: CancellationException) {
+                // Normal cancellation (e.g. new message sent, abort) — don't treat as error.
+                // Streaming state is already reset by the caller before cancellation.
+                throw e
             } catch (e: Exception) {
                 resetStreamingState()
                 _uiState.update {
