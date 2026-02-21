@@ -7,9 +7,12 @@ import me.matsumo.claude.agent.types.ResultMessage
 import me.matsumo.claude.agent.types.StreamEvent
 import me.matsumo.claude.agent.types.SystemMessage
 import me.matsumo.claude.agent.types.UserMessage
+import me.matsumo.agentguiplugin.viewmodel.mapper.ParsedStreamEvent
+import me.matsumo.agentguiplugin.viewmodel.mapper.parseStreamEvent
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +34,11 @@ class ChatViewModel(
     )
 
     private var client: ClaudeSDKClient? = null
+    private var streamingBuffer: StreamingBuffer? = null
+    private var lastUiUpdateTime = 0L
+    private var activeTurnJob: Job? = null
+    private var activeTurnId = 0L
+    private var streamingMessageId: String? = null
 
     fun initialize() {
         scope.launch {
@@ -40,6 +48,7 @@ class ChatViewModel(
                 createSession {
                     cwd = projectBasePath
                     cliPath = claudeCodePath
+                    includePartialMessages = true
                     canUseTool { toolName, input, _ ->
                         permissionHandler.request(toolName, input)
                     }
@@ -84,47 +93,31 @@ class ChatViewModel(
             )
         }
 
-        scope.launch {
+        activeTurnJob?.cancel()
+        val turnId = ++activeTurnId
+        resetStreamingState()
+
+        activeTurnJob = scope.launch {
             try {
                 session.send(text)
                 session.receiveResponse().collect { msg ->
+                    if (turnId != activeTurnId) return@collect
+
                     when (msg) {
                         is SystemMessage -> {
                             if (msg.isInit) {
-                                _uiState.update {
-                                    it.copy(sessionId = msg.sessionId)
-                                }
+                                _uiState.update { it.copy(sessionId = msg.sessionId) }
                             }
                         }
 
-                        is AssistantMessage -> {
-                            val blocks = msg.content.map { it.toUiBlock() }
-                            val assistantMsg = ChatMessage.Assistant(
-                                id = UUID.randomUUID().toString(),
-                                blocks = blocks,
-                                isComplete = true,
-                            )
-                            _uiState.update {
-                                it.copy(messages = it.messages + assistantMsg)
-                            }
-                        }
-
-                        is ResultMessage -> {
-                            _uiState.update {
-                                it.copy(
-                                    sessionState = SessionState.WaitingForInput,
-                                    isStreaming = false,
-                                    totalCostUsd = msg.totalCostUsd ?: it.totalCostUsd,
-                                    errorMessage = if (msg.isError) "Turn ended with error: ${msg.subtype}" else null,
-                                )
-                            }
-                        }
-
+                        is StreamEvent -> handleStreamEvent(msg)
+                        is AssistantMessage -> handleAssistantMessage(msg)
+                        is ResultMessage -> handleResultMessage(msg)
                         is UserMessage -> { /* tool results - ignore */ }
-                        is StreamEvent -> { /* not used */ }
                     }
                 }
             } catch (e: Exception) {
+                resetStreamingState()
                 _uiState.update {
                     it.copy(
                         sessionState = SessionState.Error,
@@ -136,6 +129,124 @@ class ChatViewModel(
         }
     }
 
+    private fun handleStreamEvent(event: StreamEvent) {
+        val parsed = parseStreamEvent(event.event) ?: return
+
+        when (parsed) {
+            is ParsedStreamEvent.MessageStart -> {
+                streamingBuffer = StreamingBuffer()
+                streamingMessageId = UUID.randomUUID().toString()
+                val assistantMsg = ChatMessage.Assistant(
+                    id = streamingMessageId!!,
+                    blocks = emptyList(),
+                    isComplete = false,
+                )
+                _uiState.update {
+                    it.copy(messages = it.messages + assistantMsg)
+                }
+            }
+
+            is ParsedStreamEvent.ContentBlockStart -> {
+                val buffer = streamingBuffer ?: return
+                buffer.startBlock(parsed.index, parsed.blockType, parsed.toolName, parsed.toolUseId)
+                updateStreamingMessage()
+            }
+
+            is ParsedStreamEvent.ContentBlockDelta -> {
+                val buffer = streamingBuffer ?: return
+                buffer.appendDelta(parsed.index, parsed.deltaType, parsed.text)
+                throttledUpdateStreamingMessage()
+            }
+
+            is ParsedStreamEvent.ContentBlockStop -> {
+                val buffer = streamingBuffer ?: return
+                buffer.stopBlock(parsed.index)
+                updateStreamingMessage()
+            }
+
+            is ParsedStreamEvent.MessageStop -> {
+                // AssistantMessage will follow to finalize
+            }
+        }
+    }
+
+    private fun handleAssistantMessage(msg: AssistantMessage) {
+        val blocks = msg.content.map { it.toUiBlock() }
+        val msgId = streamingMessageId
+
+        if (msgId != null) {
+            replaceStreamingMessage(msgId, blocks, isComplete = true)
+            resetStreamingState()
+        } else {
+            val assistantMsg = ChatMessage.Assistant(
+                id = UUID.randomUUID().toString(),
+                blocks = blocks,
+                isComplete = true,
+            )
+            _uiState.update { it.copy(messages = it.messages + assistantMsg) }
+        }
+    }
+
+    private fun handleResultMessage(msg: ResultMessage) {
+        val buffer = streamingBuffer
+        val msgId = streamingMessageId
+        if (buffer != null && msgId != null && buffer.hasContent()) {
+            replaceStreamingMessage(msgId, buffer.toUiBlocks(), isComplete = true)
+        }
+        resetStreamingState()
+
+        _uiState.update {
+            it.copy(
+                sessionState = SessionState.WaitingForInput,
+                isStreaming = false,
+                totalCostUsd = msg.totalCostUsd ?: it.totalCostUsd,
+                errorMessage = if (msg.isError) "Turn ended with error: ${msg.subtype}" else null,
+            )
+        }
+    }
+
+    private fun throttledUpdateStreamingMessage() {
+        val now = System.currentTimeMillis()
+        if (now - lastUiUpdateTime < UI_UPDATE_THROTTLE_MS) return
+        lastUiUpdateTime = now
+        updateStreamingMessage()
+    }
+
+    private fun updateStreamingMessage() {
+        val buffer = streamingBuffer ?: return
+        val msgId = streamingMessageId ?: return
+
+        lastUiUpdateTime = System.currentTimeMillis()
+        replaceStreamingMessage(msgId, buffer.toUiBlocks(), isComplete = false)
+    }
+
+    private fun replaceStreamingMessage(
+        messageId: String,
+        blocks: List<UiContentBlock>,
+        isComplete: Boolean,
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                messages = state.messages.map { existing ->
+                    if (existing.id == messageId) {
+                        ChatMessage.Assistant(
+                            id = messageId,
+                            blocks = blocks,
+                            isComplete = isComplete,
+                        )
+                    } else {
+                        existing
+                    }
+                },
+            )
+        }
+    }
+
+    private fun resetStreamingState() {
+        streamingBuffer = null
+        streamingMessageId = null
+    }
+
     fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
         permissionHandler.respondPermission(allow, denyMessage)
     }
@@ -145,6 +256,9 @@ class ChatViewModel(
     }
 
     fun abortSession() {
+        activeTurnJob?.cancel()
+        activeTurnJob = null
+        resetStreamingState()
         scope.launch { client?.interrupt() }
         _uiState.update {
             it.copy(sessionState = SessionState.WaitingForInput, isStreaming = false)
@@ -152,6 +266,9 @@ class ChatViewModel(
     }
 
     fun reconnect() {
+        activeTurnJob?.cancel()
+        activeTurnJob = null
+        resetStreamingState()
         client?.close()
         client = null
         _uiState.update { ChatUiState(sessionState = SessionState.Connecting) }
@@ -159,7 +276,12 @@ class ChatViewModel(
     }
 
     fun dispose() {
+        activeTurnJob?.cancel()
         client?.close()
         client = null
+    }
+
+    companion object {
+        private const val UI_UPDATE_THROTTLE_MS = 50L
     }
 }

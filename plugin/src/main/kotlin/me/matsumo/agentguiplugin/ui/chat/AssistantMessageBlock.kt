@@ -41,6 +41,7 @@ fun AssistantMessageBlock(
                         toolName = block.toolName,
                         inputJson = block.inputJson,
                         elapsed = block.elapsed,
+                        isStreaming = block.isStreaming,
                     )
                 }
             }

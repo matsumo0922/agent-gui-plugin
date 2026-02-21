@@ -30,12 +30,14 @@ import androidx.compose.ui.unit.sp
 import kotlinx.serialization.json.JsonObject
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import org.jetbrains.jewel.ui.component.Text
+import java.util.Locale
 
 @Composable
 fun ToolUseBlock(
     toolName: String,
     inputJson: JsonObject,
     elapsed: Double? = null,
+    isStreaming: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -52,58 +54,67 @@ fun ToolUseBlock(
             .clip(shape)
             .background(color = ChatTheme.ToolUse.background, shape = shape)
             .border(1.dp, ChatTheme.ToolUse.border, shape)
-            .clickable { isExpanded = !isExpanded }
-            .padding(12.dp)
+            .let { if (isStreaming) it else it.clickable { isExpanded = !isExpanded } }
+            .padding(BLOCK_PADDING)
             .animateContentSize(),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "\uD83D\uDD27", fontSize = 13.sp)
+            Text(text = TOOL_ICON, fontSize = TOOL_NAME_FONT_SIZE)
 
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(ICON_SPACING))
 
             Text(
                 text = toolName,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
+                fontSize = TOOL_NAME_FONT_SIZE,
                 color = toolNameColor,
             )
 
-            if (elapsed != null) {
+            if (isStreaming) {
                 Text(
-                    text = " ${String.format("%.1f", elapsed)}s",
-                    fontSize = 12.sp,
+                    text = RUNNING_LABEL,
+                    fontSize = DETAIL_FONT_SIZE,
                     color = mutedColor,
-                    modifier = Modifier.padding(start = 8.dp),
+                    modifier = Modifier.padding(start = LABEL_START_PADDING),
+                )
+            } else if (elapsed != null) {
+                Text(
+                    text = " ${String.format(Locale.US, ELAPSED_FORMAT, elapsed)}s",
+                    fontSize = DETAIL_FONT_SIZE,
+                    color = mutedColor,
+                    modifier = Modifier.padding(start = LABEL_START_PADDING),
                 )
             }
 
             Spacer(Modifier.weight(1f))
 
-            Text(
-                text = if (isExpanded) "\u25BE" else "\u25B8",
-                fontSize = 12.sp,
-                color = mutedColor,
-            )
+            if (!isStreaming) {
+                Text(
+                    text = if (isExpanded) ARROW_DOWN else ARROW_RIGHT,
+                    fontSize = DETAIL_FONT_SIZE,
+                    color = mutedColor,
+                )
+            }
         }
 
         if (isExpanded) {
             Column(
                 modifier = Modifier
-                    .padding(top = 8.dp)
-                    .heightIn(max = 200.dp)
+                    .padding(top = EXPANDED_TOP_PADDING)
+                    .heightIn(max = EXPANDED_MAX_HEIGHT)
                     .verticalScroll(rememberScrollState()),
             ) {
                 inputJson.entries.forEach { (key, value) ->
-                    Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                    Row(modifier = Modifier.padding(vertical = PARAM_VERTICAL_PADDING)) {
                         Text(
                             text = "$key: ",
-                            fontSize = 12.sp,
+                            fontSize = DETAIL_FONT_SIZE,
                             color = paramKeyColor,
                             fontWeight = FontWeight.Medium,
                         )
                         Text(
                             text = value.toString(),
-                            fontSize = 12.sp,
+                            fontSize = DETAIL_FONT_SIZE,
                             fontFamily = FontFamily.Monospace,
                             color = paramValueColor,
                         )
@@ -115,12 +126,12 @@ fun ToolUseBlock(
             if (summary.isNotEmpty()) {
                 Text(
                     text = summary,
-                    fontSize = 12.sp,
+                    fontSize = DETAIL_FONT_SIZE,
                     fontFamily = FontFamily.Monospace,
                     color = mutedColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = SUMMARY_TOP_PADDING),
                 )
             }
         }
@@ -128,6 +139,25 @@ fun ToolUseBlock(
 }
 
 private fun buildInputSummary(input: JsonObject): String =
-    input.entries.take(3).joinToString(", ") { (key, value) ->
-        "$key: ${value.toString().take(80)}"
+    input.entries.take(SUMMARY_MAX_KEYS).joinToString(", ") { (key, value) ->
+        "$key: ${value.toString().take(SUMMARY_MAX_VALUE_LENGTH)}"
     }
+
+private const val RUNNING_LABEL = "Running..."
+private const val TOOL_ICON = "\uD83D\uDD27"
+private const val ARROW_DOWN = "\u25BE"
+private const val ARROW_RIGHT = "\u25B8"
+private const val ELAPSED_FORMAT = "%.1f"
+
+private val TOOL_NAME_FONT_SIZE = 13.sp
+private val DETAIL_FONT_SIZE = 12.sp
+private val BLOCK_PADDING = 12.dp
+private val ICON_SPACING = 6.dp
+private val LABEL_START_PADDING = 8.dp
+private val EXPANDED_TOP_PADDING = 8.dp
+private val EXPANDED_MAX_HEIGHT = 200.dp
+private val PARAM_VERTICAL_PADDING = 2.dp
+private val SUMMARY_TOP_PADDING = 4.dp
+
+private const val SUMMARY_MAX_KEYS = 3
+private const val SUMMARY_MAX_VALUE_LENGTH = 80

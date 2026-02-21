@@ -56,5 +56,6 @@ sealed interface UiContentBlock {
         val toolName: String,
         val inputJson: JsonObject,
         val elapsed: Double? = null,
+        val isStreaming: Boolean = false,
     ) : UiContentBlock
 }

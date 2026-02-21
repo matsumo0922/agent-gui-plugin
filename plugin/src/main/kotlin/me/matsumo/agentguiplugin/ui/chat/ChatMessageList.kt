@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
+import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 import org.jetbrains.jewel.ui.component.Text
 
 @Composable
@@ -24,10 +25,14 @@ fun ChatMessageList(
 ) {
     val listState = rememberLazyListState()
 
-    // Auto-scroll to bottom when message count changes
-    LaunchedEffect(messages.size) {
+    // Auto-scroll to bottom when messages change (including in-place streaming updates)
+    val lastAssistant = messages.lastOrNull() as? ChatMessage.Assistant
+    val scrollKey = lastAssistant?.let {
+        Triple(it.blocks.size, it.isComplete, it.blocks.lastOrNull()?.contentSignature())
+    }
+    LaunchedEffect(messages.size, scrollKey) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            listState.animateScrollToItem(messages.lastIndex)
         }
     }
 
@@ -37,8 +42,8 @@ fun ChatMessageList(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "Start a conversation...",
-                fontSize = 14.sp,
+                text = EMPTY_PLACEHOLDER,
+                fontSize = EMPTY_PLACEHOLDER_FONT_SIZE,
                 color = ChatTheme.Text.muted,
             )
         }
@@ -72,3 +77,12 @@ fun ChatMessageList(
         }
     }
 }
+
+private fun UiContentBlock.contentSignature(): Int = when (this) {
+    is UiContentBlock.Text -> text.length
+    is UiContentBlock.Thinking -> text.length
+    is UiContentBlock.ToolUse -> inputJson.size + if (isStreaming) 0 else 1
+}
+
+private const val EMPTY_PLACEHOLDER = "Start a conversation..."
+private val EMPTY_PLACEHOLDER_FONT_SIZE = 14.sp
