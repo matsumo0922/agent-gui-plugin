@@ -37,15 +37,17 @@ class ChatViewModel(
             try {
                 _uiState.update { it.copy(sessionState = SessionState.Connecting) }
 
-                val session = createSession {
+                createSession {
                     cwd = projectBasePath
                     cliPath = claudeCodePath
                     canUseTool { toolName, input, _ ->
                         permissionHandler.request(toolName, input)
                     }
+                }.also {
+                    it.connect()
+                    client = it
                 }
-                session.connect()
-                client = session
+
                 _uiState.update { it.copy(sessionState = SessionState.Ready) }
             } catch (e: Exception) {
                 _uiState.update {
@@ -64,8 +66,9 @@ class ChatViewModel(
 
     fun sendMessage() {
         val text = _uiState.value.inputText.trim()
-        if (text.isEmpty()) return
         val session = client ?: return
+
+        if (text.isEmpty()) return
 
         val userMsg = ChatMessage.User(
             id = UUID.randomUUID().toString(),
