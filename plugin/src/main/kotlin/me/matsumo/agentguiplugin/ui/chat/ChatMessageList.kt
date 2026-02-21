@@ -26,7 +26,7 @@ fun ChatMessageList(
     val listState = rememberLazyListState()
 
     // Auto-scroll to bottom when messages change (including in-place streaming updates)
-    val lastAssistant = messages.lastOrNull() as? ChatMessage.Assistant
+    val lastAssistant = messages.filterIsInstance<ChatMessage.Assistant>().lastOrNull()
     val scrollKey = lastAssistant?.let {
         Triple(it.blocks.size, it.isComplete, it.blocks.lastOrNull()?.contentSignature())
     }
@@ -66,11 +66,13 @@ fun ChatMessageList(
                     contentAlignment = when (message) {
                         is ChatMessage.User -> Alignment.CenterEnd
                         is ChatMessage.Assistant -> Alignment.CenterStart
+                        is ChatMessage.SubAgentTask -> Alignment.CenterStart
                     },
                 ) {
                     when (message) {
                         is ChatMessage.User -> UserMessageBubble(text = message.text)
                         is ChatMessage.Assistant -> AssistantMessageBlock(blocks = message.blocks)
+                        is ChatMessage.SubAgentTask -> SubAgentTaskCard(task = message)
                     }
                 }
             }

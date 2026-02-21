@@ -1,16 +1,5 @@
 package me.matsumo.agentguiplugin.viewmodel
 
-import me.matsumo.claude.agent.ClaudeSDKClient
-import me.matsumo.claude.agent.createSession
-import me.matsumo.claude.agent.types.AssistantMessage
-import me.matsumo.claude.agent.types.ResultMessage
-import me.matsumo.claude.agent.types.StreamEvent
-import me.matsumo.claude.agent.types.SystemMessage
-import me.matsumo.claude.agent.types.UserMessage
-import me.matsumo.agentguiplugin.viewmodel.mapper.ParsedStreamEvent
-import me.matsumo.agentguiplugin.viewmodel.mapper.parseStreamEvent
-import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
-import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -19,6 +8,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import me.matsumo.agentguiplugin.viewmodel.mapper.ParsedStreamEvent
+import me.matsumo.agentguiplugin.viewmodel.mapper.parseStreamEvent
+import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
+import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
+import me.matsumo.claude.agent.ClaudeSDKClient
+import me.matsumo.claude.agent.createSession
+import me.matsumo.claude.agent.types.AssistantMessage
+import me.matsumo.claude.agent.types.ResultMessage
+import me.matsumo.claude.agent.types.StreamEvent
+import me.matsumo.claude.agent.types.SystemMessage
+import me.matsumo.claude.agent.types.UserMessage
 import java.util.*
 
 class ChatViewModel(
@@ -40,6 +42,19 @@ class ChatViewModel(
     private var activeTurnJob: Job? = null
     private var activeTurnId = 0L
     private var streamingMessageId: String? = null
+
+    // サブエージェント用ストリーミング状態
+    private data class SubAgentStreamState(
+        val buffer: StreamingBuffer = StreamingBuffer(),
+        var streamingMessageId: String? = null,
+        var lastUiUpdateTime: Long = 0L,
+    )
+
+    private val subAgentStates = mutableMapOf<String, SubAgentStreamState>()
+    private val subStateMutex = Mutex()
+
+    // toolUseId → toolName の O(1) インデックス
+    private val toolUseNameIndex = mutableMapOf<String, String>()
 
     fun initialize() {
         scope.launch {
@@ -129,6 +144,15 @@ class ChatViewModel(
     }
 
     private fun handleStreamEvent(event: StreamEvent) {
+        val pid = event.parentToolUseId
+        if (pid != null) {
+            handleSubAgentStreamEvent(pid, event)
+        } else {
+            handleMainStreamEvent(event)
+        }
+    }
+
+    private fun handleMainStreamEvent(event: StreamEvent) {
         val parsed = parseStreamEvent(event.event) ?: return
 
         when (parsed) {
@@ -148,6 +172,10 @@ class ChatViewModel(
             is ParsedStreamEvent.ContentBlockStart -> {
                 val buffer = streamingBuffer ?: return
                 buffer.startBlock(parsed.index, parsed.blockType, parsed.toolName, parsed.toolUseId)
+                // toolUseId → toolName インデックス更新
+                if (parsed.toolUseId != null && parsed.toolName != null) {
+                    toolUseNameIndex[parsed.toolUseId] = parsed.toolName
+                }
                 updateStreamingMessage()
             }
 
@@ -169,29 +197,133 @@ class ChatViewModel(
         }
     }
 
-    private fun handleAssistantMessage(msg: AssistantMessage) {
-        val blocks = msg.content.map { it.toUiBlock() }
-        val msgId = streamingMessageId
+    private fun handleSubAgentStreamEvent(parentToolUseId: String, event: StreamEvent) {
+        val parsed = parseStreamEvent(event.event) ?: return
 
-        if (msgId != null) {
-            replaceStreamingMessage(msgId, blocks, isComplete = true)
-            resetStreamingState()
+        scope.launch {
+            subStateMutex.withLock {
+                val state = subAgentStates.getOrPut(parentToolUseId) { SubAgentStreamState() }
+
+                when (parsed) {
+                    is ParsedStreamEvent.MessageStart -> {
+                        val msgId = UUID.randomUUID().toString()
+                        state.streamingMessageId = msgId
+
+                        // SubAgentTask がなければ作成
+                        getOrCreateSubAgentTask(parentToolUseId)
+
+                        val assistantMsg = ChatMessage.Assistant(
+                            id = msgId,
+                            blocks = emptyList(),
+                            isComplete = false,
+                        )
+                        updateSubAgentTask(parentToolUseId) { task ->
+                            task.copy(messages = task.messages + assistantMsg)
+                        }
+                    }
+
+                    is ParsedStreamEvent.ContentBlockStart -> {
+                        state.buffer.startBlock(parsed.index, parsed.blockType, parsed.toolName, parsed.toolUseId)
+                        if (parsed.toolUseId != null && parsed.toolName != null) {
+                            toolUseNameIndex[parsed.toolUseId] = parsed.toolName
+                        }
+                        updateSubAgentStreamingMessage(parentToolUseId, state)
+                    }
+
+                    is ParsedStreamEvent.ContentBlockDelta -> {
+                        state.buffer.appendDelta(parsed.index, parsed.deltaType, parsed.text)
+                        val now = System.currentTimeMillis()
+                        if (now - state.lastUiUpdateTime >= UI_UPDATE_THROTTLE_MS) {
+                            state.lastUiUpdateTime = now
+                            updateSubAgentStreamingMessage(parentToolUseId, state)
+                        }
+                    }
+
+                    is ParsedStreamEvent.ContentBlockStop -> {
+                        state.buffer.stopBlock(parsed.index)
+                        updateSubAgentStreamingMessage(parentToolUseId, state)
+                    }
+
+                    is ParsedStreamEvent.MessageStop -> {
+                        // AssistantMessage will follow
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleAssistantMessage(msg: AssistantMessage) {
+        val pid = msg.parentToolUseId
+        if (pid != null) {
+            finalizeSubAgentAssistantMessage(pid, msg)
         } else {
-            val assistantMsg = ChatMessage.Assistant(
-                id = UUID.randomUUID().toString(),
-                blocks = blocks,
-                isComplete = true,
-            )
-            _uiState.update { it.copy(messages = it.messages + assistantMsg) }
+            val blocks = msg.content.map { block ->
+                val ui = block.toUiBlock()
+                // toolUseId → toolName インデックス更新
+                if (ui is UiContentBlock.ToolUse && ui.toolUseId != null && ui.toolName.isNotBlank()) {
+                    toolUseNameIndex[ui.toolUseId] = ui.toolName
+                }
+                ui
+            }
+            val msgId = streamingMessageId
+
+            if (msgId != null) {
+                replaceStreamingMessage(msgId, blocks, isComplete = true)
+                resetStreamingState()
+            } else {
+                val assistantMsg = ChatMessage.Assistant(
+                    id = UUID.randomUUID().toString(),
+                    blocks = blocks,
+                    isComplete = true,
+                )
+                _uiState.update { it.copy(messages = it.messages + assistantMsg) }
+            }
+        }
+    }
+
+    private fun finalizeSubAgentAssistantMessage(parentToolUseId: String, msg: AssistantMessage) {
+        scope.launch {
+            subStateMutex.withLock {
+                val state = subAgentStates[parentToolUseId]
+                val blocks = msg.content.map { it.toUiBlock() }
+                val msgId = state?.streamingMessageId
+
+                if (msgId != null) {
+                    replaceSubAgentStreamingMessage(parentToolUseId, msgId, blocks, isComplete = true)
+                    state.streamingMessageId = null
+                } else {
+                    // ストリーミングなしで来た場合
+                    getOrCreateSubAgentTask(parentToolUseId)
+                    val assistantMsg = ChatMessage.Assistant(
+                        id = UUID.randomUUID().toString(),
+                        blocks = blocks,
+                        isComplete = true,
+                    )
+                    updateSubAgentTask(parentToolUseId) { task ->
+                        task.copy(messages = task.messages + assistantMsg)
+                    }
+                }
+            }
         }
     }
 
     private fun handleResultMessage(msg: ResultMessage) {
-        val buffer = streamingBuffer
-        val msgId = streamingMessageId
-        if (buffer != null && msgId != null && buffer.hasContent()) {
-            replaceStreamingMessage(msgId, buffer.toUiBlocks(), isComplete = true)
+        // メインバッファの残りを flush
+        val mainBuffer = streamingBuffer
+        val mainMsgId = streamingMessageId
+        if (mainBuffer != null && mainMsgId != null && mainBuffer.hasContent()) {
+            replaceStreamingMessage(mainMsgId, mainBuffer.toUiBlocks(), isComplete = true)
         }
+
+        // 全サブエージェントバッファを flush
+        subAgentStates.forEach { (parentToolUseId, state) ->
+            val subMsgId = state.streamingMessageId
+            if (subMsgId != null && state.buffer.hasContent()) {
+                replaceSubAgentStreamingMessage(parentToolUseId, subMsgId, state.buffer.toUiBlocks(), isComplete = true)
+            }
+            updateSubAgentTask(parentToolUseId) { it.copy(isComplete = true) }
+        }
+
         resetStreamingState()
 
         _uiState.update {
@@ -219,6 +351,11 @@ class ChatViewModel(
         replaceStreamingMessage(msgId, buffer.toUiBlocks(), isComplete = false)
     }
 
+    private fun updateSubAgentStreamingMessage(parentToolUseId: String, state: SubAgentStreamState) {
+        val msgId = state.streamingMessageId ?: return
+        replaceSubAgentStreamingMessage(parentToolUseId, msgId, state.buffer.toUiBlocks(), isComplete = false)
+    }
+
     private fun replaceStreamingMessage(
         messageId: String,
         blocks: List<UiContentBlock>,
@@ -241,9 +378,67 @@ class ChatViewModel(
         }
     }
 
+    private fun replaceSubAgentStreamingMessage(
+        parentToolUseId: String,
+        messageId: String,
+        blocks: List<UiContentBlock>,
+        isComplete: Boolean,
+    ) {
+        updateSubAgentTask(parentToolUseId) { task ->
+            task.copy(
+                messages = task.messages.map { msg ->
+                    if (msg.id == messageId) {
+                        ChatMessage.Assistant(
+                            id = messageId,
+                            blocks = blocks,
+                            isComplete = isComplete,
+                        )
+                    } else {
+                        msg
+                    }
+                },
+            )
+        }
+    }
+
+    private fun getOrCreateSubAgentTask(parentToolUseId: String): ChatMessage.SubAgentTask {
+        val existing = _uiState.value.messages
+            .filterIsInstance<ChatMessage.SubAgentTask>()
+            .find { it.id == parentToolUseId }
+        if (existing != null) return existing
+
+        // O(1) でツール名を逆引き
+        val toolName = toolUseNameIndex[parentToolUseId]
+        val task = ChatMessage.SubAgentTask(
+            id = parentToolUseId,
+            spawnedByToolName = toolName,
+        )
+        _uiState.update { it.copy(messages = it.messages + task) }
+        return task
+    }
+
+    private fun updateSubAgentTask(
+        parentToolUseId: String,
+        transform: (ChatMessage.SubAgentTask) -> ChatMessage.SubAgentTask,
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                messages = state.messages.map { msg ->
+                    if (msg is ChatMessage.SubAgentTask && msg.id == parentToolUseId) {
+                        transform(msg)
+                    } else {
+                        msg
+                    }
+                },
+            )
+        }
+    }
+
     private fun resetStreamingState() {
         streamingBuffer = null
         streamingMessageId = null
+        subAgentStates.clear()
+        toolUseNameIndex.clear()
     }
 
     fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {

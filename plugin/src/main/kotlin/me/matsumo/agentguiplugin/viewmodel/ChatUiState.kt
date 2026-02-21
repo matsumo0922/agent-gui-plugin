@@ -46,6 +46,13 @@ sealed interface ChatMessage {
         val blocks: List<UiContentBlock> = emptyList(),
         val isComplete: Boolean = false,
     ) : ChatMessage
+
+    data class SubAgentTask(
+        override val id: String,                       // = parentToolUseId
+        val spawnedByToolName: String? = null,         // 呼び出し元ツール名
+        val messages: List<ChatMessage> = emptyList(), // サブエージェントのメッセージ列
+        val isComplete: Boolean = false,
+    ) : ChatMessage
 }
 
 sealed interface UiContentBlock {
@@ -54,6 +61,7 @@ sealed interface UiContentBlock {
     data class ToolUse(
         val toolName: String,
         val inputJson: JsonObject,
+        val toolUseId: String? = null,
         val elapsed: Double? = null,
         val isStreaming: Boolean = false,
     ) : UiContentBlock

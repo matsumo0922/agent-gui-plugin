@@ -43,6 +43,7 @@ class StreamingBuffer {
                 BlockType.ToolUse -> UiContentBlock.ToolUse(
                     toolName = buffer.toolName ?: DEFAULT_TOOL_NAME,
                     inputJson = buffer.parsedInput ?: EMPTY_JSON,
+                    toolUseId = buffer.toolUseId,
                     isStreaming = buffer.parsedInput == null,
                 )
 

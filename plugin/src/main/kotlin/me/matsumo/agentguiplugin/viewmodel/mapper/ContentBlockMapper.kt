@@ -1,11 +1,11 @@
 package me.matsumo.agentguiplugin.viewmodel.mapper
 
+import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 import me.matsumo.claude.agent.types.ContentBlock
 import me.matsumo.claude.agent.types.TextBlock
 import me.matsumo.claude.agent.types.ThinkingBlock
 import me.matsumo.claude.agent.types.ToolResultBlock
 import me.matsumo.claude.agent.types.ToolUseBlock
-import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 
 internal fun ContentBlock.toUiBlock(): UiContentBlock = when (this) {
     is TextBlock -> UiContentBlock.Text(text)
@@ -13,6 +13,7 @@ internal fun ContentBlock.toUiBlock(): UiContentBlock = when (this) {
     is ToolUseBlock -> UiContentBlock.ToolUse(
         toolName = name,
         inputJson = input,
+        toolUseId = id,
     )
     is ToolResultBlock -> UiContentBlock.Text("[Tool result]")
 }
