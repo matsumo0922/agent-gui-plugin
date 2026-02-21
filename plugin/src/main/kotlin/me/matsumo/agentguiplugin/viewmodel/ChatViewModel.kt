@@ -3,31 +3,18 @@ package me.matsumo.agentguiplugin.viewmodel
 import me.matsumo.claude.agent.ClaudeSDKClient
 import me.matsumo.claude.agent.createSession
 import me.matsumo.claude.agent.types.AssistantMessage
-import me.matsumo.claude.agent.types.ContentBlock
-import me.matsumo.claude.agent.types.PermissionResult
-import me.matsumo.claude.agent.types.PermissionResultAllow
-import me.matsumo.claude.agent.types.PermissionResultDeny
 import me.matsumo.claude.agent.types.ResultMessage
 import me.matsumo.claude.agent.types.StreamEvent
 import me.matsumo.claude.agent.types.SystemMessage
-import me.matsumo.claude.agent.types.TextBlock
-import me.matsumo.claude.agent.types.ThinkingBlock
-import me.matsumo.claude.agent.types.ToolResultBlock
-import me.matsumo.claude.agent.types.ToolUseBlock
 import me.matsumo.claude.agent.types.UserMessage
-import kotlinx.coroutines.CompletableDeferred
+import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
+import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
 import java.util.*
 
 class ChatViewModel(
@@ -38,7 +25,11 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    private var permissionDeferred: CompletableDeferred<PermissionResult>? = null
+    private val permissionHandler = PermissionHandler(
+        currentState = { _uiState.value },
+        updateState = { transform -> _uiState.update(transform) },
+    )
+
     private var client: ClaudeSDKClient? = null
 
     fun initialize() {
@@ -50,7 +41,7 @@ class ChatViewModel(
                     cwd = projectBasePath
                     cliPath = claudeCodePath
                     canUseTool { toolName, input, _ ->
-                        handlePermissionRequest(toolName, input)
+                        permissionHandler.request(toolName, input)
                     }
                 }
                 session.connect()
@@ -142,65 +133,12 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun handlePermissionRequest(
-        toolName: String,
-        input: Map<String, Any?>,
-    ): PermissionResult {
-        val deferred = CompletableDeferred<PermissionResult>()
-        permissionDeferred = deferred
-
-        if (toolName == "AskUserQuestion") {
-            _uiState.update {
-                it.copy(pendingQuestion = PendingQuestion(toolName, input))
-            }
-        } else {
-            _uiState.update {
-                it.copy(pendingPermission = PendingPermission(toolName, input))
-            }
-        }
-
-        return deferred.await()
-    }
-
     fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
-        _uiState.update { it.copy(pendingPermission = null) }
-        val result: PermissionResult = if (allow) {
-            PermissionResultAllow()
-        } else {
-            PermissionResultDeny(message = denyMessage)
-        }
-        permissionDeferred?.complete(result)
-        permissionDeferred = null
+        permissionHandler.respondPermission(allow, denyMessage)
     }
 
     fun respondQuestion(answers: Map<String, String>) {
-        val pendingQ = _uiState.value.pendingQuestion ?: return
-        _uiState.update { it.copy(pendingQuestion = null) }
-
-        // Build updatedInput preserving original questions array + adding answers object.
-        // Format expected by AskUserQuestion: { questions: [...], answers: { "question_text": "answer" } }
-        val originalQuestionsJson = pendingQ.toolInput.toJsonElement()
-            .let { it as? JsonObject }
-            ?.get("questions")
-
-        val updatedInput = buildJsonObject {
-            originalQuestionsJson?.let { put("questions", it) }
-            put("answers", JsonObject(answers.mapValues { (_, v) -> JsonPrimitive(v) }))
-        }
-
-        permissionDeferred?.complete(PermissionResultAllow(updatedInput = updatedInput))
-        permissionDeferred = null
-    }
-
-    private fun Any?.toJsonElement(): JsonElement = when (this) {
-        null -> JsonNull
-        is Boolean -> JsonPrimitive(this)
-        is Number -> JsonPrimitive(this)
-        is String -> JsonPrimitive(this)
-        is Map<*, *> -> JsonObject(entries.associate { (k, v) -> k.toString() to v.toJsonElement() })
-        is List<*> -> JsonArray(map { it.toJsonElement() })
-        is JsonElement -> this
-        else -> JsonPrimitive(toString())
+        permissionHandler.respondQuestion(answers)
     }
 
     fun abortSession() {
@@ -220,15 +158,5 @@ class ChatViewModel(
     fun dispose() {
         client?.close()
         client = null
-    }
-
-    private fun ContentBlock.toUiBlock(): UiContentBlock = when (this) {
-        is TextBlock -> UiContentBlock.Text(text)
-        is ThinkingBlock -> UiContentBlock.Thinking(thinking)
-        is ToolUseBlock -> UiContentBlock.ToolUse(
-            toolName = name,
-            inputJson = input,
-        )
-        is ToolResultBlock -> UiContentBlock.Text("[Tool result]")
     }
 }
