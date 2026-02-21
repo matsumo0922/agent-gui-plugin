@@ -23,7 +23,6 @@ data class PendingQuestion(
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
-    val inputText: String = "",
     val sessionState: SessionState = SessionState.Disconnected,
     val isStreaming: Boolean = false,
     val sessionId: String? = null,

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,10 +45,8 @@ import org.jetbrains.jewel.ui.component.TextArea
 
 @Composable
 fun ChatInputArea(
-    inputText: String,
     sessionState: SessionState,
-    onInputChanged: (String) -> Unit,
-    onSend: () -> Unit,
+    onSend: (String) -> Unit,
     onAbort: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -58,14 +55,7 @@ fun ChatInputArea(
 
     val isStreaming = sessionState == SessionState.Streaming
 
-    var textFieldValue by remember { mutableStateOf(TextFieldValue(inputText)) }
-
-    // Sync when inputText changes externally (e.g., cleared after send)
-    LaunchedEffect(inputText) {
-        if (textFieldValue.text != inputText) {
-            textFieldValue = TextFieldValue(inputText)
-        }
-    }
+    var textFieldValue by remember { mutableStateOf(TextFieldValue()) }
 
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -120,10 +110,7 @@ fun ChatInputArea(
             // TextArea
             TextArea(
                 value = textFieldValue,
-                onValueChange = {
-                    textFieldValue = it
-                    onInputChanged(it.text)
-                },
+                onValueChange = { textFieldValue = it },
                 interactionSource = interactionSource,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -133,8 +120,10 @@ fun ChatInputArea(
                             event.key == Key.Enter &&
                             event.isShiftPressed
                         ) {
-                            if (canSend && inputText.isNotBlank()) {
-                                onSend()
+                            val trimmed = textFieldValue.text.trim()
+                            if (canSend && trimmed.isNotEmpty()) {
+                                onSend(trimmed)
+                                textFieldValue = TextFieldValue()
                             }
                             true
                         } else {
@@ -154,7 +143,7 @@ fun ChatInputArea(
                         color = ChatTheme.Input.placeholder,
                     )
                 },
-                enabled = canSend,
+                enabled = true,
             )
 
             // Bottom controls row
@@ -166,9 +155,9 @@ fun ChatInputArea(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Left side: character count badge
-                if (inputText.isNotEmpty()) {
+                if (textFieldValue.text.isNotEmpty()) {
                     Text(
-                        text = "${inputText.length} chars",
+                        text = "${textFieldValue.text.length} chars",
                         fontSize = 10.sp,
                         color = ChatTheme.Text.muted,
                         modifier = Modifier
@@ -187,8 +176,14 @@ fun ChatInputArea(
                     StopButton(onClick = onAbort)
                 } else {
                     SendButton(
-                        onClick = onSend,
-                        enabled = canSend && inputText.isNotBlank(),
+                        onClick = {
+                            val trimmed = textFieldValue.text.trim()
+                            if (trimmed.isNotEmpty()) {
+                                onSend(trimmed)
+                                textFieldValue = TextFieldValue()
+                            }
+                        },
+                        enabled = canSend && textFieldValue.text.isNotBlank(),
                     )
                 }
             }

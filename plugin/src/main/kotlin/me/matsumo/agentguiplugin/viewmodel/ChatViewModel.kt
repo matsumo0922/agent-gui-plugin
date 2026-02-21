@@ -70,12 +70,7 @@ class ChatViewModel(
         }
     }
 
-    fun updateInputText(text: String) {
-        _uiState.update { it.copy(inputText = text) }
-    }
-
-    fun sendMessage() {
-        val text = _uiState.value.inputText.trim()
+    fun sendMessage(text: String) {
         val session = client ?: return
 
         if (text.isEmpty()) return
@@ -88,7 +83,6 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 messages = it.messages + userMsg,
-                inputText = "",
                 sessionState = SessionState.Streaming,
                 isStreaming = true,
             )

@@ -109,9 +109,7 @@ fun ChatPanel(
             }
             else -> {
                 ChatInputArea(
-                    inputText = uiState.inputText,
                     sessionState = uiState.sessionState,
-                    onInputChanged = viewModel::updateInputText,
                     onSend = viewModel::sendMessage,
                     onAbort = viewModel::abortSession,
                 )
