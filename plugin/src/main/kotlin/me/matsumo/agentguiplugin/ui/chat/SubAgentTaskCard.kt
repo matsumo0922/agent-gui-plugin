@@ -27,11 +27,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
+import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
+import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 import org.jetbrains.jewel.ui.component.Text
 
 @Composable
 fun SubAgentTaskCard(
-    task: ChatMessage.SubAgentTask,
+    task: SubAgentTask,
+    toolName: String? = null,
+    isToolStreaming: Boolean = false,
     modifier: Modifier = Modifier,
     depth: Int = 0,
 ) {
@@ -43,7 +47,7 @@ fun SubAgentTaskCard(
     val accentColor = ChatTheme.ToolUse.toolNameColor
     val mutedColor = ChatTheme.Text.muted
     val messageCount = task.messages.size
-    val toolLabel = task.spawnedByToolName ?: DEFAULT_TASK_LABEL
+    val label = toolName ?: task.spawnedByToolName ?: DEFAULT_TASK_LABEL
 
     Column(
         modifier = modifier
@@ -52,7 +56,6 @@ fun SubAgentTaskCard(
             .background(color = ChatTheme.ToolUse.background, shape = shape)
             .border(1.dp, ChatTheme.ToolUse.border, shape)
             .drawBehind {
-                // 左アクセントボーダー
                 drawLine(
                     color = accentColor,
                     start = Offset(0f, 0f),
@@ -71,17 +74,19 @@ fun SubAgentTaskCard(
             Spacer(Modifier.width(ICON_SPACING))
 
             Text(
-                text = toolLabel,
+                text = label,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = HEADER_FONT_SIZE,
                 color = accentColor,
             )
 
-            Text(
-                text = " ($messageCount messages)",
-                fontSize = DETAIL_FONT_SIZE,
-                color = mutedColor,
-            )
+            if (messageCount > 0) {
+                Text(
+                    text = " ($messageCount messages)",
+                    fontSize = DETAIL_FONT_SIZE,
+                    color = mutedColor,
+                )
+            }
 
             if (task.isComplete) {
                 Text(
@@ -90,7 +95,7 @@ fun SubAgentTaskCard(
                     color = mutedColor,
                     modifier = Modifier.padding(start = STATUS_START_PADDING),
                 )
-            } else {
+            } else if (isToolStreaming || messageCount > 0) {
                 Text(
                     text = RUNNING_LABEL,
                     fontSize = DETAIL_FONT_SIZE,
@@ -114,15 +119,44 @@ fun SubAgentTaskCard(
                 Column {
                     task.messages.forEach { message ->
                         when (message) {
-                            is ChatMessage.Assistant -> AssistantMessageBlock(
-                                blocks = message.blocks,
-                                modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
-                            )
-                            is ChatMessage.SubAgentTask -> SubAgentTaskCard(
-                                task = message,
-                                depth = depth + 1,
-                                modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
-                            )
+                            is ChatMessage.Assistant -> {
+                                // サブエージェント内のブロックを直接描画
+                                message.blocks.forEach { block ->
+                                    when (block) {
+                                        is UiContentBlock.Text -> {
+                                            me.matsumo.agentguiplugin.ui.component.MarkdownText(
+                                                text = block.text,
+                                                modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
+                                            )
+                                        }
+                                        is UiContentBlock.Thinking -> {
+                                            ThinkingBlock(
+                                                text = block.text,
+                                                modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
+                                            )
+                                        }
+                                        is UiContentBlock.ToolUse -> {
+                                            if (block.subAgentTask != null) {
+                                                SubAgentTaskCard(
+                                                    task = block.subAgentTask,
+                                                    toolName = block.toolName,
+                                                    isToolStreaming = block.isStreaming,
+                                                    depth = depth + 1,
+                                                    modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
+                                                )
+                                            } else {
+                                                ToolUseBlock(
+                                                    toolName = block.toolName,
+                                                    inputJson = block.inputJson,
+                                                    elapsed = block.elapsed,
+                                                    isStreaming = block.isStreaming,
+                                                    modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             is ChatMessage.User -> {
                                 // ツール結果は表示しない
                             }

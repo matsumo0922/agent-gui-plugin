@@ -37,12 +37,20 @@ fun AssistantMessageBlock(
                     )
                 }
                 is UiContentBlock.ToolUse -> {
-                    ToolUseBlock(
-                        toolName = block.toolName,
-                        inputJson = block.inputJson,
-                        elapsed = block.elapsed,
-                        isStreaming = block.isStreaming,
-                    )
+                    if (block.subAgentTask != null) {
+                        SubAgentTaskCard(
+                            task = block.subAgentTask,
+                            toolName = block.toolName,
+                            isToolStreaming = block.isStreaming,
+                        )
+                    } else {
+                        ToolUseBlock(
+                            toolName = block.toolName,
+                            inputJson = block.inputJson,
+                            elapsed = block.elapsed,
+                            isStreaming = block.isStreaming,
+                        )
+                    }
                 }
             }
         }

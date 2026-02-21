@@ -127,8 +127,6 @@ class ChatViewModel(
                     }
                 }
             } catch (e: CancellationException) {
-                // Normal cancellation (e.g. new message sent, abort) — don't treat as error.
-                // Streaming state is already reset by the caller before cancellation.
                 throw e
             } catch (e: Exception) {
                 resetStreamingState()
@@ -172,7 +170,6 @@ class ChatViewModel(
             is ParsedStreamEvent.ContentBlockStart -> {
                 val buffer = streamingBuffer ?: return
                 buffer.startBlock(parsed.index, parsed.blockType, parsed.toolName, parsed.toolUseId)
-                // toolUseId → toolName インデックス更新
                 if (parsed.toolUseId != null && parsed.toolName != null) {
                     toolUseNameIndex[parsed.toolUseId] = parsed.toolName
                 }
@@ -209,8 +206,7 @@ class ChatViewModel(
                         val msgId = UUID.randomUUID().toString()
                         state.streamingMessageId = msgId
 
-                        // SubAgentTask がなければ作成
-                        getOrCreateSubAgentTask(parentToolUseId)
+                        ensureSubAgentTask(parentToolUseId)
 
                         val assistantMsg = ChatMessage.Assistant(
                             id = msgId,
@@ -259,7 +255,6 @@ class ChatViewModel(
         } else {
             val blocks = msg.content.map { block ->
                 val ui = block.toUiBlock()
-                // toolUseId → toolName インデックス更新
                 if (ui is UiContentBlock.ToolUse && ui.toolUseId != null && ui.toolName.isNotBlank()) {
                     toolUseNameIndex[ui.toolUseId] = ui.toolName
                 }
@@ -269,7 +264,7 @@ class ChatViewModel(
 
             if (msgId != null) {
                 replaceStreamingMessage(msgId, blocks, isComplete = true)
-                resetStreamingState()
+                resetMainStreamingState()
             } else {
                 val assistantMsg = ChatMessage.Assistant(
                     id = UUID.randomUUID().toString(),
@@ -292,8 +287,7 @@ class ChatViewModel(
                     replaceSubAgentStreamingMessage(parentToolUseId, msgId, blocks, isComplete = true)
                     state.streamingMessageId = null
                 } else {
-                    // ストリーミングなしで来た場合
-                    getOrCreateSubAgentTask(parentToolUseId)
+                    ensureSubAgentTask(parentToolUseId)
                     val assistantMsg = ChatMessage.Assistant(
                         id = UUID.randomUUID().toString(),
                         blocks = blocks,
@@ -319,7 +313,9 @@ class ChatViewModel(
         subAgentStates.forEach { (parentToolUseId, state) ->
             val subMsgId = state.streamingMessageId
             if (subMsgId != null && state.buffer.hasContent()) {
-                replaceSubAgentStreamingMessage(parentToolUseId, subMsgId, state.buffer.toUiBlocks(), isComplete = true)
+                replaceSubAgentStreamingMessage(
+                    parentToolUseId, subMsgId, state.buffer.toUiBlocks(), isComplete = true,
+                )
             }
             updateSubAgentTask(parentToolUseId) { it.copy(isComplete = true) }
         }
@@ -335,6 +331,8 @@ class ChatViewModel(
             )
         }
     }
+
+    // region streaming helpers
 
     private fun throttledUpdateStreamingMessage() {
         val now = System.currentTimeMillis()
@@ -401,37 +399,107 @@ class ChatViewModel(
         }
     }
 
-    private fun getOrCreateSubAgentTask(parentToolUseId: String): ChatMessage.SubAgentTask {
-        val existing = _uiState.value.messages
-            .filterIsInstance<ChatMessage.SubAgentTask>()
-            .find { it.id == parentToolUseId }
-        if (existing != null) return existing
+    // endregion
 
-        // O(1) でツール名を逆引き
+    // region SubAgentTask helpers — ToolUse ブロック内に埋め込む
+
+    /**
+     * parentToolUseId に対応する SubAgentTask が既に ToolUse ブロックに存在しなければ作成して埋め込む。
+     */
+    private fun ensureSubAgentTask(parentToolUseId: String) {
+        // 既に存在するか確認
+        if (findSubAgentTask(parentToolUseId) != null) return
+
         val toolName = toolUseNameIndex[parentToolUseId]
-        val task = ChatMessage.SubAgentTask(
+        val task = SubAgentTask(
             id = parentToolUseId,
             spawnedByToolName = toolName,
         )
-        _uiState.update { it.copy(messages = it.messages + task) }
-        return task
+        embedSubAgentTaskInToolUse(parentToolUseId, task)
     }
 
-    private fun updateSubAgentTask(
-        parentToolUseId: String,
-        transform: (ChatMessage.SubAgentTask) -> ChatMessage.SubAgentTask,
-    ) {
+    /**
+     * messages 内の全 Assistant ブロックを走査し、対応する ToolUse を見つけて SubAgentTask を埋め込む。
+     */
+    private fun embedSubAgentTaskInToolUse(parentToolUseId: String, task: SubAgentTask) {
         _uiState.update { state ->
             state.copy(
                 messages = state.messages.map { msg ->
-                    if (msg is ChatMessage.SubAgentTask && msg.id == parentToolUseId) {
-                        transform(msg)
+                    if (msg is ChatMessage.Assistant) {
+                        val updated = msg.blocks.map { block ->
+                            if (block is UiContentBlock.ToolUse &&
+                                block.toolUseId == parentToolUseId &&
+                                block.subAgentTask == null
+                            ) {
+                                block.copy(subAgentTask = task)
+                            } else {
+                                block
+                            }
+                        }
+                        if (updated != msg.blocks) msg.copy(blocks = updated) else msg
                     } else {
                         msg
                     }
                 },
             )
         }
+    }
+
+    /**
+     * parentToolUseId に一致する SubAgentTask を ToolUse ブロック内から見つける。
+     */
+    private fun findSubAgentTask(parentToolUseId: String): SubAgentTask? {
+        for (msg in _uiState.value.messages) {
+            if (msg is ChatMessage.Assistant) {
+                for (block in msg.blocks) {
+                    if (block is UiContentBlock.ToolUse &&
+                        block.toolUseId == parentToolUseId &&
+                        block.subAgentTask != null
+                    ) {
+                        return block.subAgentTask
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * parentToolUseId に対応する SubAgentTask を transform で更新する。
+     * ToolUse ブロック内に埋め込まれた SubAgentTask を直接更新する。
+     */
+    private fun updateSubAgentTask(
+        parentToolUseId: String,
+        transform: (SubAgentTask) -> SubAgentTask,
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                messages = state.messages.map { msg ->
+                    if (msg is ChatMessage.Assistant) {
+                        val updated = msg.blocks.map { block ->
+                            if (block is UiContentBlock.ToolUse &&
+                                block.toolUseId == parentToolUseId &&
+                                block.subAgentTask != null
+                            ) {
+                                block.copy(subAgentTask = transform(block.subAgentTask))
+                            } else {
+                                block
+                            }
+                        }
+                        if (updated != msg.blocks) msg.copy(blocks = updated) else msg
+                    } else {
+                        msg
+                    }
+                },
+            )
+        }
+    }
+
+    // endregion
+
+    private fun resetMainStreamingState() {
+        streamingBuffer = null
+        streamingMessageId = null
     }
 
     private fun resetStreamingState() {

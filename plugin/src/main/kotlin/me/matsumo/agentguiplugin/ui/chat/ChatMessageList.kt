@@ -66,13 +66,11 @@ fun ChatMessageList(
                     contentAlignment = when (message) {
                         is ChatMessage.User -> Alignment.CenterEnd
                         is ChatMessage.Assistant -> Alignment.CenterStart
-                        is ChatMessage.SubAgentTask -> Alignment.CenterStart
                     },
                 ) {
                     when (message) {
                         is ChatMessage.User -> UserMessageBubble(text = message.text)
                         is ChatMessage.Assistant -> AssistantMessageBlock(blocks = message.blocks)
-                        is ChatMessage.SubAgentTask -> SubAgentTaskCard(task = message)
                     }
                 }
             }
