@@ -1,6 +1,10 @@
 package me.matsumo.agentguiplugin.ui
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,9 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.ui.chat.ChatMessageList
+import me.matsumo.agentguiplugin.ui.component.AnimatedNullableVisibility
 import me.matsumo.agentguiplugin.ui.component.ChatInputArea
 import me.matsumo.agentguiplugin.ui.component.ErrorBanner
-import me.matsumo.agentguiplugin.ui.component.PermissionCard2
+import me.matsumo.agentguiplugin.ui.component.PermissionCard
 import me.matsumo.agentguiplugin.ui.interaction.AskUserQuestionCard
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
@@ -71,11 +76,15 @@ fun ChatPanel(
                     modifier = Modifier
                         .padding(12.dp)
                         .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    if (pendingPermission != null) {
-                        PermissionCard2(
-                            permission = pendingPermission,
+                    AnimatedNullableVisibility(
+                        value = pendingPermission,
+                        enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                    ) {
+                        PermissionCard(
+                            modifier = Modifier.padding(bottom = 12.dp),
+                            permission = it,
                             onAllow = { viewModel.respondPermission(true) },
                             onDeny = { msg -> viewModel.respondPermission(false, msg) },
                         )

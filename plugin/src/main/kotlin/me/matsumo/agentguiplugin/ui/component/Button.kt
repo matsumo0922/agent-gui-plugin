@@ -42,7 +42,7 @@ fun Button(
                 shape = shape
             )
             .clickable { onClick() }
-            .padding(8.dp, 6.dp),
+            .padding(12.dp, 6.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(

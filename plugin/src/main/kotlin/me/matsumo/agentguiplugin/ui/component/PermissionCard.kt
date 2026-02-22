@@ -38,7 +38,7 @@ private val allowColor = Color(0xFF22C55E)
 private val denyColor = Color(0xFFEF4444)
 
 @Composable
-fun PermissionCard2(
+fun PermissionCard(
     permission: PendingPermission,
     onAllow: () -> Unit,
     onDeny: (String) -> Unit,
@@ -100,7 +100,7 @@ private fun HeaderSection(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = "Tool Permission Request",
@@ -214,7 +214,7 @@ private fun ButtonSection(
             onClick = onAllow,
             borderColor = allowColor.copy(alpha = 0.5f),
             backgroundColor = allowColor.copy(alpha = 0.15f),
-            textColor = Color.White,
+            textColor = JewelTheme.globalColors.text.normal,
         )
 
         Button(
@@ -222,7 +222,7 @@ private fun ButtonSection(
             onClick = onDeny,
             borderColor = denyColor.copy(alpha = 0.5f),
             backgroundColor = denyColor.copy(alpha = 0.15f),
-            textColor = Color.White,
+            textColor = JewelTheme.globalColors.text.normal,
         )
 
         Spacer(
@@ -233,7 +233,7 @@ private fun ButtonSection(
             text = "Message",
             onClick = onMessage,
             borderColor = JewelTheme.globalColors.borders.normal,
-            textColor = Color.White,
+            textColor = JewelTheme.globalColors.text.info,
         )
     }
 }
