@@ -15,12 +15,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
+import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 import org.jetbrains.jewel.ui.component.Text
 
 @Composable
 fun ChatMessageList(
     messages: List<ChatMessage>,
+    subAgentTasks: Map<String, SubAgentTask>,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -30,7 +32,8 @@ fun ChatMessageList(
     val scrollKey = lastAssistant?.let {
         Pair(it.blocks.size, it.blocks.lastOrNull()?.contentSignature())
     }
-    LaunchedEffect(messages.size, scrollKey) {
+    val subAgentMessageCount = subAgentTasks.values.sumOf { it.messages.size }
+    LaunchedEffect(messages.size, scrollKey, subAgentMessageCount) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.lastIndex)
         }
@@ -70,7 +73,10 @@ fun ChatMessageList(
                 ) {
                     when (message) {
                         is ChatMessage.User -> UserMessageBubble(text = message.text)
-                        is ChatMessage.Assistant -> AssistantMessageBlock(blocks = message.blocks)
+                        is ChatMessage.Assistant -> AssistantMessageBlock(
+                            blocks = message.blocks,
+                            subAgentTasks = subAgentTasks,
+                        )
                     }
                 }
             }

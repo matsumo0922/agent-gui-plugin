@@ -10,11 +10,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.matsumo.agentguiplugin.ui.component.MarkdownText
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
+import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 
 @Composable
 fun AssistantMessageBlock(
     blocks: List<UiContentBlock>,
+    subAgentTasks: Map<String, SubAgentTask>,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -37,10 +39,12 @@ fun AssistantMessageBlock(
                     )
                 }
                 is UiContentBlock.ToolUse -> {
-                    if (block.subAgentTask != null) {
+                    val task = block.toolUseId?.let { subAgentTasks[it] }
+                    if (task != null) {
                         SubAgentTaskCard(
-                            task = block.subAgentTask,
+                            task = task,
                             toolName = block.toolName,
+                            subAgentTasks = subAgentTasks,
                         )
                     } else {
                         ToolUseBlock(

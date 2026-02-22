@@ -34,6 +34,7 @@ import org.jetbrains.jewel.ui.component.Text
 @Composable
 fun SubAgentTaskCard(
     task: SubAgentTask,
+    subAgentTasks: Map<String, SubAgentTask>,
     toolName: String? = null,
     modifier: Modifier = Modifier,
     depth: Int = 0,
@@ -119,10 +120,12 @@ fun SubAgentTaskCard(
                                             )
                                         }
                                         is UiContentBlock.ToolUse -> {
-                                            if (block.subAgentTask != null) {
+                                            val nestedTask = block.toolUseId?.let { subAgentTasks[it] }
+                                            if (nestedTask != null) {
                                                 SubAgentTaskCard(
-                                                    task = block.subAgentTask,
+                                                    task = nestedTask,
                                                     toolName = block.toolName,
+                                                    subAgentTasks = subAgentTasks,
                                                     depth = depth + 1,
                                                     modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
                                                 )

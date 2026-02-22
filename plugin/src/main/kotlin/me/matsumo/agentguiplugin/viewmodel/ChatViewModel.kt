@@ -36,9 +36,6 @@ class ChatViewModel(
     private var activeTurnJob: Job? = null
     private var activeTurnId = 0L
 
-    // toolUseId → toolName の O(1) インデックス
-    private val toolUseNameIndex = mutableMapOf<String, String>()
-
     fun initialize() {
         scope.launch {
             try {
@@ -87,7 +84,6 @@ class ChatViewModel(
 
         activeTurnJob?.cancel()
         val turnId = ++activeTurnId
-        toolUseNameIndex.clear()
 
         activeTurnJob = scope.launch {
             try {
@@ -124,25 +120,26 @@ class ChatViewModel(
     private fun handleAssistantMessage(msg: AssistantMessage) {
         val pid = msg.parentToolUseId
         if (pid != null) {
-            // サブエージェントのメッセージ → SubAgentTask に追加
-            ensureSubAgentTask(pid)
+            // サブエージェントのメッセージ → subAgentTasks map を O(1) 更新
             val blocks = msg.content.map { it.toUiBlock() }
             val assistantMsg = ChatMessage.Assistant(
                 id = UUID.randomUUID().toString(),
                 blocks = blocks,
             )
-            updateSubAgentTask(pid) { task ->
-                task.copy(messages = task.messages + assistantMsg)
+            _uiState.update { state ->
+                val existing = state.subAgentTasks[pid]
+                val toolName = existing?.spawnedByToolName ?: msg.parentToolName
+                val task = existing?.copy(messages = existing.messages + assistantMsg)
+                    ?: SubAgentTask(
+                        id = pid,
+                        spawnedByToolName = toolName,
+                        messages = listOf(assistantMsg),
+                    )
+                state.copy(subAgentTasks = state.subAgentTasks + (pid to task))
             }
         } else {
             // メインのアシスタントメッセージ → messages に直接追加
-            val blocks = msg.content.map { block ->
-                val ui = block.toUiBlock()
-                if (ui is UiContentBlock.ToolUse && ui.toolUseId != null && ui.toolName.isNotBlank()) {
-                    toolUseNameIndex[ui.toolUseId] = ui.toolName
-                }
-                ui
-            }
+            val blocks = msg.content.map { it.toUiBlock() }
             val assistantMsg = ChatMessage.Assistant(
                 id = UUID.randomUUID().toString(),
                 blocks = blocks,
@@ -152,8 +149,6 @@ class ChatViewModel(
     }
 
     private fun handleResultMessage(msg: ResultMessage) {
-        toolUseNameIndex.clear()
-
         _uiState.update {
             it.copy(
                 sessionState = SessionState.WaitingForInput,
@@ -162,102 +157,6 @@ class ChatViewModel(
             )
         }
     }
-
-    // region SubAgentTask helpers — ToolUse ブロック内に埋め込む
-
-    /**
-     * parentToolUseId に対応する SubAgentTask が既に ToolUse ブロックに存在しなければ作成して埋め込む。
-     */
-    private fun ensureSubAgentTask(parentToolUseId: String) {
-        // 既に存在するか確認
-        if (findSubAgentTask(parentToolUseId) != null) return
-
-        val toolName = toolUseNameIndex[parentToolUseId]
-        val task = SubAgentTask(
-            id = parentToolUseId,
-            spawnedByToolName = toolName,
-        )
-        embedSubAgentTaskInToolUse(parentToolUseId, task)
-    }
-
-    /**
-     * messages 内の全 Assistant ブロックを走査し、対応する ToolUse を見つけて SubAgentTask を埋め込む。
-     */
-    private fun embedSubAgentTaskInToolUse(parentToolUseId: String, task: SubAgentTask) {
-        _uiState.update { state ->
-            state.copy(
-                messages = state.messages.map { msg ->
-                    if (msg is ChatMessage.Assistant) {
-                        val updated = msg.blocks.map { block ->
-                            if (block is UiContentBlock.ToolUse &&
-                                block.toolUseId == parentToolUseId &&
-                                block.subAgentTask == null
-                            ) {
-                                block.copy(subAgentTask = task)
-                            } else {
-                                block
-                            }
-                        }
-                        if (updated != msg.blocks) msg.copy(blocks = updated) else msg
-                    } else {
-                        msg
-                    }
-                },
-            )
-        }
-    }
-
-    /**
-     * parentToolUseId に一致する SubAgentTask を ToolUse ブロック内から見つける。
-     */
-    private fun findSubAgentTask(parentToolUseId: String): SubAgentTask? {
-        for (msg in _uiState.value.messages) {
-            if (msg is ChatMessage.Assistant) {
-                for (block in msg.blocks) {
-                    if (block is UiContentBlock.ToolUse &&
-                        block.toolUseId == parentToolUseId &&
-                        block.subAgentTask != null
-                    ) {
-                        return block.subAgentTask
-                    }
-                }
-            }
-        }
-        return null
-    }
-
-    /**
-     * parentToolUseId に対応する SubAgentTask を transform で更新する。
-     * ToolUse ブロック内に埋め込まれた SubAgentTask を直接更新する。
-     */
-    private fun updateSubAgentTask(
-        parentToolUseId: String,
-        transform: (SubAgentTask) -> SubAgentTask,
-    ) {
-        _uiState.update { state ->
-            state.copy(
-                messages = state.messages.map { msg ->
-                    if (msg is ChatMessage.Assistant) {
-                        val updated = msg.blocks.map { block ->
-                            if (block is UiContentBlock.ToolUse &&
-                                block.toolUseId == parentToolUseId &&
-                                block.subAgentTask != null
-                            ) {
-                                block.copy(subAgentTask = transform(block.subAgentTask))
-                            } else {
-                                block
-                            }
-                        }
-                        if (updated != msg.blocks) msg.copy(blocks = updated) else msg
-                    } else {
-                        msg
-                    }
-                },
-            )
-        }
-    }
-
-    // endregion
 
     fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
         permissionHandler.respondPermission(allow, denyMessage)
@@ -270,7 +169,6 @@ class ChatViewModel(
     fun abortSession() {
         activeTurnJob?.cancel()
         activeTurnJob = null
-        toolUseNameIndex.clear()
         scope.launch { client?.interrupt() }
         _uiState.update {
             it.copy(sessionState = SessionState.WaitingForInput)
@@ -280,7 +178,6 @@ class ChatViewModel(
     fun reconnect() {
         activeTurnJob?.cancel()
         activeTurnJob = null
-        toolUseNameIndex.clear()
         client?.close()
         client = null
         _uiState.update { ChatUiState(sessionState = SessionState.Connecting) }

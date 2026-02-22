@@ -23,6 +23,7 @@ data class PendingQuestion(
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
+    val subAgentTasks: Map<String, SubAgentTask> = emptyMap(),
     val sessionState: SessionState = SessionState.Disconnected,
     val sessionId: String? = null,
     val model: String? = null,
@@ -60,6 +61,5 @@ sealed interface UiContentBlock {
         val inputJson: JsonObject,
         val toolUseId: String? = null,
         val elapsed: Double? = null,
-        val subAgentTask: SubAgentTask? = null,
     ) : UiContentBlock
 }
