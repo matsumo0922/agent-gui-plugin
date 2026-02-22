@@ -6,7 +6,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.intellij.openapi.project.Project
+import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.ui.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.component.ChatInputArea
 import me.matsumo.agentguiplugin.ui.component.ErrorBanner
@@ -20,9 +24,11 @@ import org.jetbrains.jewel.ui.component.Divider
 @Composable
 fun ChatPanel(
     viewModel: ChatViewModel,
+    project: Project,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val attachedFiles = remember { mutableStateListOf<AttachedFile>() }
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -68,7 +74,15 @@ fun ChatPanel(
             }
             else -> {
                 ChatInputArea(
+                    project = project,
                     sessionState = uiState.sessionState,
+                    attachedFiles = attachedFiles,
+                    onAttach = { file ->
+                        if (attachedFiles.none { it.id == file.id }) {
+                            attachedFiles.add(file)
+                        }
+                    },
+                    onDetach = { file -> attachedFiles.removeAll { it.id == file.id } },
                     onSend = viewModel::sendMessage,
                     onAbort = viewModel::abortSession,
                 )

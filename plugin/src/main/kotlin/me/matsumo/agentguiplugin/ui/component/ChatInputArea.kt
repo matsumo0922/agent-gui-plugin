@@ -2,14 +2,15 @@ package me.matsumo.agentguiplugin.ui.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
@@ -29,6 +30,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.intellij.openapi.project.Project
+import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.IconActionButton
@@ -39,7 +42,11 @@ import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun ChatInputArea(
+    project: Project,
     sessionState: SessionState,
+    attachedFiles: List<AttachedFile>,
+    onAttach: (AttachedFile) -> Unit,
+    onDetach: (AttachedFile) -> Unit,
     onSend: (String) -> Unit,
     onAbort: () -> Unit,
     modifier: Modifier = Modifier,
@@ -63,7 +70,11 @@ fun ChatInputArea(
     ) {
         TopSection(
             modifier = Modifier.fillMaxWidth(),
-            contextUses = 0.62f
+            project = project,
+            attachedFiles = attachedFiles,
+            onAttach = onAttach,
+            onDetach = onDetach,
+            contextUses = 0.62f,
         )
 
         InputSection(
@@ -86,9 +97,15 @@ fun ChatInputArea(
 
 @Composable
 private fun TopSection(
+    project: Project,
+    attachedFiles: List<AttachedFile>,
+    onAttach: (AttachedFile) -> Unit,
+    onDetach: (AttachedFile) -> Unit,
     contextUses: Float,
     modifier: Modifier = Modifier,
 ) {
+    var showPopup by remember { mutableStateOf(false) }
+
     Row(
         modifier = modifier
             .background(JewelTheme.colorPalette.gray(2))
@@ -96,22 +113,36 @@ private fun TopSection(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        IconActionButton(
-            key = AllIconsKeys.Actions.Attach,
-            onClick = {
-                // TODO: ファイルの追加（検索、ファイル選択、画像選択、最近使ったファイルのリスト）
-            },
-            contentDescription = null,
-        )
+        Box {
+            IconActionButton(
+                key = AllIconsKeys.Actions.Attach,
+                onClick = { showPopup = !showPopup },
+                contentDescription = null,
+            )
 
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .horizontalScroll(rememberScrollState()),
+            if (showPopup) {
+                FileAttachPopup(
+                    project = project,
+                    onFileSelected = { file ->
+                        onAttach(file)
+                        showPopup = false
+                    },
+                    onDismiss = { showPopup = false },
+                )
+            }
+        }
+
+        LazyRow(
+            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // TODO: 追加したファイルを横にスクロール可能で並べる。拡張子にあったアイコンを左につける。ファイル名表示。右側にバツボタン表示（削除）
+            items(attachedFiles, key = { it.id }) { file ->
+                AttachedFileChip(
+                    file = file,
+                    onRemove = { onDetach(file) },
+                )
+            }
         }
 
         Row(

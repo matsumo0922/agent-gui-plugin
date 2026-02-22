@@ -35,7 +35,7 @@ class AgentToolWindowFactory : ToolWindowFactory {
             }
 
             viewModel?.let {
-                ChatPanel(viewModel = it)
+                ChatPanel(viewModel = it, project = project)
             }
         }
     }
