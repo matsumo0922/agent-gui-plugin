@@ -17,10 +17,10 @@ import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.ui.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.component.AnimatedNullableVisibility
+import me.matsumo.agentguiplugin.ui.component.AskUserQuestionCard
 import me.matsumo.agentguiplugin.ui.component.ChatInputArea
 import me.matsumo.agentguiplugin.ui.component.ErrorBanner
 import me.matsumo.agentguiplugin.ui.component.PermissionCard
-import me.matsumo.agentguiplugin.ui.interaction.AskUserQuestionCard
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import org.jetbrains.jewel.ui.Orientation
@@ -58,49 +58,47 @@ fun ChatPanel(
             orientation = Orientation.Horizontal,
         )
 
-        // Bottom interaction area: permission card, question card, or normal input
-        val pendingPermission = uiState.pendingPermission
-        val pendingQuestion = uiState.pendingQuestion
+        // Bottom interaction area
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+        ) {
+            AnimatedNullableVisibility(
+                value = uiState.pendingPermission,
+                enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                PermissionCard(
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    permission = it,
+                    onAllow = { viewModel.respondPermission(true) },
+                    onDeny = { msg -> viewModel.respondPermission(false, msg) },
+                )
+            }
 
-        when {
-            pendingQuestion != null -> {
+            AnimatedNullableVisibility(
+                value = uiState.pendingQuestion,
+                enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
                 AskUserQuestionCard(
-                    question = pendingQuestion,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    question = it,
                     onSubmit = { answers -> viewModel.respondQuestion(answers) },
                     onCancel = { viewModel.respondPermission(allow = false) },
                 )
             }
 
-            else -> {
-                Column(
-                    modifier = Modifier
-                        .padding(12.dp)
-                        .fillMaxWidth(),
-                ) {
-                    AnimatedNullableVisibility(
-                        value = pendingPermission,
-                        enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        PermissionCard(
-                            modifier = Modifier.padding(bottom = 12.dp),
-                            permission = it,
-                            onAllow = { viewModel.respondPermission(true) },
-                            onDeny = { msg -> viewModel.respondPermission(false, msg) },
-                        )
-                    }
-
-                    ChatInputArea(
-                        project = project,
-                        sessionState = uiState.sessionState,
-                        attachedFiles = uiState.attachedFiles,
-                        onAttach = { file -> viewModel.attachFile(file) },
-                        onDetach = { file -> viewModel.detachFile(file) },
-                        onSend = viewModel::sendMessage,
-                        onAbort = viewModel::abortSession,
-                    )
-                }
-            }
+            ChatInputArea(
+                project = project,
+                sessionState = uiState.sessionState,
+                attachedFiles = uiState.attachedFiles,
+                onAttach = { file -> viewModel.attachFile(file) },
+                onDetach = { file -> viewModel.detachFile(file) },
+                onSend = viewModel::sendMessage,
+                onAbort = viewModel::abortSession,
+            )
         }
     }
 }
