@@ -1,21 +1,17 @@
 package me.matsumo.agentguiplugin.ui.input
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,12 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
@@ -37,11 +29,13 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.SessionState
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.TextArea
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.theme.colorPalette
+import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun ChatInputArea(
@@ -50,208 +44,158 @@ fun ChatInputArea(
     onAbort: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val canSend = sessionState == SessionState.Ready ||
-        sessionState == SessionState.WaitingForInput
+    var value by remember { mutableStateOf(TextFieldValue()) }
 
-    val isStreaming = sessionState == SessionState.Streaming
-
-    var textFieldValue by remember { mutableStateOf(TextFieldValue()) }
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-
-    val gradientAlpha by animateFloatAsState(
-        targetValue = if (isFocused) 1f else 0f,
-        animationSpec = tween(durationMillis = 300),
-    )
-
-    val gradientBrush = remember {
-        Brush.linearGradient(
-            colors = listOf(
-                ChatTheme.Input.gradientStart,
-                ChatTheme.Input.gradientMid,
-                ChatTheme.Input.gradientEnd,
-            ),
-        )
+    fun send() {
+        onSend(value.text.trim())
+        value = TextFieldValue()
     }
 
-    val inputBackground = ChatTheme.Input.background
-    val inputBorder = ChatTheme.Input.border
-    val containerShape = RoundedCornerShape(ChatTheme.Radius.large)
-
-    Box(
+    Column(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .drawBehind {
-                    if (gradientAlpha > 0f) {
-                        drawRoundRect(
-                            brush = gradientBrush,
-                            topLeft = Offset(-1.dp.toPx(), -1.dp.toPx()),
-                            size = Size(
-                                size.width + 2.dp.toPx(),
-                                size.height + 2.dp.toPx(),
-                            ),
-                            cornerRadius = CornerRadius(
-                                ChatTheme.Radius.large.toPx() + 1.dp.toPx(),
-                            ),
-                            alpha = gradientAlpha,
-                            style = Stroke(width = 2.dp.toPx()),
-                        )
-                    }
-                }
-                .background(inputBackground, containerShape)
-                .border(1.dp, inputBorder, containerShape),
-        ) {
-            // TextArea
-            TextArea(
-                value = textFieldValue,
-                onValueChange = { textFieldValue = it },
-                interactionSource = interactionSource,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp, max = 200.dp)
-                    .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown &&
-                            event.key == Key.Enter &&
-                            event.isShiftPressed
-                        ) {
-                            val trimmed = textFieldValue.text.trim()
-                            if (canSend && trimmed.isNotEmpty()) {
-                                onSend(trimmed)
-                                textFieldValue = TextFieldValue()
-                            }
-                            true
-                        } else {
-                            false
-                        }
-                    },
-                placeholder = {
-                    Text(
-                        text = when (sessionState) {
-                            SessionState.Disconnected -> "Connecting..."
-                            SessionState.Connecting -> "Connecting..."
-                            SessionState.Ready -> "Send a message (Shift+Enter)"
-                            SessionState.Streaming -> "Claude is responding..."
-                            SessionState.WaitingForInput -> "Send a message (Shift+Enter)"
-                            SessionState.Error -> "Error occurred. Try reconnecting."
-                        },
-                        color = ChatTheme.Input.placeholder,
-                    )
-                },
-                enabled = true,
+            .padding(8.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .border(
+                width = 1.dp,
+                color = JewelTheme.globalColors.borders.disabled,
+                shape = RoundedCornerShape(8.dp),
             )
+    ) {
+        TopSection(
+            modifier = Modifier.fillMaxWidth(),
+            contextUses = 0.62f
+        )
 
-            // Bottom controls row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Left side: character count badge
-                if (textFieldValue.text.isNotEmpty()) {
-                    Text(
-                        text = "${textFieldValue.text.length} chars",
-                        fontSize = 10.sp,
-                        color = ChatTheme.Text.muted,
-                        modifier = Modifier
-                            .background(
-                                ChatTheme.Background.muted,
-                                RoundedCornerShape(ChatTheme.Radius.small),
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                } else {
-                    Spacer(Modifier)
-                }
+        InputSection(
+            modifier = Modifier.fillMaxWidth(),
+            sessionState = sessionState,
+            value = value,
+            onValueChanged = { newValue -> value = newValue },
+            onSend = ::send,
+        )
 
-                // Right side: Send/Stop button
-                if (isStreaming) {
-                    StopButton(onClick = onAbort)
-                } else {
-                    SendButton(
-                        onClick = {
-                            val trimmed = textFieldValue.text.trim()
-                            if (trimmed.isNotEmpty()) {
-                                onSend(trimmed)
-                                textFieldValue = TextFieldValue()
-                            }
-                        },
-                        enabled = canSend && textFieldValue.text.isNotBlank(),
-                    )
-                }
-            }
+        BottomSection(
+            modifier = Modifier.fillMaxWidth(),
+            sessionState = sessionState,
+            isInputEmpty = value.text.isEmpty(),
+            onSend = ::send,
+            onAbort = onAbort,
+        )
+    }
+}
+
+@Composable
+private fun TopSection(
+    contextUses: Float,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .background(JewelTheme.globalColors.panelBackground)
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        IconActionButton(
+            key = AllIconsKeys.Actions.Attach,
+            onClick = {
+                // TODO: ファイルの追加（検索、ファイル選択、画像選択、最近使ったファイルのリスト）
+            },
+            contentDescription = null,
+        )
+
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // TODO: 追加したファイルを横にスクロール可能で並べる。拡張子にあったアイコンを左につける。ファイル名表示。右側にバツボタン表示（削除）
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = "${(contextUses * 100).toInt()}%",
+                style = JewelTheme.typography.small,
+                color = JewelTheme.globalColors.text.info
+            )
         }
     }
 }
 
 @Composable
-private fun SendButton(
-    onClick: () -> Unit,
-    enabled: Boolean,
+private fun InputSection(
+    sessionState: SessionState,
+    value: TextFieldValue,
+    onValueChanged: (TextFieldValue) -> Unit,
+    onSend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val enabledBrush = remember {
-        Brush.horizontalGradient(
-            colors = listOf(
-                ChatTheme.Input.sendGradientStart,
-                ChatTheme.Input.sendGradientMid,
-                ChatTheme.Input.sendGradientEnd,
-            ),
-        )
-    }
-    val disabledBrush = remember {
-        Brush.horizontalGradient(
-            colors = listOf(
-                ChatTheme.Input.sendGradientStart.copy(alpha = 0.4f),
-                ChatTheme.Input.sendGradientEnd.copy(alpha = 0.4f),
-            ),
-        )
-    }
-    val gradientBrush = if (enabled) enabledBrush else disabledBrush
-
-    Box(
+    BasicTextField(
         modifier = modifier
-            .heightIn(min = 36.dp)
-            .background(gradientBrush, RoundedCornerShape(ChatTheme.Radius.medium))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "Send",
-            color = ChatTheme.Text.onPrimary,
-            fontSize = 13.sp,
-        )
-    }
+            .background(JewelTheme.colorPalette.gray(1))
+            .padding(8.dp)
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && event.isShiftPressed) {
+                    onSend.invoke()
+                    true
+                } else {
+                    false
+                }
+            },
+        value = value,
+        onValueChange = onValueChanged,
+        textStyle = JewelTheme.typography.medium,
+        cursorBrush = SolidColor(JewelTheme.typography.medium.color),
+        minLines = 2,
+        decorationBox = { innerTextField ->
+            if (value.text.isEmpty()) {
+                Text(
+                    text = "Send a message (Shift+Enter)",
+                    color = JewelTheme.globalColors.text.info,
+                )
+            }
+
+            innerTextField.invoke()
+        }
+    )
 }
 
 @Composable
-private fun StopButton(
-    onClick: () -> Unit,
+private fun BottomSection(
+    sessionState: SessionState,
+    isInputEmpty: Boolean,
+    onSend: () -> Unit,
+    onAbort: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    val canSend = (sessionState == SessionState.Ready || sessionState == SessionState.WaitingForInput) && !isInputEmpty
+    val isStreaming = sessionState == SessionState.Streaming
+
+    Row(
         modifier = modifier
-            .heightIn(min = 36.dp)
-            .background(
-                ChatTheme.Background.secondary,
-                RoundedCornerShape(ChatTheme.Radius.medium),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
+            .background(JewelTheme.colorPalette.gray(1))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            text = "\u23F9 Stop",
-            color = ChatTheme.Text.primary,
-            fontSize = 13.sp,
+        // TODO: モデル変更の DropDown
+
+        // TODO: モード切り替え（Auto, Accept Edits, Plan Mode, Bypass Permissions）の DropDown
+
+        Spacer(
+            modifier = Modifier.weight(1f)
+        )
+
+        IconActionButton(
+            key = if (isStreaming) AllIconsKeys.Run.Stop else AllIconsKeys.Debugger.ThreadRunning,
+            onClick = if (isStreaming) onAbort else onSend,
+            contentDescription = null,
+            enabled = isStreaming || canSend,
         )
     }
 }
