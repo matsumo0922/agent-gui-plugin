@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import org.jetbrains.jewel.ui.component.Text
@@ -48,6 +49,8 @@ fun MarkdownText(
     val hrColor = ChatTheme.Markdown.horizontalRule
     val inlineBg = ChatTheme.Code.inlineBackground
     val inlineBorderColor = ChatTheme.Code.inlineBorder
+    val codeFontSize = ChatTheme.Markdown.code.fontSize
+    val linkColor = ChatTheme.Markdown.linkColor
 
     Column(modifier = modifier.fillMaxWidth()) {
         segments.forEach { segment ->
@@ -57,7 +60,7 @@ fun MarkdownText(
                 }
                 is MdSegment.Paragraph -> {
                     Text(
-                        text = formatInline(segment.text, textPrimary, inlineBg, inlineBorderColor),
+                        text = formatInline(segment.text, textPrimary, inlineBg, inlineBorderColor, codeFontSize, linkColor),
                         style = ChatTheme.Markdown.body.copy(color = textPrimary),
                         modifier = Modifier.padding(bottom = 16.dp),
                     )
@@ -70,16 +73,16 @@ fun MarkdownText(
                     )
                 }
                 is MdSegment.UnorderedList -> {
-                    UnorderedListBlock(segment, textPrimary, inlineBg, inlineBorderColor)
+                    UnorderedListBlock(segment, textPrimary, inlineBg, inlineBorderColor, codeFontSize, linkColor)
                 }
                 is MdSegment.OrderedList -> {
-                    OrderedListBlock(segment, textPrimary, inlineBg, inlineBorderColor)
+                    OrderedListBlock(segment, textPrimary, inlineBg, inlineBorderColor, codeFontSize, linkColor)
                 }
                 is MdSegment.Blockquote -> {
-                    BlockquoteBlock(segment, blockquoteBorder, blockquoteBackground, textPrimary, inlineBg, inlineBorderColor)
+                    BlockquoteBlock(segment, blockquoteBorder, blockquoteBackground, textPrimary, inlineBg, inlineBorderColor, codeFontSize, linkColor)
                 }
                 is MdSegment.Table -> {
-                    TableBlock(segment, tableBorder, tableHeaderBg, textPrimary, inlineBg, inlineBorderColor)
+                    TableBlock(segment, tableBorder, tableHeaderBg, textPrimary, inlineBg, inlineBorderColor, codeFontSize, linkColor)
                 }
                 is MdSegment.HorizontalRule -> {
                     Box(
@@ -178,6 +181,8 @@ private fun UnorderedListBlock(
     textPrimary: Color,
     inlineBg: Color,
     inlineBorder: Color,
+    codeFontSize: TextUnit,
+    linkColor: Color,
 ) {
     Column(
         modifier = Modifier
@@ -202,7 +207,7 @@ private fun UnorderedListBlock(
                     modifier = Modifier.width(16.dp),
                 )
                 Text(
-                    text = formatInline(item.text, textPrimary, inlineBg, inlineBorder),
+                    text = formatInline(item.text, textPrimary, inlineBg, inlineBorder, codeFontSize, linkColor),
                     style = ChatTheme.Markdown.body.copy(color = textPrimary),
                 )
             }
@@ -216,6 +221,8 @@ private fun OrderedListBlock(
     textPrimary: Color,
     inlineBg: Color,
     inlineBorder: Color,
+    codeFontSize: TextUnit,
+    linkColor: Color,
 ) {
     Column(
         modifier = Modifier
@@ -235,7 +242,7 @@ private fun OrderedListBlock(
                     modifier = Modifier.width(24.dp),
                 )
                 Text(
-                    text = formatInline(item.text, textPrimary, inlineBg, inlineBorder),
+                    text = formatInline(item.text, textPrimary, inlineBg, inlineBorder, codeFontSize, linkColor),
                     style = ChatTheme.Markdown.body.copy(color = textPrimary),
                 )
             }
@@ -251,6 +258,8 @@ private fun BlockquoteBlock(
     textPrimary: Color,
     inlineBg: Color,
     inlineBorder: Color,
+    codeFontSize: TextUnit,
+    linkColor: Color,
 ) {
     Box(
         modifier = Modifier
@@ -270,7 +279,7 @@ private fun BlockquoteBlock(
             .padding(start = 24.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
     ) {
         Text(
-            text = formatInline(bq.text, textPrimary, inlineBg, inlineBorder),
+            text = formatInline(bq.text, textPrimary, inlineBg, inlineBorder, codeFontSize, linkColor),
             style = ChatTheme.Markdown.body.copy(
                 color = textPrimary,
                 fontStyle = FontStyle.Italic,
@@ -287,6 +296,8 @@ private fun TableBlock(
     textPrimary: Color,
     inlineBg: Color,
     inlineBorder: Color,
+    codeFontSize: TextUnit,
+    linkColor: Color,
 ) {
     val scrollState = rememberScrollState()
 
@@ -321,7 +332,7 @@ private fun TableBlock(
                         )
                     }
                     Text(
-                        text = formatInline(header.trim(), textPrimary, inlineBg, inlineBorder),
+                        text = formatInline(header.trim(), textPrimary, inlineBg, inlineBorder, codeFontSize, linkColor),
                         style = ChatTheme.Markdown.body.copy(
                             color = textPrimary,
                             fontWeight = FontWeight.SemiBold,
@@ -353,7 +364,7 @@ private fun TableBlock(
                             )
                         }
                         Text(
-                            text = formatInline(cell.trim(), textPrimary, inlineBg, inlineBorder),
+                            text = formatInline(cell.trim(), textPrimary, inlineBg, inlineBorder, codeFontSize, linkColor),
                             style = ChatTheme.Markdown.body.copy(color = textPrimary),
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         )
@@ -508,6 +519,8 @@ private fun formatInline(
     textColor: Color,
     inlineBg: Color,
     inlineBorder: Color,
+    codeFontSize: TextUnit,
+    linkColor: Color,
 ): AnnotatedString {
     return buildAnnotatedString {
         var i = 0
@@ -572,7 +585,7 @@ private fun formatInline(
                         withStyle(
                             SpanStyle(
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = ChatTheme.Markdown.code.fontSize,
+                                fontSize = codeFontSize,
                                 background = inlineBg,
                             ),
                         ) {
@@ -593,7 +606,7 @@ private fun formatInline(
                             val linkText = text.substring(i + 1, closeBracket)
                             withStyle(
                                 SpanStyle(
-                                    color = ChatTheme.Markdown.linkColor,
+                                    color = linkColor,
                                     textDecoration = TextDecoration.Underline,
                                 ),
                             ) {
