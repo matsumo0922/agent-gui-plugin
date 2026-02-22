@@ -6,11 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.intellij.openapi.project.Project
-import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.ui.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.component.ChatInputArea
 import me.matsumo.agentguiplugin.ui.component.ErrorBanner
@@ -28,7 +25,6 @@ fun ChatPanel(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val attachedFiles = remember { mutableStateListOf<AttachedFile>() }
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -65,6 +61,7 @@ fun ChatPanel(
                     onDeny = { msg -> viewModel.respondPermission(allow = false, denyMessage = msg) },
                 )
             }
+
             pendingQuestion != null -> {
                 AskUserQuestionCard(
                     question = pendingQuestion,
@@ -72,17 +69,14 @@ fun ChatPanel(
                     onCancel = { viewModel.respondPermission(allow = false) },
                 )
             }
+
             else -> {
                 ChatInputArea(
                     project = project,
                     sessionState = uiState.sessionState,
-                    attachedFiles = attachedFiles,
-                    onAttach = { file ->
-                        if (attachedFiles.none { it.id == file.id }) {
-                            attachedFiles.add(file)
-                        }
-                    },
-                    onDetach = { file -> attachedFiles.removeAll { it.id == file.id } },
+                    attachedFiles = uiState.attachedFiles,
+                    onAttach = { file -> viewModel.attachFile(file) },
+                    onDetach = { file -> viewModel.detachFile(file) },
                     onSend = viewModel::sendMessage,
                     onAbort = viewModel::abortSession,
                 )

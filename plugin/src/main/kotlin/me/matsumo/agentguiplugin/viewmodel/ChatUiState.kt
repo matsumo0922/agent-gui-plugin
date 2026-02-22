@@ -1,6 +1,7 @@
 package me.matsumo.agentguiplugin.viewmodel
 
 import kotlinx.serialization.json.JsonObject
+import me.matsumo.agentguiplugin.model.AttachedFile
 
 enum class SessionState {
     Disconnected,
@@ -24,6 +25,7 @@ data class PendingQuestion(
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val subAgentTasks: Map<String, SubAgentTask> = emptyMap(),
+    val attachedFiles: List<AttachedFile> = emptyList(),
     val sessionState: SessionState = SessionState.Disconnected,
     val sessionId: String? = null,
     val model: String? = null,
@@ -39,6 +41,7 @@ sealed interface ChatMessage {
     data class User(
         override val id: String,
         val text: String,
+        val attachedFiles: List<AttachedFile> = emptyList(),
     ) : ChatMessage
 
     data class Assistant(

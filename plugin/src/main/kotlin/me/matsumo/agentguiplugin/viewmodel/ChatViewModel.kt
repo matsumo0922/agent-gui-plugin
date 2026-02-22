@@ -8,6 +8,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import me.matsumo.claude.agent.ClaudeSDKClient
@@ -17,6 +21,7 @@ import me.matsumo.claude.agent.types.ResultMessage
 import me.matsumo.claude.agent.types.StreamEvent
 import me.matsumo.claude.agent.types.SystemMessage
 import me.matsumo.claude.agent.types.UserMessage
+import java.io.File
 import java.util.*
 
 class ChatViewModel(
@@ -65,19 +70,36 @@ class ChatViewModel(
         }
     }
 
+    fun attachFile(file: AttachedFile) {
+        _uiState.update { state ->
+            if (state.attachedFiles.any { it.id == file.id }) state
+            else state.copy(attachedFiles = state.attachedFiles + file)
+        }
+    }
+
+    fun detachFile(file: AttachedFile) {
+        _uiState.update { state ->
+            state.copy(attachedFiles = state.attachedFiles.filter { it.id != file.id })
+        }
+    }
+
     fun sendMessage(text: String) {
         val session = client ?: return
 
         if (text.isEmpty()) return
 
+        val files = _uiState.value.attachedFiles
+
         val userMsg = ChatMessage.User(
             id = UUID.randomUUID().toString(),
             text = text,
+            attachedFiles = files,
         )
 
         _uiState.update {
             it.copy(
                 messages = it.messages + userMsg,
+                attachedFiles = emptyList(),
                 sessionState = SessionState.Processing,
             )
         }
@@ -87,7 +109,12 @@ class ChatViewModel(
 
         activeTurnJob = scope.launch {
             try {
-                session.send(text)
+                if (files.isEmpty()) {
+                    session.send(text)
+                } else {
+                    session.send(buildContentBlocks(text, files))
+                }
+
                 session.receiveResponse().collect { msg ->
                     if (turnId != activeTurnId) return@collect
 
@@ -114,6 +141,58 @@ class ChatViewModel(
                     )
                 }
             }
+        }
+    }
+
+    private fun buildContentBlocks(text: String, files: List<AttachedFile>): List<JsonObject> {
+        val blocks = mutableListOf<JsonObject>()
+
+        // Text block
+        blocks.add(buildJsonObject {
+            put("type", "text")
+            put("text", text)
+        })
+
+        // File blocks
+        for (file in files) {
+            if (file.isImage) {
+                blocks.add(file.toImageBlock())
+            } else {
+                blocks.add(file.toDocumentBlock())
+            }
+        }
+
+        return blocks
+    }
+
+    private fun AttachedFile.toImageBlock(): JsonObject = buildJsonObject {
+        put("type", "image")
+        put("source", buildJsonObject {
+            put("type", "base64")
+            put("data", Base64.getEncoder().encodeToString(File(path).readBytes()))
+            put("media_type", inferMediaType(path))
+        })
+    }
+
+    private fun AttachedFile.toDocumentBlock(): JsonObject = buildJsonObject {
+        put("type", "document")
+        put("source", buildJsonObject {
+            put("type", "text")
+            put("media_type", "text/plain")
+            put("data", File(path).readText())
+        })
+    }
+
+    private fun inferMediaType(path: String): String {
+        val ext = path.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "gif" -> "image/gif"
+            "bmp" -> "image/bmp"
+            "webp" -> "image/webp"
+            "svg" -> "image/svg+xml"
+            else -> "application/octet-stream"
         }
     }
 
