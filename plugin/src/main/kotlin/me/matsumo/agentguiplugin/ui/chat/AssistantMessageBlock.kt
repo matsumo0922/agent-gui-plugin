@@ -41,14 +41,12 @@ fun AssistantMessageBlock(
                         SubAgentTaskCard(
                             task = block.subAgentTask,
                             toolName = block.toolName,
-                            isToolStreaming = block.isStreaming,
                         )
                     } else {
                         ToolUseBlock(
                             toolName = block.toolName,
                             inputJson = block.inputJson,
                             elapsed = block.elapsed,
-                            isStreaming = block.isStreaming,
                         )
                     }
                 }

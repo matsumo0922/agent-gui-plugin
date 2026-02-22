@@ -6,7 +6,7 @@ enum class SessionState {
     Disconnected,
     Connecting,
     Ready,
-    Streaming,
+    Processing,
     WaitingForInput,
     Error,
 }
@@ -24,7 +24,6 @@ data class PendingQuestion(
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val sessionState: SessionState = SessionState.Disconnected,
-    val isStreaming: Boolean = false,
     val sessionId: String? = null,
     val model: String? = null,
     val totalCostUsd: Double = 0.0,
@@ -44,7 +43,6 @@ sealed interface ChatMessage {
     data class Assistant(
         override val id: String,
         val blocks: List<UiContentBlock> = emptyList(),
-        val isComplete: Boolean = false,
     ) : ChatMessage
 }
 
@@ -52,7 +50,6 @@ data class SubAgentTask(
     val id: String,                                    // = parentToolUseId
     val spawnedByToolName: String? = null,             // 呼び出し元ツール名
     val messages: List<ChatMessage> = emptyList(),     // サブエージェントのメッセージ列
-    val isComplete: Boolean = false,
 )
 
 sealed interface UiContentBlock {
@@ -63,7 +60,6 @@ sealed interface UiContentBlock {
         val inputJson: JsonObject,
         val toolUseId: String? = null,
         val elapsed: Double? = null,
-        val isStreaming: Boolean = false,
         val subAgentTask: SubAgentTask? = null,
     ) : UiContentBlock
 }

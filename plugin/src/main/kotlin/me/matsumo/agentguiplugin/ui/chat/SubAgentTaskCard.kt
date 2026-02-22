@@ -35,7 +35,6 @@ import org.jetbrains.jewel.ui.component.Text
 fun SubAgentTaskCard(
     task: SubAgentTask,
     toolName: String? = null,
-    isToolStreaming: Boolean = false,
     modifier: Modifier = Modifier,
     depth: Int = 0,
 ) {
@@ -88,22 +87,6 @@ fun SubAgentTaskCard(
                 )
             }
 
-            if (task.isComplete) {
-                Text(
-                    text = COMPLETE_LABEL,
-                    fontSize = DETAIL_FONT_SIZE,
-                    color = mutedColor,
-                    modifier = Modifier.padding(start = STATUS_START_PADDING),
-                )
-            } else if (isToolStreaming || messageCount > 0) {
-                Text(
-                    text = RUNNING_LABEL,
-                    fontSize = DETAIL_FONT_SIZE,
-                    color = mutedColor,
-                    modifier = Modifier.padding(start = STATUS_START_PADDING),
-                )
-            }
-
             Spacer(Modifier.weight(1f))
 
             Text(
@@ -140,7 +123,6 @@ fun SubAgentTaskCard(
                                                 SubAgentTaskCard(
                                                     task = block.subAgentTask,
                                                     toolName = block.toolName,
-                                                    isToolStreaming = block.isStreaming,
                                                     depth = depth + 1,
                                                     modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
                                                 )
@@ -149,7 +131,6 @@ fun SubAgentTaskCard(
                                                     toolName = block.toolName,
                                                     inputJson = block.inputJson,
                                                     elapsed = block.elapsed,
-                                                    isStreaming = block.isStreaming,
                                                     modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
                                                 )
                                             }
@@ -171,8 +152,6 @@ fun SubAgentTaskCard(
 private const val AGENT_ICON = "\uD83E\uDD16"
 private const val ARROW_DOWN = "\u25BE"
 private const val ARROW_RIGHT = "\u25B8"
-private const val RUNNING_LABEL = "· Running..."
-private const val COMPLETE_LABEL = "· Complete"
 private const val DEFAULT_TASK_LABEL = "Sub-agent Task"
 
 private val HEADER_FONT_SIZE = 13.sp
@@ -181,6 +160,5 @@ private val CARD_CORNER_RADIUS = 8.dp
 private val CARD_PADDING = 12.dp
 private val ACCENT_BORDER_WIDTH = 3.dp
 private val ICON_SPACING = 6.dp
-private val STATUS_START_PADDING = 8.dp
 private val EXPANDED_TOP_PADDING = 8.dp
 private val INNER_VERTICAL_PADDING = 4.dp

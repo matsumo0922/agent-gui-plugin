@@ -28,7 +28,7 @@ fun ChatMessageList(
     // Auto-scroll to bottom when messages change (including in-place streaming updates)
     val lastAssistant = messages.filterIsInstance<ChatMessage.Assistant>().lastOrNull()
     val scrollKey = lastAssistant?.let {
-        Triple(it.blocks.size, it.isComplete, it.blocks.lastOrNull()?.contentSignature())
+        Pair(it.blocks.size, it.blocks.lastOrNull()?.contentSignature())
     }
     LaunchedEffect(messages.size, scrollKey) {
         if (messages.isNotEmpty()) {
@@ -81,7 +81,7 @@ fun ChatMessageList(
 private fun UiContentBlock.contentSignature(): Int = when (this) {
     is UiContentBlock.Text -> text.length
     is UiContentBlock.Thinking -> text.length
-    is UiContentBlock.ToolUse -> inputJson.size + if (isStreaming) 0 else 1
+    is UiContentBlock.ToolUse -> inputJson.size
 }
 
 private const val EMPTY_PLACEHOLDER = "Start a conversation..."

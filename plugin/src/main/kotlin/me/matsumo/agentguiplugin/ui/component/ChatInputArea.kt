@@ -174,7 +174,7 @@ private fun BottomSection(
     modifier: Modifier = Modifier,
 ) {
     val canSend = (sessionState == SessionState.Ready || sessionState == SessionState.WaitingForInput) && !isInputEmpty
-    val isStreaming = sessionState == SessionState.Streaming
+    val isProcessing = sessionState == SessionState.Processing
 
     Row(
         modifier = modifier
@@ -192,10 +192,10 @@ private fun BottomSection(
         )
 
         IconActionButton(
-            key = if (isStreaming) AllIconsKeys.Run.Stop else AllIconsKeys.Debugger.ThreadRunning,
-            onClick = if (isStreaming) onAbort else onSend,
+            key = if (isProcessing) AllIconsKeys.Run.Stop else AllIconsKeys.Debugger.ThreadRunning,
+            onClick = if (isProcessing) onAbort else onSend,
             contentDescription = null,
-            enabled = isStreaming || canSend,
+            enabled = isProcessing || canSend,
         )
     }
 }

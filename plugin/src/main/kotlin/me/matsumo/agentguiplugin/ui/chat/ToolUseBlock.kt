@@ -30,14 +30,13 @@ import androidx.compose.ui.unit.sp
 import kotlinx.serialization.json.JsonObject
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import org.jetbrains.jewel.ui.component.Text
-import java.util.Locale
+import java.util.*
 
 @Composable
 fun ToolUseBlock(
     toolName: String,
     inputJson: JsonObject,
     elapsed: Double? = null,
-    isStreaming: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -54,7 +53,7 @@ fun ToolUseBlock(
             .clip(shape)
             .background(color = ChatTheme.ToolUse.background, shape = shape)
             .border(1.dp, ChatTheme.ToolUse.border, shape)
-            .let { if (isStreaming) it else it.clickable { isExpanded = !isExpanded } }
+            .clickable { isExpanded = !isExpanded }
             .padding(BLOCK_PADDING)
             .animateContentSize(),
     ) {
@@ -70,14 +69,7 @@ fun ToolUseBlock(
                 color = toolNameColor,
             )
 
-            if (isStreaming) {
-                Text(
-                    text = RUNNING_LABEL,
-                    fontSize = DETAIL_FONT_SIZE,
-                    color = mutedColor,
-                    modifier = Modifier.padding(start = LABEL_START_PADDING),
-                )
-            } else if (elapsed != null) {
+            if (elapsed != null) {
                 Text(
                     text = " ${String.format(Locale.US, ELAPSED_FORMAT, elapsed)}s",
                     fontSize = DETAIL_FONT_SIZE,
@@ -88,13 +80,11 @@ fun ToolUseBlock(
 
             Spacer(Modifier.weight(1f))
 
-            if (!isStreaming) {
-                Text(
-                    text = if (isExpanded) ARROW_DOWN else ARROW_RIGHT,
-                    fontSize = DETAIL_FONT_SIZE,
-                    color = mutedColor,
-                )
-            }
+            Text(
+                text = if (isExpanded) ARROW_DOWN else ARROW_RIGHT,
+                fontSize = DETAIL_FONT_SIZE,
+                color = mutedColor,
+            )
         }
 
         if (isExpanded) {
@@ -143,7 +133,6 @@ private fun buildInputSummary(input: JsonObject): String =
         "$key: ${value.toString().take(SUMMARY_MAX_VALUE_LENGTH)}"
     }
 
-private const val RUNNING_LABEL = "Running..."
 private const val TOOL_ICON = "\uD83D\uDD27"
 private const val ARROW_DOWN = "\u25BE"
 private const val ARROW_RIGHT = "\u25B8"
