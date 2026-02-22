@@ -1,18 +1,21 @@
 package me.matsumo.agentguiplugin.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.ui.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.component.ChatInputArea
 import me.matsumo.agentguiplugin.ui.component.ErrorBanner
+import me.matsumo.agentguiplugin.ui.component.PermissionCard2
 import me.matsumo.agentguiplugin.ui.interaction.AskUserQuestionCard
-import me.matsumo.agentguiplugin.ui.interaction.PermissionCard
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import org.jetbrains.jewel.ui.Orientation
@@ -53,15 +56,8 @@ fun ChatPanel(
         // Bottom interaction area: permission card, question card, or normal input
         val pendingPermission = uiState.pendingPermission
         val pendingQuestion = uiState.pendingQuestion
-        when {
-            pendingPermission != null -> {
-                PermissionCard(
-                    permission = pendingPermission,
-                    onAllow = { viewModel.respondPermission(allow = true) },
-                    onDeny = { msg -> viewModel.respondPermission(allow = false, denyMessage = msg) },
-                )
-            }
 
+        when {
             pendingQuestion != null -> {
                 AskUserQuestionCard(
                     question = pendingQuestion,
@@ -71,15 +67,30 @@ fun ChatPanel(
             }
 
             else -> {
-                ChatInputArea(
-                    project = project,
-                    sessionState = uiState.sessionState,
-                    attachedFiles = uiState.attachedFiles,
-                    onAttach = { file -> viewModel.attachFile(file) },
-                    onDetach = { file -> viewModel.detachFile(file) },
-                    onSend = viewModel::sendMessage,
-                    onAbort = viewModel::abortSession,
-                )
+                Column(
+                    modifier = Modifier
+                        .padding(12.dp)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (pendingPermission != null) {
+                        PermissionCard2(
+                            permission = pendingPermission,
+                            onAllow = { viewModel.respondPermission(true) },
+                            onDeny = { msg -> viewModel.respondPermission(false, msg) },
+                        )
+                    }
+
+                    ChatInputArea(
+                        project = project,
+                        sessionState = uiState.sessionState,
+                        attachedFiles = uiState.attachedFiles,
+                        onAttach = { file -> viewModel.attachFile(file) },
+                        onDetach = { file -> viewModel.detachFile(file) },
+                        onSend = viewModel::sendMessage,
+                        onAbort = viewModel::abortSession,
+                    )
+                }
             }
         }
     }

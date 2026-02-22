@@ -1,5 +1,7 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import kotlinx.serialization.json.JsonObject
 import me.matsumo.agentguiplugin.model.AttachedFile
 
@@ -12,16 +14,19 @@ enum class SessionState {
     Error,
 }
 
+@Immutable
 data class PendingPermission(
     val toolName: String,
     val toolInput: Map<String, Any?>,
 )
 
+@Immutable
 data class PendingQuestion(
     val toolName: String,
     val toolInput: Map<String, Any?>,
 )
 
+@Stable
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val subAgentTasks: Map<String, SubAgentTask> = emptyMap(),

@@ -60,7 +60,6 @@ fun ChatInputArea(
 
     Column(
         modifier = modifier
-            .padding(8.dp)
             .clip(RoundedCornerShape(8.dp))
             .border(
                 width = 1.dp,
