@@ -5,13 +5,13 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import me.matsumo.claude.agent.types.PermissionResult
-import me.matsumo.claude.agent.types.PermissionResultAllow
-import me.matsumo.claude.agent.types.PermissionResultDeny
 import me.matsumo.agentguiplugin.viewmodel.ChatUiState
 import me.matsumo.agentguiplugin.viewmodel.PendingPermission
 import me.matsumo.agentguiplugin.viewmodel.PendingQuestion
 import me.matsumo.agentguiplugin.viewmodel.util.toJsonElement
+import me.matsumo.claude.agent.types.PermissionResult
+import me.matsumo.claude.agent.types.PermissionResultAllow
+import me.matsumo.claude.agent.types.PermissionResultDeny
 
 internal class PermissionHandler(
     private val currentState: () -> ChatUiState,
@@ -51,9 +51,10 @@ internal class PermissionHandler(
         }
     }
 
-    fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
+    fun respondPermission(allow: Boolean, denyMessage: String) {
         val req = active ?: return
-        val result: PermissionResult = if (allow) PermissionResultAllow() else PermissionResultDeny(message = denyMessage)
+        val message = denyMessage.ifBlank { "Denied by user" }
+        val result: PermissionResult = if (allow) PermissionResultAllow() else PermissionResultDeny(message = message)
         req.deferred.complete(result)
     }
 
