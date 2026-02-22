@@ -13,7 +13,7 @@ import me.matsumo.agentguiplugin.model.toAttachedFile
 
 object FilePickerUtil {
 
-    fun getRecentFiles(project: Project, limit: Int = 20): List<AttachedFile> {
+    fun getRecentFiles(project: Project, limit: Int = 50): List<AttachedFile> {
         return EditorHistoryManager.getInstance(project)
             .fileList
             .filter { it.isValid }

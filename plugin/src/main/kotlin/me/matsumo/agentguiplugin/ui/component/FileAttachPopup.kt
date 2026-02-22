@@ -10,9 +10,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,8 +72,7 @@ fun FileAttachPopup(
     ) {
         Column(
             modifier = Modifier
-                .width(240.dp)
-                .heightIn(max = 420.dp)
+                .size(240.dp, 420.dp)
                 .shadow(
                     elevation = 8.dp,
                     shape = RoundedCornerShape(8.dp)
@@ -265,7 +263,6 @@ private fun SearchResultsContent(
         }
     }
 
-    // query をキーにすることで、query 変更時に前回のコルーチンがキャンセルされ debounce として機能する
     LaunchedEffect(query, cachedFilenames) {
         if (query.isBlank()) {
             results = emptyList()
@@ -274,9 +271,9 @@ private fun SearchResultsContent(
 
         delay(200)
 
-        val matched = cachedFilenames.orEmpty()
+        val matched = cachedFilenames
+            .orEmpty()
             .filter { it.contains(query, true) }
-            .take(50)
 
         results = withContext(Dispatchers.Default) {
             FilePickerUtil.resolveFiles(project, matched)
