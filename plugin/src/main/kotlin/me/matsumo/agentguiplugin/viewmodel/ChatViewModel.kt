@@ -21,7 +21,6 @@ import me.matsumo.claude.agent.types.ResultMessage
 import me.matsumo.claude.agent.types.StreamEvent
 import me.matsumo.claude.agent.types.SystemMessage
 import me.matsumo.claude.agent.types.UserMessage
-import java.io.File
 import java.util.*
 
 class ChatViewModel(
@@ -84,10 +83,9 @@ class ChatViewModel(
     }
 
     fun sendMessage(text: String) {
-        val session = client ?: return
-
         if (text.isEmpty()) return
 
+        val session = client ?: return
         val files = _uiState.value.attachedFiles
 
         val userMsg = ChatMessage.User(
@@ -105,30 +103,31 @@ class ChatViewModel(
         }
 
         activeTurnJob?.cancel()
-        val turnId = ++activeTurnId
-
         activeTurnJob = scope.launch {
             try {
+                val turnId = ++activeTurnId
+
                 if (files.isEmpty()) {
                     session.send(text)
                 } else {
                     session.send(buildContentBlocks(text, files))
                 }
 
-                session.receiveResponse().collect { msg ->
+                session.receiveResponse().collect { message ->
                     if (turnId != activeTurnId) return@collect
 
-                    when (msg) {
-                        is SystemMessage -> {
-                            if (msg.isInit) {
-                                _uiState.update { it.copy(sessionId = msg.sessionId) }
-                            }
+                    when (message) {
+                        is SystemMessage -> handleSystemMessage(message)
+
+                        is StreamEvent -> {
+                            /* wait for completion */
                         }
 
-                        is StreamEvent -> { /* wait for completion */ }
-                        is AssistantMessage -> handleAssistantMessage(msg)
-                        is ResultMessage -> handleResultMessage(msg)
-                        is UserMessage -> { /* tool results - ignore */ }
+                        is AssistantMessage -> handleAssistantMessage(message)
+                        is ResultMessage -> handleResultMessage(message)
+                        is UserMessage -> {
+                            /* tool results - ignore */
+                        }
                     }
                 }
             } catch (e: CancellationException) {
@@ -147,13 +146,13 @@ class ChatViewModel(
     private fun buildContentBlocks(text: String, files: List<AttachedFile>): List<JsonObject> {
         val blocks = mutableListOf<JsonObject>()
 
-        // Text block
-        blocks.add(buildJsonObject {
-            put("type", "text")
-            put("text", text)
-        })
+        blocks.add(
+            buildJsonObject {
+                put("type", "text")
+                put("text", text)
+            },
+        )
 
-        // File blocks
         for (file in files) {
             if (file.isImage) {
                 blocks.add(file.toImageBlock())
@@ -165,74 +164,49 @@ class ChatViewModel(
         return blocks
     }
 
-    private fun AttachedFile.toImageBlock(): JsonObject = buildJsonObject {
-        put("type", "image")
-        put("source", buildJsonObject {
-            put("type", "base64")
-            put("data", Base64.getEncoder().encodeToString(File(path).readBytes()))
-            put("media_type", inferMediaType(path))
-        })
-    }
-
-    private fun AttachedFile.toDocumentBlock(): JsonObject = buildJsonObject {
-        put("type", "document")
-        put("source", buildJsonObject {
-            put("type", "text")
-            put("media_type", "text/plain")
-            put("data", File(path).readText())
-        })
-    }
-
-    private fun inferMediaType(path: String): String {
-        val ext = path.substringAfterLast('.', "").lowercase()
-        return when (ext) {
-            "png" -> "image/png"
-            "jpg", "jpeg" -> "image/jpeg"
-            "gif" -> "image/gif"
-            "bmp" -> "image/bmp"
-            "webp" -> "image/webp"
-            "svg" -> "image/svg+xml"
-            else -> "application/octet-stream"
+    private fun handleSystemMessage(message: SystemMessage) {
+        if (message.isInit) {
+            _uiState.update { it.copy(sessionId = message.sessionId) }
         }
     }
 
-    private fun handleAssistantMessage(msg: AssistantMessage) {
-        val pid = msg.parentToolUseId
+    private fun handleAssistantMessage(message: AssistantMessage) {
+        val pid = message.parentToolUseId
         if (pid != null) {
-            // サブエージェントのメッセージ → subAgentTasks map を O(1) 更新
-            val blocks = msg.content.map { it.toUiBlock() }
+            val blocks = message.content.map { it.toUiBlock() }
             val assistantMsg = ChatMessage.Assistant(
                 id = UUID.randomUUID().toString(),
                 blocks = blocks,
             )
+
             _uiState.update { state ->
                 val existing = state.subAgentTasks[pid]
-                val toolName = existing?.spawnedByToolName ?: msg.parentToolName
-                val task = existing?.copy(messages = existing.messages + assistantMsg)
-                    ?: SubAgentTask(
-                        id = pid,
-                        spawnedByToolName = toolName,
-                        messages = listOf(assistantMsg),
-                    )
+                val toolName = existing?.spawnedByToolName ?: message.parentToolName
+                val task = existing?.copy(messages = existing.messages + assistantMsg) ?: SubAgentTask(
+                    id = pid,
+                    spawnedByToolName = toolName,
+                    messages = listOf(assistantMsg),
+                )
+
                 state.copy(subAgentTasks = state.subAgentTasks + (pid to task))
             }
         } else {
-            // メインのアシスタントメッセージ → messages に直接追加
-            val blocks = msg.content.map { it.toUiBlock() }
+            val blocks = message.content.map { it.toUiBlock() }
             val assistantMsg = ChatMessage.Assistant(
                 id = UUID.randomUUID().toString(),
                 blocks = blocks,
             )
+
             _uiState.update { it.copy(messages = it.messages + assistantMsg) }
         }
     }
 
-    private fun handleResultMessage(msg: ResultMessage) {
+    private fun handleResultMessage(message: ResultMessage) {
         _uiState.update {
             it.copy(
                 sessionState = SessionState.WaitingForInput,
-                totalCostUsd = msg.totalCostUsd ?: it.totalCostUsd,
-                errorMessage = if (msg.isError) "Turn ended with error: ${msg.subtype}" else null,
+                totalCostUsd = message.totalCostUsd ?: it.totalCostUsd,
+                errorMessage = if (message.isError) "Turn ended with error: ${message.subtype}" else null,
             )
         }
     }
