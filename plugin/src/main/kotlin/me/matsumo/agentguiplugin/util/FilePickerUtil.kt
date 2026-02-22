@@ -46,15 +46,14 @@ object FilePickerUtil {
         }
     }
 
-    suspend fun resolveFiles(project: Project, names: List<String>, limit: Int = 50): List<AttachedFile> {
+    suspend fun resolveFiles(project: Project, names: List<String>): List<AttachedFile> {
         return readAction {
             val scope = GlobalSearchScope.projectScope(project)
-            names.take(limit)
-                .flatMap { name ->
-                    FilenameIndex.getVirtualFilesByName(name, scope)
-                        .filter { it.isValid && !it.isDirectory }
-                        .map { it.toAttachedFile() }
-                }
+            names.flatMap { name ->
+                FilenameIndex.getVirtualFilesByName(name, scope)
+                    .filter { it.isValid && !it.isDirectory }
+                    .map { it.toAttachedFile() }
+            }
         }
     }
 }
