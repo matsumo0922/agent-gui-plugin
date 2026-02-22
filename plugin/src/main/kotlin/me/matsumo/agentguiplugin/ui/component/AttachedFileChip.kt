@@ -24,6 +24,7 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.theme.colorPalette
 import org.jetbrains.jewel.ui.typography
 import javax.swing.Icon
 
@@ -36,11 +37,15 @@ fun AttachedFileChip(
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(ChatTheme.Radius.small))
-            .background(ChatTheme.Background.muted)
-            .border(1.dp, ChatTheme.Border.subtle, RoundedCornerShape(ChatTheme.Radius.small))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .background(JewelTheme.colorPalette.gray(1))
+            .border(
+                width = 1.dp,
+                color =  JewelTheme.globalColors.borders.disabled,
+                shape = RoundedCornerShape(ChatTheme.Radius.small)
+            )
+            .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         SwingIcon(
             icon = file.icon,
@@ -55,6 +60,7 @@ fun AttachedFileChip(
         )
 
         IconActionButton(
+            modifier = Modifier.size(16.dp),
             key = AllIconsKeys.Actions.Close,
             onClick = onRemove,
             contentDescription = "Remove ${file.name}",
