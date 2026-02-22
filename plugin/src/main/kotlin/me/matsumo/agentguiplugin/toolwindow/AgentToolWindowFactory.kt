@@ -34,9 +34,8 @@ class AgentToolWindowFactory : ToolWindowFactory {
                 vm.initialize()
             }
 
-            val vm = viewModel
-            if (vm != null) {
-                ChatPanel(viewModel = vm)
+            viewModel?.let {
+                ChatPanel(viewModel = it)
             }
         }
     }

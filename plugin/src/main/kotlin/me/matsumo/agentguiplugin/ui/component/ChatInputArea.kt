@@ -1,4 +1,4 @@
-package me.matsumo.agentguiplugin.ui.input
+package me.matsumo.agentguiplugin.ui.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -91,7 +91,7 @@ private fun TopSection(
 ) {
     Row(
         modifier = modifier
-            .background(JewelTheme.globalColors.panelBackground)
+            .background(JewelTheme.colorPalette.gray(2))
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -137,7 +137,7 @@ private fun InputSection(
 ) {
     BasicTextField(
         modifier = modifier
-            .background(JewelTheme.colorPalette.gray(1))
+            .background(JewelTheme.globalColors.panelBackground)
             .padding(8.dp)
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && event.isShiftPressed) {
@@ -178,7 +178,7 @@ private fun BottomSection(
 
     Row(
         modifier = modifier
-            .background(JewelTheme.colorPalette.gray(1))
+            .background(JewelTheme.globalColors.panelBackground)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),

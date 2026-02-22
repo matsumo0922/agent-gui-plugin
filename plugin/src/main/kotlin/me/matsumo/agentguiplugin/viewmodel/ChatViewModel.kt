@@ -61,6 +61,8 @@ class ChatViewModel(
             try {
                 _uiState.update { it.copy(sessionState = SessionState.Connecting) }
 
+                error("Sample")
+
                 createSession {
                     cwd = projectBasePath
                     cliPath = claudeCodePath
