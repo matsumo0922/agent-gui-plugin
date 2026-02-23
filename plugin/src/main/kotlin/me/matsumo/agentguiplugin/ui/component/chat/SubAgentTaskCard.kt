@@ -44,7 +44,6 @@ fun SubAgentTaskCard(
     task: SubAgentTask,
     subAgentTasks: Map<String, SubAgentTask>,
     modifier: Modifier = Modifier,
-    elapsed: Double? = null,
 ) {
     val depth = LocalSubAgentDepth.current
     val canExpand = depth < MAX_DEPTH && task.messages.isNotEmpty()
@@ -81,9 +80,16 @@ fun SubAgentTaskCard(
             )
         }
 
-        if (elapsed != null) {
+        val elapsedText = remember(task.startedAt, task.completedAt) {
+            val start = task.startedAt ?: return@remember null
+            val end = task.completedAt ?: return@remember null
+            val ms = end - start
+            if (ms < 1000) "${ms}ms" else "%.1fs".format(ms / 1000.0)
+        }
+
+        if (elapsedText != null) {
             Text(
-                text = "(${elapsed.toInt()}ms)",
+                text = "($elapsedText)",
                 style = JewelTheme.typography.medium,
                 color = JewelTheme.globalColors.text.disabled,
             )

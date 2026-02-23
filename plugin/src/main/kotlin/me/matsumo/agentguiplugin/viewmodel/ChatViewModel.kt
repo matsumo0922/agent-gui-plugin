@@ -54,6 +54,9 @@ class ChatViewModel(
     // Initially points to hookToolUseId, updated to real parentToolUseId (toolu_...) when resolved.
     private val tailerKeyRefs = mutableMapOf<String, AtomicReference<String>>()
 
+    // agentId → keyRef for resolving SubAgentTask key on stopTailing
+    private val agentKeyRefs = mutableMapOf<String, AtomicReference<String>>()
+
     // Ordered list of hookToolUseIds not yet mapped to real parentToolUseId
     private val unresolvedHookIds = mutableListOf<String>()
 
@@ -63,7 +66,7 @@ class ChatViewModel(
                 _uiState.update { it.copy(sessionState = SessionState.Connecting) }
 
                 createSession {
-                    model = Model.HAIKU
+                    model = Model.SONNET
                     cwd = projectBasePath
                     cliPath = claudeCodePath
                     includePartialMessages = true
@@ -282,10 +285,12 @@ class ChatViewModel(
             if (state.subAgentTasks.containsKey(hookToolUseId)) state
             else state.copy(
                 subAgentTasks = state.subAgentTasks + (
-                    hookToolUseId to SubAgentTask(id = hookToolUseId)
+                    hookToolUseId to SubAgentTask(id = hookToolUseId, startedAt = System.currentTimeMillis())
                 ),
             )
         }
+
+        agentKeyRefs[agentId] = keyRef
 
         val tailer = TranscriptTailer(scope)
         activeTailers[agentId] = tailer
@@ -312,12 +317,24 @@ class ChatViewModel(
 
     private fun stopTailing(agentId: String) {
         activeTailers.remove(agentId)?.stop()
+
+        val keyRef = agentKeyRefs.remove(agentId) ?: return
+        val taskKey = keyRef.get()
+        val now = System.currentTimeMillis()
+
+        _uiState.update { state ->
+            val task = state.subAgentTasks[taskKey] ?: return@update state
+            state.copy(
+                subAgentTasks = state.subAgentTasks + (taskKey to task.copy(completedAt = now)),
+            )
+        }
     }
 
     private fun stopAllTailing() {
         activeTailers.values.forEach { it.stop() }
         activeTailers.clear()
         tailerKeyRefs.clear()
+        agentKeyRefs.clear()
         unresolvedHookIds.clear()
     }
 
