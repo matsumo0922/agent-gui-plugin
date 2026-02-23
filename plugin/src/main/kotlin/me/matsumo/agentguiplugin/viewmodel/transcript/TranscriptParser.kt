@@ -25,8 +25,11 @@ import java.util.*
  * }
  * ```
  *
- * - `"assistant"` lines with array content → [ChatMessage.Assistant]
- * - `"user"` lines with string content → [ChatMessage.User]
+ * - `"assistant"` lines → [ChatMessage.Assistant]
+ * - `"user"` lines → [ChatMessage.User]
+ *
+ * Per the Anthropic API spec, `content` can be either a string (shorthand for
+ * a single text block) or an array of content blocks.
  */
 internal object TranscriptParser {
 
@@ -45,9 +48,20 @@ internal object TranscriptParser {
             val uuid = obj["uuid"]?.jsonPrimitive?.contentOrNull ?: UUID.randomUUID().toString()
             val content = messageObj["content"] ?: return null
 
-            when {
-                type == "assistant" && content is JsonArray -> parseAssistantContent(uuid, content)
-                type == "user" && content is JsonPrimitive -> parseUserContent(uuid, content)
+            // Normalise content: string → single-element text array (per API spec)
+            val contentArray = when (content) {
+                is JsonArray -> content
+                is JsonPrimitive -> {
+                    val text = content.contentOrNull
+                    if (text.isNullOrBlank()) return null
+                    return ChatMessage.User(id = uuid, text = text)
+                }
+                else -> return null
+            }
+
+            when (type) {
+                "assistant" -> parseAssistantContent(uuid, contentArray)
+                "user" -> parseUserArrayContent(uuid, contentArray)
                 else -> null
             }
         } catch (_: Exception) {
@@ -64,10 +78,18 @@ internal object TranscriptParser {
         return ChatMessage.Assistant(id = uuid, blocks = blocks)
     }
 
-    private fun parseUserContent(uuid: String, content: JsonPrimitive): ChatMessage.User? {
-        val text = content.contentOrNull
-        if (text.isNullOrBlank()) return null
+    private fun parseUserArrayContent(uuid: String, contentArray: JsonArray): ChatMessage.User? {
+        // Extract text from content blocks and join them
+        val text = contentArray.mapNotNull { element ->
+            val block = element.jsonObject
+            if (block["type"]?.jsonPrimitive?.contentOrNull == "text") {
+                block["text"]?.jsonPrimitive?.contentOrNull
+            } else {
+                null
+            }
+        }.joinToString("\n")
 
+        if (text.isBlank()) return null
         return ChatMessage.User(id = uuid, text = text)
     }
 
