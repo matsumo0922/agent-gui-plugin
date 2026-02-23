@@ -55,6 +55,7 @@ sealed interface ChatMessage {
     ) : ChatMessage
 }
 
+@Immutable
 data class SubAgentTask(
     val id: String,                                    // = parentToolUseId
     val spawnedByToolName: String? = null,             // 呼び出し元ツール名

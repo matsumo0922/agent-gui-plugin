@@ -34,18 +34,18 @@ fun AssistantMessageBlock(
                     )
                 }
                 is UiContentBlock.ToolUse -> {
+                    ToolUseBlock(
+                        modifier = Modifier.fillMaxWidth(),
+                        name = block.toolName,
+                        inputJson = block.inputJson,
+                    )
+
                     val task = block.toolUseId?.let { subAgentTasks[it] }
                     if (task != null) {
-                        SubAgentTaskCard(
+                        SubAgentTaskCard2(
                             task = task,
                             toolName = block.toolName,
                             subAgentTasks = subAgentTasks,
-                        )
-                    } else {
-                        ToolUseBlock(
-                            modifier = Modifier.fillMaxWidth(),
-                            name = block.toolName,
-                            inputJson = block.inputJson,
                         )
                     }
                 }

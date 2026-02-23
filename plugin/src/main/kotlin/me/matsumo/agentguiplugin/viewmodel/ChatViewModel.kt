@@ -125,7 +125,9 @@ class ChatViewModel(
                             /* wait for completion */
                         }
 
-                        is AssistantMessage -> handleAssistantMessage(message)
+                        is AssistantMessage -> {
+                             handleAssistantMessage(message)
+                        }
                         is ResultMessage -> handleResultMessage(message)
                         is UserMessage -> {
                             /* tool results - ignore */
