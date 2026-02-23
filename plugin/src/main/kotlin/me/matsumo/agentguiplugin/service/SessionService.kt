@@ -7,6 +7,7 @@ import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 
 @Service(Service.Level.PROJECT)
 class SessionService(
@@ -21,7 +22,16 @@ class SessionService(
     val claudeCodePath: String?
         get() = service<SettingsService>().claudeCodePath
 
+    val chatViewModel: ChatViewModel by lazy {
+        ChatViewModel(
+            projectBasePath = projectBasePath,
+            claudeCodePath = claudeCodePath,
+            scope = scope,
+        )
+    }
+
     override fun dispose() {
+        chatViewModel.dispose()
         scope.cancel()
     }
 }
