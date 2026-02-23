@@ -71,10 +71,8 @@ class ChatViewModel(
                 _uiState.update { it.copy(sessionState = SessionState.Connecting) }
 
                 createSession {
-                    model = Model.entries.find { it.modelId == settingsService.model } ?: Model.SONNET
-                    permissionMode = PermissionMode.entries.find {
-                        it.name.equals(settingsService.permissionMode, ignoreCase = true)
-                    }
+                    model = settingsService.model
+                    permissionMode = settingsService.permissionMode
                     cwd = projectBasePath
                     cliPath = claudeCodePath
                     includePartialMessages = true
@@ -360,11 +358,11 @@ class ChatViewModel(
     // --- Public API ---
 
     fun changeModel(model: Model) {
-        settingsService.model = model.modelId
+        settingsService.model = model
         reconnect()
     }
 
-    fun changePermissionMode(mode: String) {
+    fun changePermissionMode(mode: PermissionMode) {
         settingsService.permissionMode = mode
         reconnect()
     }

@@ -4,6 +4,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import kotlinx.serialization.json.JsonObject
 import me.matsumo.agentguiplugin.model.AttachedFile
+import me.matsumo.claude.agent.types.Model
+import me.matsumo.claude.agent.types.PermissionMode
 
 enum class SessionState {
     Disconnected,
@@ -33,8 +35,8 @@ data class ChatUiState(
     val attachedFiles: List<AttachedFile> = emptyList(),
     val sessionState: SessionState = SessionState.Disconnected,
     val sessionId: String? = null,
-    val model: String? = null,
-    val permissionMode: String = "default",
+    val model: Model = Model.SONNET,
+    val permissionMode: PermissionMode = PermissionMode.DEFAULT,
     val contextUsage: Float = 0f,
     val totalCostUsd: Double = 0.0,
     val pendingPermission: PendingPermission? = null,

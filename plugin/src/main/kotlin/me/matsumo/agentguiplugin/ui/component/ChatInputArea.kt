@@ -64,15 +64,15 @@ fun ChatInputArea(
     project: Project,
     sessionState: SessionState,
     attachedFiles: List<AttachedFile>,
-    currentModel: String?,
-    currentPermissionMode: String,
+    currentModel: Model,
+    currentPermissionMode: PermissionMode,
     contextUsage: Float,
     onAttach: (AttachedFile) -> Unit,
     onDetach: (AttachedFile) -> Unit,
     onSend: (String) -> Unit,
     onAbort: () -> Unit,
     onModelChange: (Model) -> Unit,
-    onModeChange: (String) -> Unit,
+    onModeChange: (PermissionMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var value by remember { mutableStateOf(TextFieldValue()) }
@@ -269,12 +269,12 @@ private fun InputSection(
 private fun BottomSection(
     sessionState: SessionState,
     isInputEmpty: Boolean,
-    currentModel: String?,
-    currentPermissionMode: String,
+    currentModel: Model,
+    currentPermissionMode: PermissionMode,
     onSend: () -> Unit,
     onAbort: () -> Unit,
     onModelChange: (Model) -> Unit,
-    onModeChange: (String) -> Unit,
+    onModeChange: (PermissionMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val canSend = (sessionState == SessionState.Ready || sessionState == SessionState.WaitingForInput) && !isInputEmpty
@@ -292,9 +292,8 @@ private fun BottomSection(
     ) {
         // Model selector
         Box {
-            val currentModelEnum = Model.entries.find { it.modelId == currentModel }
             PopupButton(
-                text = currentModelEnum?.displayName ?: (currentModel ?: Model.SONNET.displayName),
+                text = currentModel.displayName,
                 onClick = { showModelPopup = !showModelPopup },
             )
 
@@ -333,9 +332,8 @@ private fun BottomSection(
 
         // Permission mode selector
         Box {
-            val currentModeEnum = PermissionMode.entries.find { it.modeId == currentPermissionMode }
             PopupButton(
-                text = currentModeEnum?.displayName ?: PermissionMode.DEFAULT.displayName,
+                text = currentPermissionMode.displayName,
                 onClick = { showModePopup = !showModePopup },
             )
 
@@ -362,7 +360,7 @@ private fun BottomSection(
                                 description = mode.description,
                                 icon = AllIcons.Actions.Lightning,
                                 onClick = {
-                                    onModeChange(mode.modeId)
+                                    onModeChange(mode)
                                     showModePopup = false
                                 },
                             )
