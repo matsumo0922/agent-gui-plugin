@@ -1,4 +1,4 @@
-package me.matsumo.agentguiplugin.ui.component
+package me.matsumo.agentguiplugin.ui.component.interaction
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -209,7 +209,7 @@ private fun ButtonSection(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Button(
+        _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
             text = "Allow",
             onClick = onAllow,
             borderColor = allowColor.copy(alpha = 0.5f),
@@ -217,7 +217,7 @@ private fun ButtonSection(
             textColor = JewelTheme.globalColors.text.normal,
         )
 
-        Button(
+        _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
             text = "Deny",
             onClick = onDeny,
             borderColor = denyColor.copy(alpha = 0.5f),
@@ -229,7 +229,7 @@ private fun ButtonSection(
             modifier = Modifier.weight(1f),
         )
 
-        Button(
+        _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
             text = "Message",
             onClick = onMessage,
             borderColor = JewelTheme.globalColors.borders.normal,

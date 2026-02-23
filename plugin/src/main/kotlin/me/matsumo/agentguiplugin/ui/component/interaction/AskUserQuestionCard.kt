@@ -1,4 +1,4 @@
-package me.matsumo.agentguiplugin.ui.component
+package me.matsumo.agentguiplugin.ui.component.interaction
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -325,7 +325,7 @@ private fun ButtonSection(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Button(
+        _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
             text = "Submit",
             onClick = onSubmit,
             borderColor = questionAccentColor.copy(alpha = 0.5f),
@@ -334,7 +334,7 @@ private fun ButtonSection(
             enabled = submitEnabled,
         )
 
-        Button(
+        _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
             text = "Cancel",
             onClick = onCancel,
             borderColor = JewelTheme.globalColors.borders.normal,

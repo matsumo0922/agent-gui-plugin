@@ -15,12 +15,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
-import me.matsumo.agentguiplugin.ui.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.component.AnimatedNullableVisibility
-import me.matsumo.agentguiplugin.ui.component.AskUserQuestionCard
 import me.matsumo.agentguiplugin.ui.component.ChatInputArea
 import me.matsumo.agentguiplugin.ui.component.ErrorBanner
-import me.matsumo.agentguiplugin.ui.component.PermissionCard
+import me.matsumo.agentguiplugin.ui.component.chat.ChatMessageList
+import me.matsumo.agentguiplugin.ui.component.interaction.AskUserQuestionCard
+import me.matsumo.agentguiplugin.ui.component.interaction.PermissionCard
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import org.jetbrains.jewel.ui.Orientation

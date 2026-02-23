@@ -1,4 +1,4 @@
-package me.matsumo.agentguiplugin.ui.chat
+package me.matsumo.agentguiplugin.ui.component.chat
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background

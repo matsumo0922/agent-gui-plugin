@@ -1,4 +1,4 @@
-package me.matsumo.agentguiplugin.ui.chat
+package me.matsumo.agentguiplugin.ui.component.chat
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.matsumo.agentguiplugin.ui.component.MarkdownText
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
@@ -108,7 +109,7 @@ fun SubAgentTaskCard(
                                 message.blocks.forEach { block ->
                                     when (block) {
                                         is UiContentBlock.Text -> {
-                                            me.matsumo.agentguiplugin.ui.component.MarkdownText(
+                                            MarkdownText(
                                                 text = block.text,
                                                 modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
                                             )

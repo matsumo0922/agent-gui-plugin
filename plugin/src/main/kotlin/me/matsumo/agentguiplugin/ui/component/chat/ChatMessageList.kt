@@ -1,4 +1,4 @@
-package me.matsumo.agentguiplugin.ui.chat
+package me.matsumo.agentguiplugin.ui.component.chat
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
