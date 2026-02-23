@@ -359,12 +359,14 @@ class ChatViewModel(
 
     fun changeModel(model: Model) {
         settingsService.model = model
-        reconnect()
+        scope.launch { client?.setModel(model.modelId) }
+        _uiState.update { it.copy(model = model) }
     }
 
     fun changePermissionMode(mode: PermissionMode) {
         settingsService.permissionMode = mode
-        reconnect()
+        scope.launch { client?.setPermissionMode(mode) }
+        _uiState.update { it.copy(permissionMode = mode) }
     }
 
     fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
