@@ -158,6 +158,32 @@ object ChatTheme {
     }
 
     // ──────────────────────────────────────────
+    // Code block colors
+    // ──────────────────────────────────────────
+
+    object CodeBlock {
+        val background: Color
+            @Composable @ReadOnlyComposable
+            get() = if (JewelTheme.isDark) JewelTheme.colorPalette.gray(1) else JewelTheme.colorPalette.gray(13)
+
+        val headerBackground: Color
+            @Composable @ReadOnlyComposable
+            get() = if (JewelTheme.isDark) {
+                JewelTheme.colorPalette.gray(2)
+            } else {
+                JewelTheme.colorPalette.gray(12)
+            }
+
+        val border: Color
+            @Composable @ReadOnlyComposable
+            get() = if (JewelTheme.isDark) {
+                JewelTheme.colorPalette.gray(3)
+            } else {
+                JewelTheme.colorPalette.gray(11)
+            }
+    }
+
+    // ──────────────────────────────────────────
     // Input area colors
     // ──────────────────────────────────────────
 

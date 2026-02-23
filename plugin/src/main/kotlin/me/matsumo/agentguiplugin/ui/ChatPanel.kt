@@ -18,16 +18,17 @@ import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.ui.component.AnimatedNullableVisibility
 import me.matsumo.agentguiplugin.ui.component.ChatInputArea
+import me.matsumo.agentguiplugin.ui.component.CustomCodeBlockRenderer
 import me.matsumo.agentguiplugin.ui.component.ErrorBanner
 import me.matsumo.agentguiplugin.ui.component.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.component.interaction.AskUserQuestionCard
 import me.matsumo.agentguiplugin.ui.component.interaction.PermissionCard
+import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
-import org.jetbrains.jewel.intui.markdown.bridge.create
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create
 import org.jetbrains.jewel.intui.markdown.bridge.styling.extensions.github.alerts.create
 import org.jetbrains.jewel.intui.markdown.bridge.styling.extensions.github.tables.create
@@ -41,7 +42,7 @@ import org.jetbrains.jewel.markdown.extensions.github.tables.GfmTableStyling
 import org.jetbrains.jewel.markdown.extensions.github.tables.GitHubTableProcessorExtension
 import org.jetbrains.jewel.markdown.extensions.github.tables.GitHubTableRendererExtension
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
-import org.jetbrains.jewel.markdown.rendering.MarkdownBlockRenderer
+import org.jetbrains.jewel.markdown.rendering.DefaultInlineMarkdownRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
@@ -83,14 +84,28 @@ fun ChatPanel(
     val tableStyling = remember(instanceUuid) { GfmTableStyling.create() }
     val alertStyling = remember(instanceUuid) { AlertStyling.create() }
 
-    val blockRenderer = remember(styling, tableStyling, alertStyling) {
-        MarkdownBlockRenderer.create(
-            styling = styling,
-            rendererExtensions = listOf(
-                GitHubTableRendererExtension(tableStyling, styling),
-                GitHubAlertRendererExtension(alertStyling, styling),
-                GitHubStrikethroughRendererExtension,
-            ),
+    val codeBlockBg = ChatTheme.CodeBlock.background
+    val codeHeaderBg = ChatTheme.CodeBlock.headerBackground
+    val codeBorderColor = ChatTheme.CodeBlock.border
+    val codeLabelColor = ChatTheme.Text.secondary
+
+    val rendererExtensions = remember(tableStyling, alertStyling) {
+        listOf(
+            GitHubTableRendererExtension(tableStyling, styling),
+            GitHubAlertRendererExtension(alertStyling, styling),
+            GitHubStrikethroughRendererExtension,
+        )
+    }
+
+    val blockRenderer = remember(styling, rendererExtensions, codeBlockBg, codeHeaderBg, codeBorderColor, codeLabelColor) {
+        CustomCodeBlockRenderer(
+            rootStyling = styling,
+            rendererExtensions = rendererExtensions,
+            inlineRenderer = DefaultInlineMarkdownRenderer(rendererExtensions),
+            codeBlockBackground = codeBlockBg,
+            headerBackground = codeHeaderBg,
+            borderColor = codeBorderColor,
+            labelColor = codeLabelColor,
         )
     }
 
