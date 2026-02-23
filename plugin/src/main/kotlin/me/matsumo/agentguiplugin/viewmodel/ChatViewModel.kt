@@ -10,8 +10,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
@@ -48,8 +46,7 @@ class ChatViewModel(
     private var activeTurnJob: Job? = null
     private var activeTurnId = 0L
 
-    // Sub-agent transcript tailing
-    private val agentIdToParentToolUseId = mutableMapOf<String, String>()
+    // Sub-agent transcript tailing: agentId -> tailer
     private val activeTailers = mutableMapOf<String, TranscriptTailer>()
 
     fun initialize() {
@@ -66,15 +63,13 @@ class ChatViewModel(
                         permissionHandler.request(toolName, input)
                     }
                     hooks {
-                        on(HookEvent.SUBAGENT_START) { input, _, _ ->
+                        on(HookEvent.SUBAGENT_START) { input, toolUseId, _ ->
                             val si = input as SubagentStartHookInput
-                            println("Starting sub-agent tailing for agent ID: ${si.agentId}")
-                            startTailing(si.agentId, si.transcriptPath)
+                            startTailing(si.agentId, si.transcriptPath, toolUseId)
                             HookOutput.proceed()
                         }
                         on(HookEvent.SUBAGENT_STOP) { input, _, _ ->
                             val si = input as SubagentStopHookInput
-                            println("Stopping sub-agent tailing for agent ID: ${si.agentId}")
                             stopTailing(si.agentId)
                             HookOutput.proceed()
                         }
@@ -194,26 +189,8 @@ class ChatViewModel(
     }
 
     private fun handleSystemMessage(message: SystemMessage) {
-        when (message.subtype) {
-            "init" -> {
-                _uiState.update { it.copy(sessionId = message.sessionId) }
-            }
-
-            "task_started" -> {
-                val agentId = message.data["task_id"]?.jsonPrimitive?.contentOrNull ?: return
-                val parentToolUseId = message.data["tool_use_id"]?.jsonPrimitive?.contentOrNull ?: return
-                agentIdToParentToolUseId[agentId] = parentToolUseId
-
-                // Ensure the SubAgentTask entry exists
-                _uiState.update { state ->
-                    if (state.subAgentTasks.containsKey(parentToolUseId)) state
-                    else state.copy(
-                        subAgentTasks = state.subAgentTasks + (
-                            parentToolUseId to SubAgentTask(id = parentToolUseId)
-                        ),
-                    )
-                }
-            }
+        if (message.isInit) {
+            _uiState.update { it.copy(sessionId = message.sessionId) }
         }
     }
 
@@ -262,21 +239,31 @@ class ChatViewModel(
 
     // --- Sub-agent transcript tailing ---
 
-    private fun startTailing(agentId: String, transcriptPath: String) {
+    private fun startTailing(agentId: String, transcriptPath: String, parentToolUseId: String?) {
+        if (parentToolUseId == null) return
+
         val jsonlPath = "${transcriptPath.removeSuffix(".jsonl")}/subagents/agent-$agentId.jsonl"
+
+        // Ensure the SubAgentTask entry exists
+        _uiState.update { state ->
+            if (state.subAgentTasks.containsKey(parentToolUseId)) state
+            else state.copy(
+                subAgentTasks = state.subAgentTasks + (
+                    parentToolUseId to SubAgentTask(id = parentToolUseId)
+                ),
+            )
+        }
 
         val tailer = TranscriptTailer(scope)
         activeTailers[agentId] = tailer
 
-        println("Starting sub-agent tailing for agent ID: $agentId, JSONL path: $jsonlPath")
-
         tailer.start(jsonlPath) { assistantMsg ->
-            val parentToolUseId = agentIdToParentToolUseId[agentId] ?: return@start
-
             _uiState.update { state ->
                 val existing = state.subAgentTasks[parentToolUseId]
-                val task = existing?.copy(messages = existing.messages + assistantMsg)
-                    ?: SubAgentTask(id = parentToolUseId, messages = listOf(assistantMsg))
+                val task = existing?.copy(messages = existing.messages + assistantMsg) ?: SubAgentTask(
+                    id = parentToolUseId,
+                    messages = listOf(assistantMsg)
+                )
 
                 state.copy(subAgentTasks = state.subAgentTasks + (parentToolUseId to task))
             }
@@ -290,7 +277,6 @@ class ChatViewModel(
     private fun stopAllTailing() {
         activeTailers.values.forEach { it.stop() }
         activeTailers.clear()
-        agentIdToParentToolUseId.clear()
     }
 
     // --- Public API ---

@@ -41,6 +41,7 @@ fun AssistantMessageBlock(
                     )
 
                     val task = block.toolUseId?.let { subAgentTasks[it] }
+                    println("Tool use block with task: ${block.toolUseId}, ${subAgentTasks.keys}")
                     if (task != null) {
                         SubAgentTaskCard(
                             task = task,
