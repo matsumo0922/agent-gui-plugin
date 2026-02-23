@@ -42,7 +42,7 @@ fun AssistantMessageBlock(
 
                     val task = block.toolUseId?.let { subAgentTasks[it] }
                     if (task != null) {
-                        SubAgentTaskCard2(
+                        SubAgentTaskCard(
                             task = task,
                             toolName = block.toolName,
                             subAgentTasks = subAgentTasks,
