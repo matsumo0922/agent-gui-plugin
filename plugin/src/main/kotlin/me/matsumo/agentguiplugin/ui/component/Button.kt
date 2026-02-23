@@ -30,18 +30,21 @@ fun Button(
     textColor: Color = JewelTheme.globalColors.text.normal,
     shape: Shape = RoundedCornerShape(4.dp),
     icon: @Composable (() -> Unit)? = null,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
+    val alpha = if (enabled) 1f else 0.4f
+
     Box(
         modifier = modifier
             .clip(shape)
-            .background(backgroundColor)
+            .background(backgroundColor.copy(alpha = backgroundColor.alpha * alpha))
             .border(
                 width = 1.dp,
-                color = borderColor,
+                color = borderColor.copy(alpha = borderColor.alpha * alpha),
                 shape = shape
             )
-            .clickable { onClick() }
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
             .padding(12.dp, 6.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -54,7 +57,7 @@ fun Button(
             Text(
                 text = text,
                 style = textStyle,
-                color = textColor,
+                color = textColor.copy(alpha = textColor.alpha * alpha),
             )
         }
     }

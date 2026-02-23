@@ -70,6 +70,7 @@ fun AskUserQuestionCard(
     ) {
         HeaderSection(
             modifier = Modifier.fillMaxWidth(),
+            questionCount = parsedQuestions.size,
         )
 
         Column(
@@ -99,8 +100,13 @@ fun AskUserQuestionCard(
             }
         }
 
+        val isAllAnswered = parsedQuestions.indices.all { qIndex ->
+            selectedOptions[qIndex].value.isNotEmpty() || otherTexts[qIndex].value.trim().isNotEmpty()
+        }
+
         ButtonSection(
             modifier = Modifier.fillMaxWidth(),
+            submitEnabled = isAllAnswered,
             onSubmit = {
                 val answers = parsedQuestions.mapIndexed { qIndex, q ->
                     val selected = selectedOptions[qIndex].value
@@ -120,6 +126,7 @@ fun AskUserQuestionCard(
 
 @Composable
 private fun HeaderSection(
+    questionCount: Int,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -143,7 +150,7 @@ private fun HeaderSection(
         }
 
         Text(
-            text = "Claude has a question",
+            text = if (questionCount <= 1) "Claude has a question" else "Claude has $questionCount questions",
             style = JewelTheme.typography.regular,
             fontWeight = FontWeight.SemiBold,
         )
@@ -310,6 +317,7 @@ private fun CheckboxIndicator(isSelected: Boolean) {
 private fun ButtonSection(
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
+    submitEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -323,6 +331,7 @@ private fun ButtonSection(
             borderColor = questionAccentColor.copy(alpha = 0.5f),
             backgroundColor = questionAccentColor.copy(alpha = 0.15f),
             textColor = JewelTheme.globalColors.text.normal,
+            enabled = submitEnabled,
         )
 
         Button(
