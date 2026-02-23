@@ -41,9 +41,9 @@ internal object TranscriptParser {
             val obj = json.parseToJsonElement(line).jsonObject
             val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: return null
 
-            if (type != "assistant") return null
-
             val messageObj = obj["message"]?.jsonObject ?: return null
+
+            println("Parsing line: $line")
             val contentArray = messageObj["content"]?.jsonArray ?: return null
 
             val blocks = contentArray.mapNotNull { element ->
@@ -59,13 +59,6 @@ internal object TranscriptParser {
         } catch (_: Exception) {
             null
         }
-    }
-
-    /**
-     * Parse all lines from a JSONL transcript into a list of [ChatMessage.Assistant].
-     */
-    fun parseAll(lines: List<String>): List<ChatMessage.Assistant> {
-        return lines.mapNotNull { parseLine(it) }
     }
 
     private fun parseContentBlock(block: JsonObject): UiContentBlock? {

@@ -294,10 +294,17 @@ class ChatViewModel(
             val currentKey = keyRef.get()
             _uiState.update { state ->
                 val existing = state.subAgentTasks[currentKey]
-                val task = existing?.copy(messages = existing.messages + assistantMsg) ?: SubAgentTask(
-                    id = currentKey,
-                    messages = listOf(assistantMsg),
-                )
+                val oldMessages = existing?.messages ?: emptyList()
+
+                // Same id → replace (partial update); new id → append
+                val existingIndex = oldMessages.indexOfFirst { it.id == assistantMsg.id }
+                val newMessages = if (existingIndex >= 0) {
+                    oldMessages.toMutableList().apply { set(existingIndex, assistantMsg) }
+                } else {
+                    oldMessages + assistantMsg
+                }
+
+                val task = (existing ?: SubAgentTask(id = currentKey)).copy(messages = newMessages)
                 state.copy(subAgentTasks = state.subAgentTasks + (currentKey to task))
             }
         }
