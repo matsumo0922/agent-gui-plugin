@@ -28,6 +28,7 @@ import me.matsumo.claude.agent.types.SubagentStopHookInput
 import me.matsumo.claude.agent.types.SystemMessage
 import me.matsumo.claude.agent.types.UserMessage
 import java.util.*
+import java.util.concurrent.atomic.AtomicReference
 
 class ChatViewModel(
     private val projectBasePath: String,
@@ -48,6 +49,13 @@ class ChatViewModel(
 
     // Sub-agent transcript tailing: agentId -> tailer
     private val activeTailers = mutableMapOf<String, TranscriptTailer>()
+
+    // Hook toolUseId (CLI internal UUID) → mutable key reference for tailer callback.
+    // Initially points to hookToolUseId, updated to real parentToolUseId (toolu_...) when resolved.
+    private val tailerKeyRefs = mutableMapOf<String, AtomicReference<String>>()
+
+    // Ordered list of hookToolUseIds not yet mapped to real parentToolUseId
+    private val unresolvedHookIds = mutableListOf<String>()
 
     fun initialize() {
         scope.launch {
@@ -197,9 +205,28 @@ class ChatViewModel(
     private fun handleAssistantMessage(message: AssistantMessage) {
         val pid = message.parentToolUseId
         if (pid != null) {
-            // Sub-agent messages from stream-json only contain tool_use blocks.
-            // The full content (text, thinking, tool_use) comes from JSONL tailing.
-            // We still update spawnedByToolName from stream-json if not yet set.
+            // Sub-agent message from stream-json.
+            // Resolve hookToolUseId → real parentToolUseId (toolu_...) if needed.
+            if (!_uiState.value.subAgentTasks.containsKey(pid) && unresolvedHookIds.isNotEmpty()) {
+                val hookId = unresolvedHookIds.removeFirst()
+
+                // Update the tailer's key so new messages go to the correct key
+                tailerKeyRefs[hookId]?.set(pid)
+
+                // Re-key the SubAgentTask from hookId to pid
+                _uiState.update { state ->
+                    val task = state.subAgentTasks[hookId] ?: return@update state
+                    val newTasks = state.subAgentTasks.toMutableMap()
+                    newTasks.remove(hookId)
+                    // Merge with any messages that may have arrived at pid during the race window
+                    val existingAtPid = newTasks[pid]
+                    val mergedMessages = task.messages + (existingAtPid?.messages ?: emptyList())
+                    newTasks[pid] = task.copy(id = pid, messages = mergedMessages)
+                    state.copy(subAgentTasks = newTasks)
+                }
+            }
+
+            // Update spawnedByToolName from stream-json if not yet set
             _uiState.update { state ->
                 val existing = state.subAgentTasks[pid]
                 if (existing == null || existing.spawnedByToolName != null) state
@@ -239,17 +266,23 @@ class ChatViewModel(
 
     // --- Sub-agent transcript tailing ---
 
-    private fun startTailing(agentId: String, transcriptPath: String, parentToolUseId: String?) {
-        if (parentToolUseId == null) return
+    private fun startTailing(agentId: String, transcriptPath: String, hookToolUseId: String?) {
+        if (hookToolUseId == null) return
 
         val jsonlPath = "${transcriptPath.removeSuffix(".jsonl")}/subagents/agent-$agentId.jsonl"
 
-        // Ensure the SubAgentTask entry exists
+        // Mutable key: starts as hookToolUseId (CLI UUID), updated to real parentToolUseId (toolu_...)
+        // when handleAssistantMessage resolves it.
+        val keyRef = AtomicReference(hookToolUseId)
+        tailerKeyRefs[hookToolUseId] = keyRef
+        unresolvedHookIds.add(hookToolUseId)
+
+        // Create initial SubAgentTask under hookToolUseId
         _uiState.update { state ->
-            if (state.subAgentTasks.containsKey(parentToolUseId)) state
+            if (state.subAgentTasks.containsKey(hookToolUseId)) state
             else state.copy(
                 subAgentTasks = state.subAgentTasks + (
-                    parentToolUseId to SubAgentTask(id = parentToolUseId)
+                    hookToolUseId to SubAgentTask(id = hookToolUseId)
                 ),
             )
         }
@@ -258,14 +291,14 @@ class ChatViewModel(
         activeTailers[agentId] = tailer
 
         tailer.start(jsonlPath) { assistantMsg ->
+            val currentKey = keyRef.get()
             _uiState.update { state ->
-                val existing = state.subAgentTasks[parentToolUseId]
+                val existing = state.subAgentTasks[currentKey]
                 val task = existing?.copy(messages = existing.messages + assistantMsg) ?: SubAgentTask(
-                    id = parentToolUseId,
-                    messages = listOf(assistantMsg)
+                    id = currentKey,
+                    messages = listOf(assistantMsg),
                 )
-
-                state.copy(subAgentTasks = state.subAgentTasks + (parentToolUseId to task))
+                state.copy(subAgentTasks = state.subAgentTasks + (currentKey to task))
             }
         }
     }
@@ -277,6 +310,8 @@ class ChatViewModel(
     private fun stopAllTailing() {
         activeTailers.values.forEach { it.stop() }
         activeTailers.clear()
+        tailerKeyRefs.clear()
+        unresolvedHookIds.clear()
     }
 
     // --- Public API ---
