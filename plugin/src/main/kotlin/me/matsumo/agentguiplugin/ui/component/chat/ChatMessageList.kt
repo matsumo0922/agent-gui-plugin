@@ -13,12 +13,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.sp
-import me.matsumo.agentguiplugin.ui.theme.ChatTheme
+import androidx.compose.ui.unit.dp
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
-import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun ChatMessageList(
@@ -28,13 +28,7 @@ fun ChatMessageList(
 ) {
     val listState = rememberLazyListState()
 
-    // Auto-scroll to bottom when messages change (including in-place streaming updates)
-    val lastAssistant = messages.filterIsInstance<ChatMessage.Assistant>().lastOrNull()
-    val scrollKey = lastAssistant?.let {
-        Pair(it.blocks.size, it.blocks.lastOrNull()?.contentSignature())
-    }
-    val subAgentMessageCount = subAgentTasks.values.sumOf { it.messages.size }
-    LaunchedEffect(messages.size, scrollKey, subAgentMessageCount) {
+    LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.lastIndex)
         }
@@ -46,36 +40,34 @@ fun ChatMessageList(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = EMPTY_PLACEHOLDER,
-                fontSize = EMPTY_PLACEHOLDER_FONT_SIZE,
-                color = ChatTheme.Text.muted,
+                text = "Start a conversation...",
+                style = JewelTheme.typography.regular,
+                color = JewelTheme.globalColors.text.info
             )
         }
     } else {
-        SelectionContainer(modifier = modifier) {
+        SelectionContainer(modifier) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 state = listState,
-                contentPadding = PaddingValues(
-                    horizontal = ChatTheme.Spacing.messageListPadding,
-                    vertical = ChatTheme.Spacing.messageListPadding,
-                ),
-                verticalArrangement = Arrangement.spacedBy(ChatTheme.Spacing.messageGap),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 items(
                     items = messages,
                     key = { it.id },
                 ) { message ->
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = when (message) {
-                            is ChatMessage.User -> Alignment.CenterEnd
-                            is ChatMessage.Assistant -> Alignment.CenterStart
-                        },
-                    ) {
-                        when (message) {
-                            is ChatMessage.User -> UserMessageBubble(text = message.text)
-                            is ChatMessage.Assistant -> AssistantMessageBlock(
+                    when (message) {
+                        is ChatMessage.User -> {
+                            UserMessageBubble(
+                                modifier = Modifier.fillMaxWidth(),
+                                text = message.text,
+                            )
+                        }
+
+                        is ChatMessage.Assistant -> {
+                            AssistantMessageBlock(
+                                modifier = Modifier.fillMaxWidth(),
                                 blocks = message.blocks,
                                 subAgentTasks = subAgentTasks,
                             )
@@ -86,12 +78,3 @@ fun ChatMessageList(
         }
     }
 }
-
-private fun UiContentBlock.contentSignature(): Int = when (this) {
-    is UiContentBlock.Text -> text.length
-    is UiContentBlock.Thinking -> text.length
-    is UiContentBlock.ToolUse -> inputJson.size
-}
-
-private const val EMPTY_PLACEHOLDER = "Start a conversation..."
-private val EMPTY_PLACEHOLDER_FONT_SIZE = 14.sp
