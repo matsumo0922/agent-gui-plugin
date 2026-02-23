@@ -47,7 +47,7 @@ class ChatViewModel(
                 _uiState.update { it.copy(sessionState = SessionState.Connecting) }
 
                 createSession {
-                    model = Model.SONNET
+                    model = Model.HAIKU
                     cwd = projectBasePath
                     cliPath = claudeCodePath
                     includePartialMessages = true

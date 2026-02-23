@@ -56,6 +56,8 @@ fun ChatPanel(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val instanceUuid = JewelTheme.instanceUuid
+    val quoteTextColor = JewelTheme.globalColors.text.info
+    val quoteLineColor = JewelTheme.globalColors.borders.disabled
 
     val processor = remember {
         MarkdownProcessor(
@@ -68,7 +70,16 @@ fun ChatPanel(
         )
     }
 
-    val styling = remember(instanceUuid) { MarkdownStyling.create() }
+    val isDark = JewelTheme.isDark
+
+    val styling = remember(instanceUuid) {
+        MarkdownStyling.create(
+            blockQuote = MarkdownStyling.BlockQuote.create(
+                textColor = quoteTextColor,
+                lineColor = quoteLineColor,
+            ),
+        )
+    }
     val tableStyling = remember(instanceUuid) { GfmTableStyling.create() }
     val alertStyling = remember(instanceUuid) { AlertStyling.create() }
 
