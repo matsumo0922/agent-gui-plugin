@@ -10,8 +10,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import me.matsumo.agentguiplugin.model.AttachedFile
+import me.matsumo.agentguiplugin.service.SettingsService
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import me.matsumo.agentguiplugin.viewmodel.transcript.TranscriptTailer
@@ -21,6 +24,7 @@ import me.matsumo.claude.agent.types.AssistantMessage
 import me.matsumo.claude.agent.types.HookEvent
 import me.matsumo.claude.agent.types.HookOutput
 import me.matsumo.claude.agent.types.Model
+import me.matsumo.claude.agent.types.PermissionMode
 import me.matsumo.claude.agent.types.ResultMessage
 import me.matsumo.claude.agent.types.StreamEvent
 import me.matsumo.claude.agent.types.SubagentStartHookInput
@@ -33,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference
 class ChatViewModel(
     private val projectBasePath: String,
     private val claudeCodePath: String?,
+    private val settingsService: SettingsService,
     private val scope: CoroutineScope,
 ) {
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -66,7 +71,10 @@ class ChatViewModel(
                 _uiState.update { it.copy(sessionState = SessionState.Connecting) }
 
                 createSession {
-                    model = Model.SONNET
+                    model = Model.entries.find { it.modelId == settingsService.model } ?: Model.SONNET
+                    permissionMode = PermissionMode.entries.find {
+                        it.name.equals(settingsService.permissionMode, ignoreCase = true)
+                    }
                     cwd = projectBasePath
                     cliPath = claudeCodePath
                     includePartialMessages = true
@@ -90,7 +98,13 @@ class ChatViewModel(
                     client = it
                 }
 
-                _uiState.update { it.copy(sessionState = SessionState.Ready) }
+                _uiState.update {
+                    it.copy(
+                        sessionState = SessionState.Ready,
+                        model = settingsService.model,
+                        permissionMode = settingsService.permissionMode,
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -258,10 +272,15 @@ class ChatViewModel(
     }
 
     private fun handleResultMessage(message: ResultMessage) {
+        val inputTokens = message.usage?.get("input_tokens")?.jsonPrimitive?.longOrNull ?: 0L
+        val contextWindow = 200_000L
+        val usage = (inputTokens.toFloat() / contextWindow).coerceIn(0f, 1f)
+
         _uiState.update {
             it.copy(
                 sessionState = SessionState.WaitingForInput,
                 totalCostUsd = message.totalCostUsd ?: it.totalCostUsd,
+                contextUsage = usage,
                 errorMessage = if (message.isError) "Turn ended with error: ${message.subtype}" else null,
             )
         }
@@ -339,6 +358,16 @@ class ChatViewModel(
     }
 
     // --- Public API ---
+
+    fun changeModel(model: Model) {
+        settingsService.model = model.modelId
+        reconnect()
+    }
+
+    fun changePermissionMode(mode: String) {
+        settingsService.permissionMode = mode
+        reconnect()
+    }
 
     fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
         permissionHandler.respondPermission(allow, denyMessage)

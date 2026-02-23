@@ -15,6 +15,7 @@ class SettingsService : PersistentStateComponent<SettingsService.State> {
     data class State(
         var claudeCodePath: String? = null,
         var permissionMode: String = "default",
+        var model: String = "sonnet",
     )
 
     private var myState = State()
@@ -32,4 +33,8 @@ class SettingsService : PersistentStateComponent<SettingsService.State> {
     var permissionMode: String
         get() = myState.permissionMode
         set(value) { myState.permissionMode = value }
+
+    var model: String
+        get() = myState.model
+        set(value) { myState.model = value }
 }

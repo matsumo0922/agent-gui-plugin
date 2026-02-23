@@ -175,10 +175,15 @@ fun ChatPanel(
                     project = project,
                     sessionState = uiState.sessionState,
                     attachedFiles = uiState.attachedFiles,
+                    currentModel = uiState.model,
+                    currentPermissionMode = uiState.permissionMode,
+                    contextUsage = uiState.contextUsage,
                     onAttach = { file -> viewModel.attachFile(file) },
                     onDetach = { file -> viewModel.detachFile(file) },
                     onSend = viewModel::sendMessage,
                     onAbort = viewModel::abortSession,
+                    onModelChange = viewModel::changeModel,
+                    onModeChange = viewModel::changePermissionMode,
                 )
             }
         }

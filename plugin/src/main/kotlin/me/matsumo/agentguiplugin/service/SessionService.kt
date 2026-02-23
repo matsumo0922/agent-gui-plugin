@@ -26,6 +26,7 @@ class SessionService(
         ChatViewModel(
             projectBasePath = projectBasePath,
             claudeCodePath = claudeCodePath,
+            settingsService = service<SettingsService>(),
             scope = scope,
         )
     }

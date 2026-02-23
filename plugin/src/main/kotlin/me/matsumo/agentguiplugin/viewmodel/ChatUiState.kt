@@ -34,6 +34,8 @@ data class ChatUiState(
     val sessionState: SessionState = SessionState.Disconnected,
     val sessionId: String? = null,
     val model: String? = null,
+    val permissionMode: String = "default",
+    val contextUsage: Float = 0f,
     val totalCostUsd: Double = 0.0,
     val pendingPermission: PendingPermission? = null,
     val pendingQuestion: PendingQuestion? = null,
