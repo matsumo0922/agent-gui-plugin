@@ -280,9 +280,6 @@ private fun BottomSection(
     val canSend = (sessionState == SessionState.Ready || sessionState == SessionState.WaitingForInput) && !isInputEmpty
     val isProcessing = sessionState == SessionState.Processing
 
-    var showModelPopup by remember { mutableStateOf(false) }
-    var showModePopup by remember { mutableStateOf(false) }
-
     Row(
         modifier = modifier
             .background(JewelTheme.globalColors.panelBackground)
@@ -290,90 +287,30 @@ private fun BottomSection(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // Model selector
-        Box {
-            PopupButton(
-                text = currentModel.displayName,
-                onClick = { showModelPopup = !showModelPopup },
-            )
+        SelectorPopupButton(
+            selectedText = currentModel.displayName,
+            items = Model.entries,
+            itemText = { it.displayName },
+            itemDescription = { it.description },
+            itemIcon = { PluginIcons.CLAUDE },
+            onItemSelected = onModelChange,
+        )
 
-            if (showModelPopup) {
-                Popup(
-                    onDismissRequest = { showModelPopup = false },
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .width(IntrinsicSize.Max)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(JewelTheme.colorPalette.gray(2))
-                            .border(
-                                width = 1.dp,
-                                color = JewelTheme.globalColors.borders.disabled,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(8.dp),
-                    ) {
-                        Model.entries.forEach { model ->
-                            PopupMenuItem(
-                                modifier = Modifier.fillMaxWidth(),
-                                text = model.displayName,
-                                description = model.description,
-                                icon = PluginIcons.CLAUDE,
-                                onClick = {
-                                    onModelChange(model)
-                                    showModelPopup = false
-                                },
-                            )
-                        }
-                    }
+        SelectorPopupButton(
+            selectedText = currentPermissionMode.displayName,
+            items = PermissionMode.entries,
+            itemText = { it.displayName },
+            itemDescription = { it.description },
+            itemIcon = { mode ->
+                when (mode) {
+                    PermissionMode.DEFAULT -> AllIcons.Actions.Lightning
+                    PermissionMode.ACCEPT_EDITS -> AllIcons.Actions.Edit
+                    PermissionMode.PLAN -> AllIcons.Actions.ListFiles
+                    PermissionMode.BYPASS_PERMISSIONS -> AllIcons.General.Error
                 }
-            }
-        }
-
-        // Permission mode selector
-        Box {
-            PopupButton(
-                text = currentPermissionMode.displayName,
-                onClick = { showModePopup = !showModePopup },
-            )
-
-            if (showModePopup) {
-                Popup(
-                    onDismissRequest = { showModePopup = false },
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .width(IntrinsicSize.Max)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(JewelTheme.colorPalette.gray(2))
-                            .border(
-                                width = 1.dp,
-                                color = JewelTheme.globalColors.borders.disabled,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(8.dp),
-                    ) {
-                        PermissionMode.entries.forEach { mode ->
-                            PopupMenuItem(
-                                modifier = Modifier.fillMaxWidth(),
-                                text = mode.displayName,
-                                description = mode.description,
-                                icon = when (mode) {
-                                    PermissionMode.DEFAULT -> AllIcons.Actions.Lightning
-                                    PermissionMode.ACCEPT_EDITS -> AllIcons.Actions.Edit
-                                    PermissionMode.PLAN -> AllIcons.Actions.ListFiles
-                                    PermissionMode.BYPASS_PERMISSIONS -> AllIcons.General.Error
-                                },
-                                onClick = {
-                                    onModeChange(mode)
-                                    showModePopup = false
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        }
+            },
+            onItemSelected = onModeChange,
+        )
 
         Spacer(
             modifier = Modifier.weight(1f)
@@ -385,6 +322,58 @@ private fun BottomSection(
             contentDescription = null,
             enabled = isProcessing || canSend,
         )
+    }
+}
+
+@Composable
+private fun <T> SelectorPopupButton(
+    selectedText: String,
+    items: List<T>,
+    itemText: (T) -> String,
+    itemDescription: (T) -> String,
+    itemIcon: (T) -> Icon,
+    onItemSelected: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showPopup by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        PopupButton(
+            text = selectedText,
+            onClick = { showPopup = !showPopup },
+        )
+
+        if (showPopup) {
+            Popup(
+                onDismissRequest = { showPopup = false },
+            ) {
+                Column(
+                    modifier = Modifier
+                        .width(IntrinsicSize.Max)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(JewelTheme.colorPalette.gray(2))
+                        .border(
+                            width = 1.dp,
+                            color = JewelTheme.globalColors.borders.disabled,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(8.dp),
+                ) {
+                    items.forEach { item ->
+                        PopupMenuItem(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = itemText(item),
+                            description = itemDescription(item),
+                            icon = itemIcon(item),
+                            onClick = {
+                                onItemSelected(item)
+                                showPopup = false
+                            },
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
