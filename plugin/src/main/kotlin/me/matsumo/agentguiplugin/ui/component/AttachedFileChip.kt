@@ -73,7 +73,7 @@ fun SwingIcon(
     modifier: Modifier = Modifier,
 ) {
     val imageBitmap: ImageBitmap? = remember(icon) {
-        icon?.let {
+        icon?.takeIf { it.iconWidth > 0 && it.iconHeight > 0 }?.let {
             IconUtil.toBufferedImage(it).toComposeImageBitmap()
         }
     }

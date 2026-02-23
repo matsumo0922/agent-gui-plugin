@@ -43,6 +43,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.ui.component.interaction.FileAttachPopup
@@ -52,7 +53,6 @@ import me.matsumo.claude.agent.types.Model
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.colorPalette
 import org.jetbrains.jewel.ui.typography
@@ -352,13 +352,12 @@ private fun BottomSection(
                             )
                             .padding(8.dp),
                     ) {
-                        permissionModes.forEach { (modeId, displayName, description, iconKey) ->
+                        permissionModes.forEach { (modeId, displayName, description, icon) ->
                             PopupMenuItem(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = displayName,
                                 description = description,
-                                // TODO: use icon key
-                                icon = PluginIcons.CLAUDE,
+                                icon = icon,
                                 onClick = {
                                     onModeChange(modeId)
                                     showModePopup = false
@@ -453,14 +452,14 @@ private data class PopupMenuEntry(
     val id: String,
     val displayName: String,
     val description: String,
-    val iconKey: IconKey,
+    val icon: Icon,
 )
 
 private val permissionModes = listOf(
-    PopupMenuEntry("default", "Auto", "Asks for permission on each action", AllIconsKeys.Actions.Lightning),
-    PopupMenuEntry("acceptEdits", "Accept Edits", "Automatically accepts file edits", AllIconsKeys.Actions.Lightning),
-    PopupMenuEntry("plan", "Plan Mode", "Requires plan approval before execution", AllIconsKeys.Actions.Lightning),
-    PopupMenuEntry("bypassPermissions", "Bypass Permissions", "Skips all permission prompts", AllIconsKeys.Actions.Lightning),
+    PopupMenuEntry("default", "Auto", "Asks for permission on each action", AllIcons.Actions.Lightning),
+    PopupMenuEntry("acceptEdits", "Accept Edits", "Automatically accepts file edits", AllIcons.Actions.Lightning),
+    PopupMenuEntry("plan", "Plan Mode", "Requires plan approval before execution", AllIcons.Actions.Lightning),
+    PopupMenuEntry("bypassPermissions", "Bypass Permissions", "Skips all permission prompts", AllIcons.Actions.Lightning),
 )
 
 private fun modelDisplayName(modelId: String?): String = when (modelId) {
