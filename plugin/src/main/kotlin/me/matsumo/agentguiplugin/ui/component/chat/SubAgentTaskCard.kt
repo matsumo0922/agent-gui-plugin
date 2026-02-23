@@ -132,10 +132,9 @@ fun SubAgentTaskCard(
                                                 )
                                             } else {
                                                 ToolUseBlock(
-                                                    toolName = block.toolName,
-                                                    inputJson = block.inputJson,
-                                                    elapsed = block.elapsed,
                                                     modifier = Modifier.padding(vertical = INNER_VERTICAL_PADDING),
+                                                    name = block.toolName,
+                                                    inputJson = block.inputJson,
                                                 )
                                             }
                                         }

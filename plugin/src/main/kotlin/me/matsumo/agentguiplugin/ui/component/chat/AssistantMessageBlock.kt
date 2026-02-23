@@ -43,9 +43,9 @@ fun AssistantMessageBlock(
                         )
                     } else {
                         ToolUseBlock(
-                            toolName = block.toolName,
+                            modifier = Modifier.fillMaxWidth(),
+                            name = block.toolName,
                             inputJson = block.inputJson,
-                            elapsed = block.elapsed,
                         )
                     }
                 }
