@@ -25,7 +25,7 @@ internal class TranscriptTailer(
 ) {
     private var job: Job? = null
 
-    fun start(filePath: String, onMessage: (ChatMessage.Assistant) -> Unit) {
+    fun start(filePath: String, onMessage: (ChatMessage) -> Unit) {
         stop()
 
         val path = Path.of(filePath)
@@ -75,7 +75,7 @@ internal class TranscriptTailer(
     private fun readNewLines(
         path: Path,
         fromPosition: Long,
-        onMessage: (ChatMessage.Assistant) -> Unit,
+        onMessage: (ChatMessage) -> Unit,
     ): Long {
         val size = Files.size(path)
         if (size <= fromPosition) return fromPosition

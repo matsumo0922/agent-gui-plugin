@@ -1,9 +1,10 @@
 package me.matsumo.agentguiplugin.viewmodel.transcript
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
@@ -17,48 +18,57 @@ import java.util.*
  * ```json
  * {
  *   "type": "assistant" | "user",
- *   "message": { "content": [...] },
+ *   "message": { "content": [...] | "string" },
  *   "agentId": "...",
  *   "uuid": "...",
  *   "timestamp": "..."
  * }
  * ```
  *
- * Only `"assistant"` type lines are converted to [ChatMessage.Assistant].
+ * - `"assistant"` lines with array content → [ChatMessage.Assistant]
+ * - `"user"` lines with string content → [ChatMessage.User]
  */
 internal object TranscriptParser {
 
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * Parse a single JSONL line into a [ChatMessage.Assistant], or `null`
-     * if the line is not an assistant message or is unparseable.
+     * Parse a single JSONL line into a [ChatMessage], or `null` if unparseable.
      */
-    fun parseLine(line: String): ChatMessage.Assistant? {
+    fun parseLine(line: String): ChatMessage? {
         if (line.isBlank()) return null
 
         return try {
             val obj = json.parseToJsonElement(line).jsonObject
             val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: return null
-
             val messageObj = obj["message"]?.jsonObject ?: return null
+            val uuid = obj["uuid"]?.jsonPrimitive?.contentOrNull ?: UUID.randomUUID().toString()
+            val content = messageObj["content"] ?: return null
 
-            println("Parsing line: $line")
-            val contentArray = messageObj["content"]?.jsonArray ?: return null
-
-            val blocks = contentArray.mapNotNull { element ->
-                parseContentBlock(element.jsonObject)
+            when {
+                type == "assistant" && content is JsonArray -> parseAssistantContent(uuid, content)
+                type == "user" && content is JsonPrimitive -> parseUserContent(uuid, content)
+                else -> null
             }
-
-            if (blocks.isEmpty()) return null
-
-            ChatMessage.Assistant(
-                id = obj["uuid"]?.jsonPrimitive?.contentOrNull ?: UUID.randomUUID().toString(),
-                blocks = blocks,
-            )
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun parseAssistantContent(uuid: String, contentArray: JsonArray): ChatMessage.Assistant? {
+        val blocks = contentArray.mapNotNull { element ->
+            parseContentBlock(element.jsonObject)
+        }
+        if (blocks.isEmpty()) return null
+
+        return ChatMessage.Assistant(id = uuid, blocks = blocks)
+    }
+
+    private fun parseUserContent(uuid: String, content: JsonPrimitive): ChatMessage.User? {
+        val text = content.contentOrNull
+        if (text.isNullOrBlank()) return null
+
+        return ChatMessage.User(id = uuid, text = text)
     }
 
     private fun parseContentBlock(block: JsonObject): UiContentBlock? {

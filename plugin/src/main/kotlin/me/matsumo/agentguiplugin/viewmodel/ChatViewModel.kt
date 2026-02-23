@@ -290,18 +290,18 @@ class ChatViewModel(
         val tailer = TranscriptTailer(scope)
         activeTailers[agentId] = tailer
 
-        tailer.start(jsonlPath) { assistantMsg ->
+        tailer.start(jsonlPath) { message ->
             val currentKey = keyRef.get()
             _uiState.update { state ->
                 val existing = state.subAgentTasks[currentKey]
                 val oldMessages = existing?.messages ?: emptyList()
 
                 // Same id → replace (partial update); new id → append
-                val existingIndex = oldMessages.indexOfFirst { it.id == assistantMsg.id }
+                val existingIndex = oldMessages.indexOfFirst { it.id == message.id }
                 val newMessages = if (existingIndex >= 0) {
-                    oldMessages.toMutableList().apply { set(existingIndex, assistantMsg) }
+                    oldMessages.toMutableList().apply { set(existingIndex, message) }
                 } else {
-                    oldMessages + assistantMsg
+                    oldMessages + message
                 }
 
                 val task = (existing ?: SubAgentTask(id = currentKey)).copy(messages = newMessages)
