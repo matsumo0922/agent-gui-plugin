@@ -29,6 +29,10 @@ dependencies {
         bundledPlugin("org.jetbrains.kotlin")
         bundledModule("intellij.platform.jewel.markdown.core")
         bundledModule("intellij.platform.jewel.markdown.ideLafBridgeStyling")
+        bundledModule("intellij.platform.jewel.markdown.extensions.gfmTables")
+        bundledModule("intellij.platform.jewel.markdown.extensions.gfmStrikethrough")
+        bundledModule("intellij.platform.jewel.markdown.extensions.gfmAlerts")
+        bundledModule("intellij.platform.jewel.markdown.extensions.autolink")
     }
 }
 

@@ -17,6 +17,7 @@ import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import me.matsumo.claude.agent.ClaudeSDKClient
 import me.matsumo.claude.agent.createSession
 import me.matsumo.claude.agent.types.AssistantMessage
+import me.matsumo.claude.agent.types.Model
 import me.matsumo.claude.agent.types.ResultMessage
 import me.matsumo.claude.agent.types.StreamEvent
 import me.matsumo.claude.agent.types.SystemMessage
@@ -46,6 +47,7 @@ class ChatViewModel(
                 _uiState.update { it.copy(sessionState = SessionState.Connecting) }
 
                 createSession {
+                    model = Model.SONNET
                     cwd = projectBasePath
                     cliPath = claudeCodePath
                     includePartialMessages = true
