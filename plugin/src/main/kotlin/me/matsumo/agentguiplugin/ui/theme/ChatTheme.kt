@@ -3,11 +3,8 @@ package me.matsumo.agentguiplugin.ui.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.theme.colorPalette
 
@@ -161,50 +158,6 @@ object ChatTheme {
     }
 
     // ──────────────────────────────────────────
-    // Code block colors (oneDark-inspired)
-    // ──────────────────────────────────────────
-
-    object Code {
-        val background: Color
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.colorPalette.gray(1)
-
-        val headerBackground: Color
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.colorPalette.gray(2)
-
-        // Non-composable: used in `by lazy` syntax highlight rules
-        val text: Color get() = Color(0xFFD4D4D4)
-
-        val languageLabel: Color
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.globalColors.text.disabled
-
-        // Syntax highlighting (oneDark palette) — non-Composable constants
-        val keyword: Color get() = Color(0xFFC678DD)
-        val string: Color get() = Color(0xFF98C379)
-        val comment: Color get() = Color(0xFF5C6370)
-        val number: Color get() = Color(0xFFD19A66)
-        val function: Color get() = Color(0xFF61AFEF)
-        val type: Color get() = Color(0xFFE5C07B)
-        val operator: Color get() = Color(0xFF56B6C2)
-        val property: Color get() = Color(0xFFE06C75)
-
-        // Inline code
-        val inlineBackground: Color
-            @Composable @ReadOnlyComposable
-            get() = if (JewelTheme.isDark) {
-                JewelTheme.colorPalette.gray(3)
-            } else {
-                JewelTheme.colorPalette.gray(11).copy(alpha = 0.5f)
-            }
-
-        val inlineBorder: Color
-            @Composable @ReadOnlyComposable
-            get() = Border.default
-    }
-
-    // ──────────────────────────────────────────
     // Input area colors
     // ──────────────────────────────────────────
 
@@ -251,72 +204,6 @@ object ChatTheme {
         val connecting: Color
             @Composable @ReadOnlyComposable
             get() = JewelTheme.globalColors.outlines.warning
-    }
-
-    // ──────────────────────────────────────────
-    // Markdown styles
-    // ──────────────────────────────────────────
-
-    object Markdown {
-        val h1: TextStyle
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.defaultTextStyle.copy(fontSize = 24.sp, fontWeight = FontWeight.Bold)
-
-        val h2: TextStyle
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.defaultTextStyle.copy(fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-
-        val h3: TextStyle
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.defaultTextStyle.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-
-        val h4: TextStyle
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.defaultTextStyle.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium)
-
-        val h5: TextStyle
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.defaultTextStyle.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium)
-
-        val h6: TextStyle
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.defaultTextStyle.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium)
-
-        val body: TextStyle
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.defaultTextStyle.copy(fontSize = 14.sp, lineHeight = 22.sp)
-
-        val code: TextStyle
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.editorTextStyle.copy(fontSize = 13.sp)
-
-        val blockquoteBorder: Color
-            @Composable @ReadOnlyComposable
-            get() = if (JewelTheme.isDark) {
-                JewelTheme.globalColors.text.normal.copy(alpha = 0.3f)
-            } else {
-                JewelTheme.colorPalette.purple(7).copy(alpha = 0.3f)
-            }
-
-        val blockquoteBackground: Color
-            @Composable @ReadOnlyComposable
-            get() = Background.mutedHalf
-
-        val linkColor: Color
-            @Composable @ReadOnlyComposable
-            get() = JewelTheme.colorPalette.blue(7)
-
-        val tableBorder: Color
-            @Composable @ReadOnlyComposable
-            get() = Border.default
-
-        val tableHeaderBackground: Color
-            @Composable @ReadOnlyComposable
-            get() = Background.mutedHalf
-
-        val horizontalRule: Color
-            @Composable @ReadOnlyComposable
-            get() = Border.default
     }
 
     // ──────────────────────────────────────────
