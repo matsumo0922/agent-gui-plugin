@@ -42,7 +42,7 @@ fun ThinkingBlock(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "Thinking Process",
+                text = "Thinking",
                 style = JewelTheme.typography.regular,
                 color = JewelTheme.globalColors.text.info,
             )
