@@ -50,6 +50,7 @@ import me.matsumo.agentguiplugin.ui.component.interaction.FileAttachPopup
 import me.matsumo.agentguiplugin.util.PluginIcons
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import me.matsumo.claude.agent.types.Model
+import me.matsumo.claude.agent.types.PermissionMode
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
@@ -291,8 +292,9 @@ private fun BottomSection(
     ) {
         // Model selector
         Box {
+            val currentModelEnum = Model.entries.find { it.modelId == currentModel }
             PopupButton(
-                text = modelDisplayName(currentModel),
+                text = currentModelEnum?.displayName ?: (currentModel ?: Model.SONNET.displayName),
                 onClick = { showModelPopup = !showModelPopup },
             )
 
@@ -315,8 +317,8 @@ private fun BottomSection(
                         Model.entries.forEach { model ->
                             PopupMenuItem(
                                 modifier = Modifier.fillMaxWidth(),
-                                text = modelDisplayName(model.modelId),
-                                description = modelDescription(model.modelId),
+                                text = model.displayName,
+                                description = model.description,
                                 icon = PluginIcons.CLAUDE,
                                 onClick = {
                                     onModelChange(model)
@@ -331,8 +333,9 @@ private fun BottomSection(
 
         // Permission mode selector
         Box {
+            val currentModeEnum = PermissionMode.entries.find { it.modeId == currentPermissionMode }
             PopupButton(
-                text = modeDisplayName(currentPermissionMode),
+                text = currentModeEnum?.displayName ?: PermissionMode.DEFAULT.displayName,
                 onClick = { showModePopup = !showModePopup },
             )
 
@@ -352,14 +355,14 @@ private fun BottomSection(
                             )
                             .padding(8.dp),
                     ) {
-                        permissionModes.forEach { (modeId, displayName, description, icon) ->
+                        PermissionMode.entries.forEach { mode ->
                             PopupMenuItem(
                                 modifier = Modifier.fillMaxWidth(),
-                                text = displayName,
-                                description = description,
-                                icon = icon,
+                                text = mode.displayName,
+                                description = mode.description,
+                                icon = AllIcons.Actions.Lightning,
                                 onClick = {
-                                    onModeChange(modeId)
+                                    onModeChange(mode.modeId)
                                     showModePopup = false
                                 },
                             )
@@ -448,33 +451,3 @@ private fun PopupMenuItem(
     }
 }
 
-private data class PopupMenuEntry(
-    val id: String,
-    val displayName: String,
-    val description: String,
-    val icon: Icon,
-)
-
-private val permissionModes = listOf(
-    PopupMenuEntry("default", "Auto", "Asks for permission on each action", AllIcons.Actions.Lightning),
-    PopupMenuEntry("acceptEdits", "Accept Edits", "Automatically accepts file edits", AllIcons.Actions.Lightning),
-    PopupMenuEntry("plan", "Plan Mode", "Requires plan approval before execution", AllIcons.Actions.Lightning),
-    PopupMenuEntry("bypassPermissions", "Bypass Permissions", "Skips all permission prompts", AllIcons.Actions.Lightning),
-)
-
-private fun modelDisplayName(modelId: String?): String = when (modelId) {
-    "sonnet" -> "Sonnet"
-    "opus" -> "Opus"
-    "haiku" -> "Haiku"
-    else -> modelId ?: "Sonnet"
-}
-
-private fun modelDescription(modelId: String): String = when (modelId) {
-    "sonnet" -> "Balanced speed and intelligence"
-    "opus" -> "Most intelligent, best for complex tasks"
-    "haiku" -> "Fastest, best for simple tasks"
-    else -> ""
-}
-
-private fun modeDisplayName(mode: String): String =
-    permissionModes.firstOrNull { it.id == mode }?.displayName ?: "Auto"
