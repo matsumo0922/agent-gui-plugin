@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.model.AttachedFile
+import me.matsumo.agentguiplugin.ui.component.interaction.FileAttachPopup
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.IconActionButton

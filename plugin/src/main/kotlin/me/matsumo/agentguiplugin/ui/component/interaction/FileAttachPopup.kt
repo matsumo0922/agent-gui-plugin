@@ -1,4 +1,4 @@
-package me.matsumo.agentguiplugin.ui.component
+package me.matsumo.agentguiplugin.ui.component.interaction
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,6 +45,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.model.toAttachedFile
+import me.matsumo.agentguiplugin.ui.component.SwingIcon
 import me.matsumo.agentguiplugin.util.FilePickerUtil
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
@@ -83,7 +84,7 @@ fun FileAttachPopup(
                     color = JewelTheme.globalColors.borders.normal,
                     shape = RoundedCornerShape(8.dp)
                 )
-                .background(JewelTheme.globalColors.panelBackground)
+                .background(JewelTheme.colorPalette.gray(2))
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                         onDismiss()
