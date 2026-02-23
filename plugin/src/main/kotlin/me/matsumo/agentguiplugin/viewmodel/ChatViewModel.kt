@@ -10,16 +10,23 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
+import me.matsumo.agentguiplugin.viewmodel.transcript.TranscriptTailer
 import me.matsumo.claude.agent.ClaudeSDKClient
 import me.matsumo.claude.agent.createSession
 import me.matsumo.claude.agent.types.AssistantMessage
+import me.matsumo.claude.agent.types.HookEvent
+import me.matsumo.claude.agent.types.HookOutput
 import me.matsumo.claude.agent.types.Model
 import me.matsumo.claude.agent.types.ResultMessage
 import me.matsumo.claude.agent.types.StreamEvent
+import me.matsumo.claude.agent.types.SubagentStartHookInput
+import me.matsumo.claude.agent.types.SubagentStopHookInput
 import me.matsumo.claude.agent.types.SystemMessage
 import me.matsumo.claude.agent.types.UserMessage
 import java.util.*
@@ -41,6 +48,10 @@ class ChatViewModel(
     private var activeTurnJob: Job? = null
     private var activeTurnId = 0L
 
+    // Sub-agent transcript tailing
+    private val agentIdToParentToolUseId = mutableMapOf<String, String>()
+    private val activeTailers = mutableMapOf<String, TranscriptTailer>()
+
     fun initialize() {
         scope.launch {
             try {
@@ -53,6 +64,20 @@ class ChatViewModel(
                     includePartialMessages = true
                     canUseTool { toolName, input, _ ->
                         permissionHandler.request(toolName, input)
+                    }
+                    hooks {
+                        on(HookEvent.SUBAGENT_START) { input, _, _ ->
+                            val si = input as SubagentStartHookInput
+                            println("Starting sub-agent tailing for agent ID: ${si.agentId}")
+                            startTailing(si.agentId, si.transcriptPath)
+                            HookOutput.proceed()
+                        }
+                        on(HookEvent.SUBAGENT_STOP) { input, _, _ ->
+                            val si = input as SubagentStopHookInput
+                            println("Stopping sub-agent tailing for agent ID: ${si.agentId}")
+                            stopTailing(si.agentId)
+                            HookOutput.proceed()
+                        }
                     }
                 }.also {
                     it.connect()
@@ -126,7 +151,7 @@ class ChatViewModel(
                         }
 
                         is AssistantMessage -> {
-                             handleAssistantMessage(message)
+                            handleAssistantMessage(message)
                         }
                         is ResultMessage -> handleResultMessage(message)
                         is UserMessage -> {
@@ -169,30 +194,50 @@ class ChatViewModel(
     }
 
     private fun handleSystemMessage(message: SystemMessage) {
-        if (message.isInit) {
-            _uiState.update { it.copy(sessionId = message.sessionId) }
+        when (message.subtype) {
+            "init" -> {
+                _uiState.update { it.copy(sessionId = message.sessionId) }
+            }
+
+            "task_started" -> {
+                val agentId = message.data["task_id"]?.jsonPrimitive?.contentOrNull ?: return
+                val parentToolUseId = message.data["tool_use_id"]?.jsonPrimitive?.contentOrNull ?: return
+                agentIdToParentToolUseId[agentId] = parentToolUseId
+
+                // Ensure the SubAgentTask entry exists
+                _uiState.update { state ->
+                    if (state.subAgentTasks.containsKey(parentToolUseId)) state
+                    else state.copy(
+                        subAgentTasks = state.subAgentTasks + (
+                            parentToolUseId to SubAgentTask(id = parentToolUseId)
+                        ),
+                    )
+                }
+            }
         }
     }
 
     private fun handleAssistantMessage(message: AssistantMessage) {
         val pid = message.parentToolUseId
         if (pid != null) {
-            val blocks = message.content.map { it.toUiBlock() }
-            val assistantMsg = ChatMessage.Assistant(
-                id = UUID.randomUUID().toString(),
-                blocks = blocks,
-            )
-
+            // Sub-agent messages from stream-json only contain tool_use blocks.
+            // The full content (text, thinking, tool_use) comes from JSONL tailing.
+            // We still update spawnedByToolName from stream-json if not yet set.
             _uiState.update { state ->
                 val existing = state.subAgentTasks[pid]
-                val toolName = existing?.spawnedByToolName ?: message.parentToolName
-                val task = existing?.copy(messages = existing.messages + assistantMsg) ?: SubAgentTask(
-                    id = pid,
-                    spawnedByToolName = toolName,
-                    messages = listOf(assistantMsg),
-                )
-
-                state.copy(subAgentTasks = state.subAgentTasks + (pid to task))
+                if (existing == null || existing.spawnedByToolName != null) state
+                else {
+                    val toolName = message.parentToolName
+                    if (toolName != null) {
+                        state.copy(
+                            subAgentTasks = state.subAgentTasks + (
+                                pid to existing.copy(spawnedByToolName = toolName)
+                            ),
+                        )
+                    } else {
+                        state
+                    }
+                }
             }
         } else {
             val blocks = message.content.map { it.toUiBlock() }
@@ -215,6 +260,41 @@ class ChatViewModel(
         }
     }
 
+    // --- Sub-agent transcript tailing ---
+
+    private fun startTailing(agentId: String, transcriptPath: String) {
+        val jsonlPath = "${transcriptPath.removeSuffix(".jsonl")}/subagents/agent-$agentId.jsonl"
+
+        val tailer = TranscriptTailer(scope)
+        activeTailers[agentId] = tailer
+
+        println("Starting sub-agent tailing for agent ID: $agentId, JSONL path: $jsonlPath")
+
+        tailer.start(jsonlPath) { assistantMsg ->
+            val parentToolUseId = agentIdToParentToolUseId[agentId] ?: return@start
+
+            _uiState.update { state ->
+                val existing = state.subAgentTasks[parentToolUseId]
+                val task = existing?.copy(messages = existing.messages + assistantMsg)
+                    ?: SubAgentTask(id = parentToolUseId, messages = listOf(assistantMsg))
+
+                state.copy(subAgentTasks = state.subAgentTasks + (parentToolUseId to task))
+            }
+        }
+    }
+
+    private fun stopTailing(agentId: String) {
+        activeTailers.remove(agentId)?.stop()
+    }
+
+    private fun stopAllTailing() {
+        activeTailers.values.forEach { it.stop() }
+        activeTailers.clear()
+        agentIdToParentToolUseId.clear()
+    }
+
+    // --- Public API ---
+
     fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
         permissionHandler.respondPermission(allow, denyMessage)
     }
@@ -226,6 +306,7 @@ class ChatViewModel(
     fun abortSession() {
         activeTurnJob?.cancel()
         activeTurnJob = null
+        stopAllTailing()
         scope.launch { client?.interrupt() }
         _uiState.update {
             it.copy(sessionState = SessionState.WaitingForInput)
@@ -235,6 +316,7 @@ class ChatViewModel(
     fun reconnect() {
         activeTurnJob?.cancel()
         activeTurnJob = null
+        stopAllTailing()
         client?.close()
         client = null
         _uiState.update { ChatUiState(sessionState = SessionState.Connecting) }
@@ -243,6 +325,7 @@ class ChatViewModel(
 
     fun dispose() {
         activeTurnJob?.cancel()
+        stopAllTailing()
         client?.close()
         client = null
     }
