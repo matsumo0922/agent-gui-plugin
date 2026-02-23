@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -97,7 +98,6 @@ fun ChatInputArea(
 
         InputSection(
             modifier = Modifier.fillMaxWidth(),
-            sessionState = sessionState,
             value = value,
             onValueChanged = { newValue -> value = newValue },
             onSend = ::send,
@@ -226,7 +226,6 @@ private fun ContextUsageIndicator(usage: Float, modifier: Modifier = Modifier) {
 
 @Composable
 private fun InputSection(
-    sessionState: SessionState,
     value: TextFieldValue,
     onValueChanged: (TextFieldValue) -> Unit,
     onSend: () -> Unit,
@@ -300,12 +299,19 @@ private fun BottomSection(
                 ) {
                     Column(
                         modifier = Modifier
-                            .background(JewelTheme.colorPalette.gray(2), RoundedCornerShape(6.dp))
-                            .border(1.dp, JewelTheme.globalColors.borders.disabled, RoundedCornerShape(6.dp))
+                            .width(IntrinsicSize.Max)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(JewelTheme.colorPalette.gray(2))
+                            .border(
+                                width = 1.dp,
+                                color = JewelTheme.globalColors.borders.disabled,
+                                shape = RoundedCornerShape(6.dp)
+                            )
                             .padding(4.dp),
                     ) {
                         Model.entries.forEach { model ->
                             PopupMenuItem(
+                                modifier = Modifier.fillMaxWidth(),
                                 text = modelDisplayName(model.modelId),
                                 isSelected = model.modelId == currentModel,
                                 onClick = {
@@ -332,12 +338,19 @@ private fun BottomSection(
                 ) {
                     Column(
                         modifier = Modifier
-                            .background(JewelTheme.colorPalette.gray(2), RoundedCornerShape(6.dp))
-                            .border(1.dp, JewelTheme.globalColors.borders.disabled, RoundedCornerShape(6.dp))
+                            .width(IntrinsicSize.Max)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(JewelTheme.colorPalette.gray(2))
+                            .border(
+                                width = 1.dp,
+                                color = JewelTheme.globalColors.borders.disabled,
+                                shape = RoundedCornerShape(6.dp)
+                            )
                             .padding(4.dp),
                     ) {
                         permissionModes.forEach { (modeId, displayName) ->
                             PopupMenuItem(
+                                modifier = Modifier.fillMaxWidth(),
                                 text = displayName,
                                 isSelected = modeId == currentPermissionMode,
                                 onClick = {
@@ -398,7 +411,6 @@ private fun PopupMenuItem(
 
     Row(
         modifier = modifier
-            .fillMaxWidth()
             .clip(RoundedCornerShape(4.dp))
             .hoverable(interactionSource)
             .clickable(onClick = onClick)
