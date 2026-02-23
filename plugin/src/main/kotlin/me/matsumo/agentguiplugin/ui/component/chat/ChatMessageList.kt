@@ -62,6 +62,7 @@ fun ChatMessageList(
                             UserMessageBubble(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = message.text,
+                                attachedFiles = message.attachedFiles,
                             )
                         }
 
