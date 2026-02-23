@@ -3,13 +3,10 @@ package me.matsumo.agentguiplugin.ui.component.chat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.matsumo.agentguiplugin.ui.component.MarkdownText
-import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 
@@ -20,11 +17,8 @@ fun AssistantMessageBlock(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .widthIn(max = ChatTheme.Spacing.messageMaxWidth)
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(ChatTheme.Spacing.blockGap),
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         blocks.forEach { block ->
             when (block) {
@@ -35,6 +29,7 @@ fun AssistantMessageBlock(
                 }
                 is UiContentBlock.Thinking -> {
                     ThinkingBlock(
+                        modifier = Modifier.fillMaxWidth(),
                         text = block.text,
                     )
                 }

@@ -5,7 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -13,14 +12,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import me.matsumo.agentguiplugin.ui.component.MarkdownText
-import me.matsumo.agentguiplugin.ui.theme.ChatTheme
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.theme.colorPalette
 
 @Composable
 fun UserMessageBubble(
     text: String,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(ChatTheme.Radius.medium)
+    val shape = RoundedCornerShape(8.dp)
 
     Box(
         modifier = modifier.fillMaxWidth(),
@@ -28,13 +28,18 @@ fun UserMessageBubble(
     ) {
         Box(
             modifier = Modifier
-                .widthIn(max = ChatTheme.Spacing.messageMaxWidth)
                 .clip(shape)
-                .background(color = ChatTheme.UserMessage.background, shape = shape)
-                .border(1.dp, ChatTheme.UserMessage.border, shape)
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                .background(JewelTheme.colorPalette.gray(1))
+                .border(
+                    width = 1.dp,
+                    color = JewelTheme.globalColors.borders.normal,
+                    shape = shape
+                )
+                .padding(12.dp),
         ) {
-            MarkdownText(text = text)
+            MarkdownText(
+                text = text
+            )
         }
     }
 }
