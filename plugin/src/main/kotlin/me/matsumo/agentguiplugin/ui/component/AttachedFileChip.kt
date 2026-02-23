@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.intellij.util.IconUtil
 import me.matsumo.agentguiplugin.model.AttachedFile
-import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
@@ -36,12 +35,12 @@ fun AttachedFileChip(
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(ChatTheme.Radius.small))
+            .clip(RoundedCornerShape(4.dp))
             .background(JewelTheme.colorPalette.gray(1))
             .border(
                 width = 1.dp,
-                color =  JewelTheme.globalColors.borders.disabled,
-                shape = RoundedCornerShape(ChatTheme.Radius.small)
+                color = JewelTheme.globalColors.borders.disabled,
+                shape = RoundedCornerShape(4.dp)
             )
             .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,

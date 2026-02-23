@@ -49,8 +49,10 @@ import me.matsumo.agentguiplugin.ui.component.interaction.FileAttachPopup
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import me.matsumo.claude.agent.types.Model
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.colorPalette
 import org.jetbrains.jewel.ui.typography
@@ -305,15 +307,15 @@ private fun BottomSection(
                             .border(
                                 width = 1.dp,
                                 color = JewelTheme.globalColors.borders.disabled,
-                                shape = RoundedCornerShape(6.dp)
+                                shape = RoundedCornerShape(8.dp)
                             )
-                            .padding(4.dp),
+                            .padding(8.dp),
                     ) {
                         Model.entries.forEach { model ->
                             PopupMenuItem(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = modelDisplayName(model.modelId),
-                                isSelected = model.modelId == currentModel,
+                                iconKey = AllIconsKeys.Actions.Lightning,
                                 onClick = {
                                     onModelChange(model)
                                     showModelPopup = false
@@ -344,15 +346,15 @@ private fun BottomSection(
                             .border(
                                 width = 1.dp,
                                 color = JewelTheme.globalColors.borders.disabled,
-                                shape = RoundedCornerShape(6.dp)
+                                shape = RoundedCornerShape(8.dp)
                             )
-                            .padding(4.dp),
+                            .padding(8.dp),
                     ) {
                         permissionModes.forEach { (modeId, displayName) ->
                             PopupMenuItem(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = displayName,
-                                isSelected = modeId == currentPermissionMode,
+                                iconKey = AllIconsKeys.Actions.Lightning,
                                 onClick = {
                                     onModeChange(modeId)
                                     showModePopup = false
@@ -402,7 +404,7 @@ private fun PopupButton(
 @Composable
 private fun PopupMenuItem(
     text: String,
-    isSelected: Boolean,
+    iconKey: IconKey,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -413,25 +415,34 @@ private fun PopupMenuItem(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
             .hoverable(interactionSource)
-            .clickable(onClick = onClick)
+            .clickable { onClick() }
             .background(if (isHovered) JewelTheme.colorPalette.blue(1) else JewelTheme.colorPalette.gray(2))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(8.dp, 6.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (isSelected) {
+        // TODO: Add matched icon for popup menu item
+        Icon(
+            modifier = Modifier.size(16.dp),
+            key = iconKey,
+            contentDescription = null,
+        )
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
-                text = "\u2713",
+                text = text,
                 style = JewelTheme.typography.small,
             )
-            Spacer(Modifier.width(4.dp))
-        } else {
-            Spacer(Modifier.width(16.dp))
-        }
 
-        Text(
-            text = text,
-            style = JewelTheme.typography.small,
-        )
+            // TODO: Add default description (from claude /model command)
+            Text(
+                text = "TODO: description",
+                style = JewelTheme.typography.small,
+                color = JewelTheme.globalColors.text.info,
+            )
+        }
     }
 }
 
