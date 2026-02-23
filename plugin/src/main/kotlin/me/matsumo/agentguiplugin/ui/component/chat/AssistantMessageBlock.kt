@@ -44,8 +44,8 @@ fun AssistantMessageBlock(
                     if (task != null) {
                         SubAgentTaskCard(
                             task = task,
-                            toolName = block.toolName,
                             subAgentTasks = subAgentTasks,
+                            elapsed = block.elapsed,
                         )
                     }
                 }

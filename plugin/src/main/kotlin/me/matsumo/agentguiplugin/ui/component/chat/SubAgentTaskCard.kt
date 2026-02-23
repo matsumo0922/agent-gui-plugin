@@ -43,24 +43,19 @@ private const val MAX_DEPTH = 4
 fun SubAgentTaskCard(
     task: SubAgentTask,
     subAgentTasks: Map<String, SubAgentTask>,
-    toolName: String? = null,
     modifier: Modifier = Modifier,
+    elapsed: Double? = null,
 ) {
     val depth = LocalSubAgentDepth.current
     val canExpand = depth < MAX_DEPTH && task.messages.isNotEmpty()
 
     var isPopupVisible by remember { mutableStateOf(false) }
-
-    val label = toolName ?: task.spawnedByToolName ?: "Sub-agent Task"
     val messageCount = task.messages.size
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(
-                if (canExpand) Modifier.clickable { isPopupVisible = !isPopupVisible }
-                else Modifier
-            ),
+            .then(if (canExpand) Modifier.clickable { isPopupVisible = !isPopupVisible } else Modifier),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -72,7 +67,7 @@ fun SubAgentTaskCard(
         )
 
         Text(
-            text = label,
+            text = "SubAgent",
             style = JewelTheme.typography.medium,
             color = if (canExpand) JewelTheme.globalColors.text.info else JewelTheme.globalColors.text.disabled,
             fontWeight = FontWeight.SemiBold,
@@ -81,6 +76,14 @@ fun SubAgentTaskCard(
         if (messageCount > 0) {
             Text(
                 text = "($messageCount messages)",
+                style = JewelTheme.typography.medium,
+                color = JewelTheme.globalColors.text.disabled,
+            )
+        }
+
+        if (elapsed != null) {
+            Text(
+                text = "(${elapsed.toInt()}ms)",
                 style = JewelTheme.typography.medium,
                 color = JewelTheme.globalColors.text.disabled,
             )
@@ -105,8 +108,6 @@ fun SubAgentTaskCard(
 
             CompositionLocalProvider(LocalSubAgentDepth provides depth + 1) {
                 ChatMessageList(
-                    messages = task.messages,
-                    subAgentTasks = subAgentTasks,
                     modifier = Modifier
                         .size(400.dp, 500.dp)
                         .shadow(elevation = 8.dp, shape = shape)
@@ -125,6 +126,8 @@ fun SubAgentTaskCard(
                                 false
                             }
                         },
+                    messages = task.messages,
+                    subAgentTasks = subAgentTasks,
                 )
             }
         }

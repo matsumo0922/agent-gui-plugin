@@ -14,12 +14,6 @@ import java.nio.file.StandardWatchEventKinds.ENTRY_CREATE
 import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
 import java.util.concurrent.TimeUnit
 
-/**
- * Tails a JSONL transcript file using [java.nio.file.WatchService].
- *
- * Watches the parent directory for file creation/modification events
- * and reads newly appended lines when the target file changes.
- */
 internal class TranscriptTailer(
     private val scope: CoroutineScope,
 ) {
@@ -33,36 +27,22 @@ internal class TranscriptTailer(
         val fileName = path.fileName
 
         job = scope.launch(Dispatchers.IO) {
-            // Wait for parent directory to exist
-            while (isActive && !Files.exists(dir)) {
-                delay(500)
-            }
-            if (!isActive) return@launch
+            if (!awaitDirExists(dir)) return@launch
 
-            val watcher = dir.fileSystem.newWatchService()
-
-            try {
+            dir.fileSystem.newWatchService().use { watcher ->
                 dir.register(watcher, ENTRY_CREATE, ENTRY_MODIFY)
 
-                var position = 0L
-                if (Files.exists(path)) {
-                    position = readNewLines(path, position, onMessage)
-                }
+                var pos = if (Files.exists(path)) readNewLines(path, 0L, onMessage) else 0L
 
                 while (isActive) {
                     val key = watcher.poll(1, TimeUnit.SECONDS) ?: continue
-                    val relevant = key.pollEvents().any { event ->
-                        (event.context() as? Path) == fileName
-                    }
+                    val touched = key.pollEvents().any { (it.context() as? Path) == fileName }
 
-                    if (relevant && Files.exists(path)) {
-                        position = readNewLines(path, position, onMessage)
+                    if (touched && Files.exists(path)) {
+                        pos = readNewLines(path, pos, onMessage)
                     }
-
-                    if (!key.reset()) break
+                    if (!key.reset()) return@use
                 }
-            } finally {
-                watcher.close()
             }
         }
     }
@@ -70,6 +50,11 @@ internal class TranscriptTailer(
     fun stop() {
         job?.cancel()
         job = null
+    }
+
+    private suspend fun CoroutineScope.awaitDirExists(dir: Path): Boolean {
+        while (isActive && !Files.exists(dir)) delay(500)
+        return isActive
     }
 
     private fun readNewLines(
@@ -80,7 +65,7 @@ internal class TranscriptTailer(
         val size = Files.size(path)
         if (size <= fromPosition) return fromPosition
 
-        try {
+        return runCatching {
             RandomAccessFile(path.toFile(), "r").use { raf ->
                 raf.seek(fromPosition)
                 val buffer = ByteArray((size - fromPosition).toInt())
@@ -90,10 +75,9 @@ internal class TranscriptTailer(
                     TranscriptParser.parseLine(line)?.let(onMessage)
                 }
             }
-        } catch (_: Exception) {
-            return fromPosition
-        }
-
-        return size
+        }.fold(
+            onSuccess = { size },
+            onFailure = { fromPosition }
+        )
     }
 }
