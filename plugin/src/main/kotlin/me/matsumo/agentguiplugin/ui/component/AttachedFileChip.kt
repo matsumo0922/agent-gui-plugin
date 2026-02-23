@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.intellij.util.IconUtil
 import me.matsumo.agentguiplugin.model.AttachedFile
@@ -47,8 +46,8 @@ fun AttachedFileChip(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         SwingIcon(
+            modifier = Modifier.size(14.dp),
             icon = file.icon,
-            size = 14.dp,
             contentDescription = null,
         )
 
@@ -70,7 +69,6 @@ fun AttachedFileChip(
 @Composable
 fun SwingIcon(
     icon: Icon?,
-    size: Dp,
     contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
@@ -82,9 +80,9 @@ fun SwingIcon(
 
     if (imageBitmap != null) {
         Image(
+            modifier = modifier,
             bitmap = imageBitmap,
             contentDescription = contentDescription,
-            modifier = modifier.size(size),
         )
     }
 }

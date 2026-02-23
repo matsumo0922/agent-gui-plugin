@@ -380,8 +380,8 @@ private fun PopupFileItem(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SwingIcon(
+            modifier = Modifier.size(16.dp),
             icon = file.icon,
-            size = 16.dp,
             contentDescription = null,
         )
 

@@ -46,16 +46,17 @@ import androidx.compose.ui.window.Popup
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.ui.component.interaction.FileAttachPopup
+import me.matsumo.agentguiplugin.util.PluginIcons
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import me.matsumo.claude.agent.types.Model
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.colorPalette
 import org.jetbrains.jewel.ui.typography
+import javax.swing.Icon
 
 @Composable
 fun ChatInputArea(
@@ -315,7 +316,8 @@ private fun BottomSection(
                             PopupMenuItem(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = modelDisplayName(model.modelId),
-                                iconKey = AllIconsKeys.Actions.Lightning,
+                                description = modelDescription(model.modelId),
+                                icon = PluginIcons.CLAUDE,
                                 onClick = {
                                     onModelChange(model)
                                     showModelPopup = false
@@ -350,11 +352,13 @@ private fun BottomSection(
                             )
                             .padding(8.dp),
                     ) {
-                        permissionModes.forEach { (modeId, displayName) ->
+                        permissionModes.forEach { (modeId, displayName, description, iconKey) ->
                             PopupMenuItem(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = displayName,
-                                iconKey = AllIconsKeys.Actions.Lightning,
+                                description = description,
+                                // TODO: use icon key
+                                icon = PluginIcons.CLAUDE,
                                 onClick = {
                                     onModeChange(modeId)
                                     showModePopup = false
@@ -404,7 +408,8 @@ private fun PopupButton(
 @Composable
 private fun PopupMenuItem(
     text: String,
-    iconKey: IconKey,
+    description: String,
+    icon: Icon,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -421,10 +426,9 @@ private fun PopupMenuItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // TODO: Add matched icon for popup menu item
-        Icon(
+        SwingIcon(
             modifier = Modifier.size(16.dp),
-            key = iconKey,
+            icon = icon,
             contentDescription = null,
         )
 
@@ -436,9 +440,8 @@ private fun PopupMenuItem(
                 style = JewelTheme.typography.small,
             )
 
-            // TODO: Add default description (from claude /model command)
             Text(
-                text = "TODO: description",
+                text = description,
                 style = JewelTheme.typography.small,
                 color = JewelTheme.globalColors.text.info,
             )
@@ -446,11 +449,18 @@ private fun PopupMenuItem(
     }
 }
 
+private data class PopupMenuEntry(
+    val id: String,
+    val displayName: String,
+    val description: String,
+    val iconKey: IconKey,
+)
+
 private val permissionModes = listOf(
-    "default" to "Auto",
-    "acceptEdits" to "Accept Edits",
-    "plan" to "Plan Mode",
-    "bypassPermissions" to "Bypass Permissions",
+    PopupMenuEntry("default", "Auto", "Asks for permission on each action", AllIconsKeys.Actions.Lightning),
+    PopupMenuEntry("acceptEdits", "Accept Edits", "Automatically accepts file edits", AllIconsKeys.Actions.Lightning),
+    PopupMenuEntry("plan", "Plan Mode", "Requires plan approval before execution", AllIconsKeys.Actions.Lightning),
+    PopupMenuEntry("bypassPermissions", "Bypass Permissions", "Skips all permission prompts", AllIconsKeys.Actions.Lightning),
 )
 
 private fun modelDisplayName(modelId: String?): String = when (modelId) {
@@ -460,5 +470,12 @@ private fun modelDisplayName(modelId: String?): String = when (modelId) {
     else -> modelId ?: "Sonnet"
 }
 
+private fun modelDescription(modelId: String): String = when (modelId) {
+    "sonnet" -> "Balanced speed and intelligence"
+    "opus" -> "Most intelligent, best for complex tasks"
+    "haiku" -> "Fastest, best for simple tasks"
+    else -> ""
+}
+
 private fun modeDisplayName(mode: String): String =
-    permissionModes.firstOrNull { it.first == mode }?.second ?: "Auto"
+    permissionModes.firstOrNull { it.id == mode }?.displayName ?: "Auto"

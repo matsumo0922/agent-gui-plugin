@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -68,8 +69,8 @@ fun UserMessageBubble(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             SwingIcon(
+                                modifier = Modifier.size(14.dp),
                                 icon = file.icon,
-                                size = 14.dp,
                                 contentDescription = null,
                             )
 
