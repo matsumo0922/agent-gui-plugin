@@ -358,7 +358,12 @@ private fun BottomSection(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = mode.displayName,
                                 description = mode.description,
-                                icon = AllIcons.Actions.Lightning,
+                                icon = when (mode) {
+                                    PermissionMode.DEFAULT -> AllIcons.Actions.Lightning
+                                    PermissionMode.ACCEPT_EDITS -> AllIcons.Actions.Edit
+                                    PermissionMode.PLAN -> AllIcons.Actions.ListFiles
+                                    PermissionMode.BYPASS_PERMISSIONS -> AllIcons.General.Error
+                                },
                                 onClick = {
                                     onModeChange(mode)
                                     showModePopup = false
@@ -448,4 +453,3 @@ private fun PopupMenuItem(
         }
     }
 }
-
