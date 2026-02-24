@@ -9,19 +9,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.ide.CopyPasteManager
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
@@ -40,14 +41,24 @@ const val DIFF_CONTEXT_LINES = 3
 /** diff の1行を表す sealed interface */
 sealed interface DiffLine {
     val text: String
+    val oldLineNumber: Int?
+    val newLineNumber: Int?
 
-    data class Context(override val text: String) : DiffLine
-    data class Added(override val text: String) : DiffLine
-    data class Removed(override val text: String) : DiffLine
+    data class Context(override val text: String, override val oldLineNumber: Int, override val newLineNumber: Int) : DiffLine
+    data class Added(override val text: String, override val newLineNumber: Int) : DiffLine {
+        override val oldLineNumber: Int? = null
+    }
+
+    data class Removed(override val text: String, override val oldLineNumber: Int) : DiffLine {
+        override val newLineNumber: Int? = null
+    }
 }
 
 /**
  * old_string / new_string の行単位 diff を LCS アルゴリズムで計算し、コンテキスト付きの diff 行リストを返す。
+ *
+ * - 隣接する delta のコンテキスト範囲が重なる場合は同一 hunk として結合する
+ * - 各 [DiffLine] には old/new ファイルの1ベース行番号を付与する
  */
 fun computeDiffLines(
     oldString: String,
@@ -60,35 +71,66 @@ fun computeDiffLines(
     val patch = com.github.difflib.DiffUtils.diff(oldLines, newLines)
     if (patch.deltas.isEmpty()) return emptyList()
 
-    val result = mutableListOf<DiffLine>()
-    var prevEndOld = 0
+    val allDeltas: List<com.github.difflib.patch.AbstractDelta<String>> = patch.deltas
 
-    for (delta in patch.deltas) {
-        val startOld = delta.source.position
-
-        // delta 前のコンテキスト行（oldLines から）
-        val contextStart = maxOf(prevEndOld, startOld - contextLines)
-        for (i in contextStart until startOld) {
-            result.add(DiffLine.Context(oldLines[i]))
+    // 隣接 delta のコンテキスト窓が重なる場合は同一 hunk に結合する
+    // hunk = コンテキストを含めた連続して表示すべき delta のグループ
+    val hunks = mutableListOf<List<com.github.difflib.patch.AbstractDelta<String>>>()
+    var currentHunk = mutableListOf<com.github.difflib.patch.AbstractDelta<String>>(allDeltas[0])
+    for (i in 1 until allDeltas.size) {
+        val prev = allDeltas[i - 1]
+        val curr = allDeltas[i]
+        // prev の後コンテキスト窓末尾 vs curr の前コンテキスト窓先頭
+        val prevContextEnd = prev.source.position + prev.source.lines.size + contextLines
+        val currContextStart = curr.source.position - contextLines
+        if (currContextStart <= prevContextEnd) {
+            // 窓が重なる → 同一 hunk に結合
+            currentHunk.add(curr)
+        } else {
+            hunks.add(currentHunk.toList())
+            currentHunk = mutableListOf(curr)
         }
-
-        // 削除行（DELETE / CHANGE の source）
-        for (line in delta.source.lines) {
-            result.add(DiffLine.Removed(line))
-        }
-
-        // 追加行（INSERT / CHANGE の target）
-        for (line in delta.target.lines) {
-            result.add(DiffLine.Added(line))
-        }
-
-        prevEndOld = startOld + delta.source.lines.size
     }
+    hunks.add(currentHunk.toList())
 
-    // 最後の delta 後のコンテキスト行
-    val contextEnd = minOf(oldLines.size, prevEndOld + contextLines)
-    for (i in prevEndOld until contextEnd) {
-        result.add(DiffLine.Context(oldLines[i]))
+    val result = mutableListOf<DiffLine>()
+
+    for (hunkDeltas in hunks) {
+        val firstDelta = hunkDeltas.first()
+        val lastDelta = hunkDeltas.last()
+
+        // hunk の開始位置（コンテキスト分だけ手前から、ファイル先頭を下回らない）
+        var oldPos = maxOf(0, firstDelta.source.position - contextLines)
+        var newPos = maxOf(0, firstDelta.target.position - contextLines)
+
+        for (delta in hunkDeltas) {
+            // この delta の前にあるコンテキスト行
+            while (oldPos < delta.source.position) {
+                result.add(DiffLine.Context(oldLines[oldPos], oldLineNumber = oldPos + 1, newLineNumber = newPos + 1))
+                oldPos++
+                newPos++
+            }
+
+            // 削除行（source 側）
+            for (line in delta.source.lines) {
+                result.add(DiffLine.Removed(line, oldLineNumber = oldPos + 1))
+                oldPos++
+            }
+
+            // 追加行（target 側）
+            for (line in delta.target.lines) {
+                result.add(DiffLine.Added(line, newLineNumber = newPos + 1))
+                newPos++
+            }
+        }
+
+        // hunk 末尾のコンテキスト行（最後の delta の後、ファイル末尾を超えない）
+        val hunkEndOld = minOf(oldLines.size, lastDelta.source.position + lastDelta.source.lines.size + contextLines)
+        while (oldPos < hunkEndOld) {
+            result.add(DiffLine.Context(oldLines[oldPos], oldLineNumber = oldPos + 1, newLineNumber = newPos + 1))
+            oldPos++
+            newPos++
+        }
     }
 
     return result
@@ -103,6 +145,7 @@ fun computeDiffLines(
  *
  * - [diffLines] が null の場合: 通常のシンタックスハイライト表示
  * - [diffLines] が non-null の場合: diff 表示（+/-/コンテキスト行）
+ * - [showLineNumbers] が true の場合: 左側に行番号列を表示（diff 表示時は old/new 各列）
  * - [onOpenDiff] が non-null の場合: ヘッダーに「開く」ボタンを表示
  */
 @OptIn(ExperimentalJewelApi::class)
@@ -112,6 +155,7 @@ fun CodeBlock(
     language: String = "",
     modifier: Modifier = Modifier,
     diffLines: List<DiffLine>? = null,
+    showLineNumbers: Boolean = false,
     onOpenDiff: (() -> Unit)? = null,
     styling: MarkdownStyling.Code.Fenced? = null,
 ) {
@@ -122,33 +166,36 @@ fun CodeBlock(
 
     Column(
         modifier = modifier
-            .fillMaxWidth()
             .clip(shape)
             .background(codeBlockBg, shape)
             .border(1.dp, borderColor, shape),
     ) {
-        // ── ヘッダー行 ──────────────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(headerBg)
-                .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .weight(1f),
                 text = language.ifEmpty { "code" },
                 color = ChatTheme.Text.secondary,
             )
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
                 if (onOpenDiff != null) {
                     IconActionButton(
-                        key = AllIconsKeys.Welcome.Open,
+                        key = AllIconsKeys.General.OpenInToolWindow,
                         onClick = onOpenDiff,
                         contentDescription = "開く",
                     )
-                    Spacer(Modifier.width(4.dp))
                 }
 
                 IconActionButton(
@@ -162,17 +209,19 @@ fun CodeBlock(
             }
         }
 
-        // ── コンテンツ ───────────────────────────────────────────────────────
         if (diffLines != null) {
-            DiffContent(diffLines = diffLines)
+            DiffContent(
+                modifier = Modifier.fillMaxWidth(),
+                diffLines = diffLines,
+                showLineNumbers = showLineNumbers,
+            )
         } else if (styling != null) {
-            // FencedCodeBlock 向け: シンタックスハイライト表示
             HighlightedCodeBlockContent(
+                modifier = Modifier.fillMaxWidth(),
                 content = content,
                 styling = styling,
             )
         } else {
-            // フォールバック: プレーンテキスト
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -189,26 +238,26 @@ fun CodeBlock(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Diff 表示
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
-private fun DiffContent(diffLines: List<DiffLine>) {
+private fun DiffContent(
+    diffLines: List<DiffLine>,
+    showLineNumbers: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val addedBg = ChatTheme.Diff.addedBackground
     val removedBg = ChatTheme.Diff.removedBackground
     val addedLabel = ChatTheme.Diff.addedLabel
     val removedLabel = ChatTheme.Diff.removedLabel
     val contextColor = ChatTheme.Text.primary
+    val lineNumColor = ChatTheme.Text.secondary
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .horizontalScroll(rememberScrollState())
             .padding(vertical = 8.dp),
     ) {
         diffLines.forEach { line ->
-            val (prefix, bg, labelColor) = when (line) {
+            val (prefix, bg, lineColor) = when (line) {
                 is DiffLine.Added -> Triple("+", addedBg, addedLabel)
                 is DiffLine.Removed -> Triple("-", removedBg, removedLabel)
                 is DiffLine.Context -> Triple(" ", Color.Transparent, contextColor)
@@ -218,19 +267,30 @@ private fun DiffContent(diffLines: List<DiffLine>) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(bg)
-                    .padding(horizontal = 12.dp, vertical = 1.dp),
-                verticalAlignment = Alignment.Top,
+                    .padding(8.dp, 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                if (showLineNumbers) {
+                    Text(
+                        modifier = Modifier.width(24.dp),
+                        text = (line.oldLineNumber ?: line.newLineNumber)?.toString().orEmpty(),
+                        color = lineNumColor,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = TextAlign.End,
+                    )
+                }
+
                 Text(
                     text = prefix,
-                    color = labelColor,
+                    color = lineColor,
                     fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.width(14.dp),
                 )
+
                 Text(
                     text = line.text,
                     fontFamily = FontFamily.Monospace,
-                    color = if (line is DiffLine.Context) contextColor else labelColor,
+                    color = lineColor,
                     softWrap = false,
                 )
             }
@@ -238,22 +298,19 @@ private fun DiffContent(diffLines: List<DiffLine>) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// シンタックスハイライト表示（FencedCodeBlock 向け）
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 internal fun HighlightedCodeBlockContent(
     content: String,
     styling: MarkdownStyling.Code.Fenced,
+    modifier: Modifier = Modifier,
     block: FencedCodeBlock? = null,
 ) {
     val highlighter = LocalCodeHighlighter.current
     val mimeType = block?.mimeType
 
     val highlightedText = if (mimeType != null) {
-        androidx.compose.runtime.produceState(
+        produceState(
             initialValue = AnnotatedString(content),
             key1 = content,
             key2 = mimeType,
@@ -265,8 +322,7 @@ internal fun HighlightedCodeBlockContent(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .horizontalScroll(rememberScrollState())
             .padding(styling.padding),
     ) {

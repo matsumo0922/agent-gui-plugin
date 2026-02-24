@@ -125,6 +125,7 @@ private fun EditDiffBlock(
                 language = fileName,
                 modifier = modifier,
                 diffLines = state.lines,
+                showLineNumbers = true,
                 onOpenDiff = {
                     openDiffInIde(project = project, diffInfo = diffInfo, fileName = fileName)
                 },
