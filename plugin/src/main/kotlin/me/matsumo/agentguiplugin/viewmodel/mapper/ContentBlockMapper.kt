@@ -3,20 +3,27 @@ package me.matsumo.agentguiplugin.viewmodel.mapper
 import kotlinx.serialization.json.jsonPrimitive
 import me.matsumo.agentguiplugin.viewmodel.EditDiffInfo
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
+import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
 import me.matsumo.claude.agent.types.ContentBlock
 import me.matsumo.claude.agent.types.TextBlock
 import me.matsumo.claude.agent.types.ThinkingBlock
 import me.matsumo.claude.agent.types.ToolResultBlock
 import me.matsumo.claude.agent.types.ToolUseBlock
 
-private val EDIT_TOOL_NAMES = setOf("Edit", "str_replace_based_edit_tool", "StrReplaceBasedEditTool")
-
 private fun ToolUseBlock.toEditDiffInfoOrNull(): EditDiffInfo? {
-    if (name !in EDIT_TOOL_NAMES) return null
     val filePath = input["file_path"]?.jsonPrimitive?.content ?: return null
-    val oldString = input["old_string"]?.jsonPrimitive?.content ?: return null
-    val newString = input["new_string"]?.jsonPrimitive?.content ?: return null
-    return EditDiffInfo(filePath = filePath, oldString = oldString, newString = newString)
+    return when (name) {
+        in ToolNames.EDIT_TOOL_NAMES -> {
+            val oldString = input["old_string"]?.jsonPrimitive?.content ?: return null
+            val newString = input["new_string"]?.jsonPrimitive?.content ?: return null
+            EditDiffInfo(filePath = filePath, oldString = oldString, newString = newString)
+        }
+        in ToolNames.WRITE_TOOL_NAMES -> {
+            val content = input["content"]?.jsonPrimitive?.content ?: return null
+            EditDiffInfo(filePath = filePath, oldString = "", newString = content)
+        }
+        else -> null
+    }
 }
 
 internal fun ContentBlock.toUiBlock(): UiContentBlock = when (this) {

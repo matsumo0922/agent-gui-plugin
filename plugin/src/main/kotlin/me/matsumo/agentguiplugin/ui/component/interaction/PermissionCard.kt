@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -27,7 +28,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.matsumo.agentguiplugin.ui.component.CodeBlock
+import me.matsumo.agentguiplugin.ui.component.DiffLine
+import me.matsumo.agentguiplugin.ui.component.computeDiffLines
 import me.matsumo.agentguiplugin.viewmodel.PendingPermission
+import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.theme.colorPalette
@@ -63,7 +69,7 @@ fun PermissionCard(
             permission = permission,
         )
 
-        InputParamSection(
+        InputOrDiffSection(
             modifier = Modifier
                 .padding(top = 12.dp)
                 .fillMaxWidth(),
@@ -124,6 +130,52 @@ private fun HeaderSection(
             style = JewelTheme.typography.medium,
             color = JewelTheme.globalColors.text.info,
         )
+    }
+}
+
+@OptIn(ExperimentalJewelApi::class)
+@Composable
+private fun InputOrDiffSection(
+    permission: PendingPermission,
+    modifier: Modifier = Modifier,
+) {
+    val filePath = permission.toolInput["file_path"]?.toString() ?: ""
+    val fileName = filePath.substringAfterLast('/')
+
+    when (permission.toolName) {
+        in ToolNames.EDIT_TOOL_NAMES -> {
+            val oldString = permission.toolInput["old_string"]?.toString() ?: ""
+            val newString = permission.toolInput["new_string"]?.toString() ?: ""
+
+            val diffLines by produceState<List<DiffLine>?>(initialValue = null, key1 = permission) {
+                value = runCatching { computeDiffLines(oldString, newString) }.getOrNull()
+            }
+
+            if (diffLines != null) {
+                CodeBlock(
+                    content = oldString,
+                    language = fileName,
+                    modifier = modifier,
+                    diffLines = diffLines,
+                    showLineNumbers = true,
+                )
+            }
+        }
+        in ToolNames.WRITE_TOOL_NAMES -> {
+            val content = permission.toolInput["content"]?.toString() ?: ""
+
+            CodeBlock(
+                content = content,
+                language = fileName,
+                modifier = modifier,
+            )
+        }
+        else -> {
+            InputParamSection(
+                modifier = modifier,
+                permission = permission,
+            )
+        }
     }
 }
 

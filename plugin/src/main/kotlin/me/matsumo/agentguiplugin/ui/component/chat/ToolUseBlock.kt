@@ -71,7 +71,7 @@ fun ToolUseBlock(
             if (!isExpanded) {
                 Text(
                     modifier = Modifier.weight(1f),
-                    text = "(${inputMap.toList().joinToString() { "${it.first}: ${it.second}" }})",
+                    text = "(${inputMap.toList().joinToString { "${it.first}: ${it.second}" }})",
                     style = JewelTheme.typography.medium,
                     color = JewelTheme.globalColors.text.disabled,
                     maxLines = 1,
