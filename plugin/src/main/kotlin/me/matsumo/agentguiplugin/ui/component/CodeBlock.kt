@@ -47,54 +47,51 @@ sealed interface DiffLine {
 }
 
 /**
- * ファイル全体の内容・置換前後テキストから、コンテキスト付きの diff 行リストを生成する。
- *
- * - [fileContent] 内に [oldString] が見つからない場合は `-`/`+` 行のみを返す
- * - 複数箇所一致の場合は最初の一致位置を使用する
+ * old_string / new_string の行単位 diff を LCS アルゴリズムで計算し、コンテキスト付きの diff 行リストを返す。
  */
 fun computeDiffLines(
-    fileContent: String,
     oldString: String,
     newString: String,
     contextLines: Int = DIFF_CONTEXT_LINES,
 ): List<DiffLine> {
-    val fileLines = fileContent.lines()
     val oldLines = oldString.trimEnd('\n').lines()
     val newLines = newString.trimEnd('\n').lines()
 
-    val startIdx = findOldStringStartLine(fileLines, oldLines)
+    val patch = com.github.difflib.DiffUtils.diff(oldLines, newLines)
+    if (patch.deltas.isEmpty()) return emptyList()
 
-    if (startIdx < 0) {
-        return buildList {
-            oldLines.forEach { add(DiffLine.Removed(it)) }
-            newLines.forEach { add(DiffLine.Added(it)) }
+    val result = mutableListOf<DiffLine>()
+    var prevEndOld = 0
+
+    for (delta in patch.deltas) {
+        val startOld = delta.source.position
+
+        // delta 前のコンテキスト行（oldLines から）
+        val contextStart = maxOf(prevEndOld, startOld - contextLines)
+        for (i in contextStart until startOld) {
+            result.add(DiffLine.Context(oldLines[i]))
         }
-    }
 
-    val contextBefore = fileLines.subList(maxOf(0, startIdx - contextLines), startIdx)
-    val contextAfter = fileLines.subList(
-        startIdx + oldLines.size,
-        minOf(fileLines.size, startIdx + oldLines.size + contextLines),
-    )
-
-    return buildList {
-        contextBefore.forEach { add(DiffLine.Context(it)) }
-        oldLines.forEach { add(DiffLine.Removed(it)) }
-        newLines.forEach { add(DiffLine.Added(it)) }
-        contextAfter.forEach { add(DiffLine.Context(it)) }
-    }
-}
-
-/** [fileLines] 内で [oldLines] が連続して一致し始める先頭行インデックスを返す。見つからない場合は -1。 */
-private fun findOldStringStartLine(fileLines: List<String>, oldLines: List<String>): Int {
-    if (oldLines.isEmpty()) return -1
-    outer@ for (i in 0..fileLines.size - oldLines.size) {
-        for (j in oldLines.indices) {
-            if (fileLines[i + j] != oldLines[j]) continue@outer
+        // 削除行（DELETE / CHANGE の source）
+        for (line in delta.source.lines) {
+            result.add(DiffLine.Removed(line))
         }
-        return i
+
+        // 追加行（INSERT / CHANGE の target）
+        for (line in delta.target.lines) {
+            result.add(DiffLine.Added(line))
+        }
+
+        prevEndOld = startOld + delta.source.lines.size
     }
-    return -1
+
+    // 最後の delta 後のコンテキスト行
+    val contextEnd = minOf(oldLines.size, prevEndOld + contextLines)
+    for (i in prevEndOld until contextEnd) {
+        result.add(DiffLine.Context(oldLines[i]))
+    }
+
+    return result
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

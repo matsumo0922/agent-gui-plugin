@@ -99,9 +99,7 @@ private fun EditDiffBlock(
         key1 = diffInfo,
     ) {
         value = runCatching {
-            val file = LocalFileSystem.getInstance().refreshAndFindFileByPath(diffInfo.filePath)
-            val fileContent = file?.let { VfsUtil.loadText(it) } ?: ""
-            computeDiffLines(fileContent, diffInfo.oldString, diffInfo.newString)
+            computeDiffLines(diffInfo.oldString, diffInfo.newString)
         }.fold(
             onSuccess = { DiffPreviewState.Ready(it) },
             onFailure = { DiffPreviewState.Error(it.message ?: "diff の計算に失敗しました") },

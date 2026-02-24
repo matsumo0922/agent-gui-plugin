@@ -1,6 +1,10 @@
 [versions]
 kotlin = "2.1.20"
 intellij-platform = "2.10.2"
+java-diff-utils = "4.12"
+
+[libraries]
+java-diff-utils = { module = "io.github.java-diff-utils:java-diff-utils", version.ref = "java-diff-utils" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
