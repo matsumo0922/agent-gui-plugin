@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -28,6 +29,7 @@ import org.jetbrains.jewel.ui.typography
 fun ChatMessageList(
     messages: List<ChatMessage>,
     subAgentTasks: Map<String, SubAgentTask>,
+    project: Project,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -78,6 +80,7 @@ fun ChatMessageList(
                                 modifier = Modifier.fillMaxWidth(),
                                 blocks = message.blocks,
                                 subAgentTasks = subAgentTasks,
+                                project = project,
                             )
                         }
                     }

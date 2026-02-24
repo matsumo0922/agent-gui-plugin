@@ -131,6 +131,7 @@ fun ChatPanel(
                 modifier = Modifier.weight(1f),
                 messages = uiState.messages,
                 subAgentTasks = uiState.subAgentTasks,
+                project = project,
             )
 
             // Divider

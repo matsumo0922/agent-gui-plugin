@@ -68,6 +68,13 @@ data class SubAgentTask(
     val completedAt: Long? = null,                     // 終了時刻 (epochMillis)
 )
 
+@Immutable
+data class EditDiffInfo(
+    val filePath: String,
+    val oldString: String,
+    val newString: String,
+)
+
 sealed interface UiContentBlock {
     data class Text(val text: String) : UiContentBlock
     data class Thinking(val text: String, val isExpanded: Boolean = false) : UiContentBlock
@@ -75,5 +82,6 @@ sealed interface UiContentBlock {
         val toolName: String,
         val inputJson: JsonObject,
         val toolUseId: String? = null,
+        val diffInfo: EditDiffInfo? = null,
     ) : UiContentBlock
 }

@@ -233,6 +233,36 @@ object ChatTheme {
     }
 
     // ──────────────────────────────────────────
+    // Diff block colors
+    // ──────────────────────────────────────────
+
+    object Diff {
+        val addedBackground: Color
+            @Composable @ReadOnlyComposable
+            get() = if (JewelTheme.isDark) {
+                JewelTheme.colorPalette.green(1).copy(alpha = 0.35f)
+            } else {
+                JewelTheme.colorPalette.green(12).copy(alpha = 0.45f)
+            }
+
+        val removedBackground: Color
+            @Composable @ReadOnlyComposable
+            get() = if (JewelTheme.isDark) {
+                JewelTheme.colorPalette.red(1).copy(alpha = 0.35f)
+            } else {
+                JewelTheme.colorPalette.red(12).copy(alpha = 0.45f)
+            }
+
+        val addedLabel: Color
+            @Composable @ReadOnlyComposable
+            get() = if (JewelTheme.isDark) JewelTheme.colorPalette.green(9) else JewelTheme.colorPalette.green(3)
+
+        val removedLabel: Color
+            @Composable @ReadOnlyComposable
+            get() = if (JewelTheme.isDark) JewelTheme.colorPalette.red(9) else JewelTheme.colorPalette.red(3)
+    }
+
+    // ──────────────────────────────────────────
     // Spacing constants
     // ──────────────────────────────────────────
 

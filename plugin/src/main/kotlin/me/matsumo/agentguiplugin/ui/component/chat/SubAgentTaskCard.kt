@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
@@ -43,6 +44,7 @@ private const val MAX_DEPTH = 4
 fun SubAgentTaskCard(
     task: SubAgentTask,
     subAgentTasks: Map<String, SubAgentTask>,
+    project: Project,
     modifier: Modifier = Modifier,
 ) {
     val depth = LocalSubAgentDepth.current
@@ -134,6 +136,7 @@ fun SubAgentTaskCard(
                         },
                     messages = task.messages,
                     subAgentTasks = subAgentTasks,
+                    project = project,
                 )
             }
         }
