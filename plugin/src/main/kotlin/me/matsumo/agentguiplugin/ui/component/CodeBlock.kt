@@ -24,6 +24,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.github.difflib.DiffUtils
+import com.github.difflib.patch.AbstractDelta
 import com.intellij.openapi.ide.CopyPasteManager
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -68,15 +70,16 @@ fun computeDiffLines(
     val oldLines = oldString.trimEnd('\n').lines()
     val newLines = newString.trimEnd('\n').lines()
 
-    val patch = com.github.difflib.DiffUtils.diff(oldLines, newLines)
+    val patch = DiffUtils.diff(oldLines, newLines)
     if (patch.deltas.isEmpty()) return emptyList()
 
-    val allDeltas: List<com.github.difflib.patch.AbstractDelta<String>> = patch.deltas
+    val allDeltas: List<AbstractDelta<String>> = patch.deltas
 
     // 隣接 delta のコンテキスト窓が重なる場合は同一 hunk に結合する
     // hunk = コンテキストを含めた連続して表示すべき delta のグループ
-    val hunks = mutableListOf<List<com.github.difflib.patch.AbstractDelta<String>>>()
-    var currentHunk = mutableListOf<com.github.difflib.patch.AbstractDelta<String>>(allDeltas[0])
+    val hunks = mutableListOf<List<AbstractDelta<String>>>()
+    var currentHunk = mutableListOf<AbstractDelta<String>>(allDeltas[0])
+
     for (i in 1 until allDeltas.size) {
         val prev = allDeltas[i - 1]
         val curr = allDeltas[i]
@@ -135,10 +138,6 @@ fun computeDiffLines(
 
     return result
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Composables
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * 汎用コードブロック Composable。
