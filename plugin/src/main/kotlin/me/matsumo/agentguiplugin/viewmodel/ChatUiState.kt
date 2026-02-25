@@ -57,6 +57,7 @@ sealed interface ChatMessage {
     data class Assistant(
         override val id: String,
         val blocks: List<UiContentBlock> = emptyList(),
+        val timestamp: Long = System.currentTimeMillis(),
     ) : ChatMessage
 }
 

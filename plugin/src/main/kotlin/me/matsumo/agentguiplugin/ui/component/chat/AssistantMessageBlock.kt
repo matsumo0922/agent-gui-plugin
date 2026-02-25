@@ -2,28 +2,42 @@ package me.matsumo.agentguiplugin.ui.component.chat
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.DiffManager
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.testFramework.LightVirtualFile
 import me.matsumo.agentguiplugin.ui.component.CodeBlock
 import me.matsumo.agentguiplugin.ui.component.DiffLine
 import me.matsumo.agentguiplugin.ui.component.MarkdownText
 import me.matsumo.agentguiplugin.ui.component.computeDiffLines
+import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.EditDiffInfo
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.ui.component.IconActionButton
+import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import java.awt.datatransfer.StringSelection
+import java.text.SimpleDateFormat
+import java.util.*
 
 private sealed interface DiffPreviewState {
     object Loading : DiffPreviewState
@@ -37,6 +51,7 @@ fun AssistantMessageBlock(
     subAgentTasks: Map<String, SubAgentTask>,
     project: Project,
     modifier: Modifier = Modifier,
+    timestamp: Long = 0L,
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -46,7 +61,15 @@ fun AssistantMessageBlock(
             when (block) {
                 is UiContentBlock.Text -> {
                     MarkdownText(
+                        modifier = Modifier.fillMaxWidth(),
                         text = block.text,
+                    )
+
+                    AssistantMessageFooter(
+                        modifier = Modifier.fillMaxWidth(),
+                        timestamp = timestamp,
+                        blocks = blocks,
+                        project = project,
                     )
                 }
                 is UiContentBlock.Thinking -> {
@@ -85,6 +108,69 @@ fun AssistantMessageBlock(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AssistantMessageFooter(
+    timestamp: Long,
+    blocks: List<UiContentBlock>,
+    project: Project,
+    modifier: Modifier = Modifier,
+) {
+    val formattedTime = remember(timestamp) {
+        if (timestamp > 0L) {
+            SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
+        } else {
+            ""
+        }
+    }
+
+    val plainText = remember(blocks) {
+        blocks.filterIsInstance<UiContentBlock.Text>().joinToString("\n") { it.text }
+    }
+
+    Row(
+        modifier = modifier.padding(top = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = formattedTime,
+            fontSize = 11.sp,
+            color = ChatTheme.Text.secondary,
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            if (plainText.isNotEmpty()) {
+                IconActionButton(
+                    key = AllIconsKeys.General.OpenInToolWindow,
+                    onClick = {
+                        openTextInEditor(project, plainText)
+                    },
+                    contentDescription = "エディターで開く",
+                )
+
+                IconActionButton(
+                    key = AllIconsKeys.Actions.Copy,
+                    onClick = {
+                        CopyPasteManager.getInstance()
+                            .setContents(StringSelection(plainText))
+                    },
+                    contentDescription = "出力をコピー",
+                )
+            }
+        }
+    }
+}
+
+private fun openTextInEditor(project: Project, text: String) {
+    ApplicationManager.getApplication().invokeLater {
+        val virtualFile = LightVirtualFile("Claude Output.md", text)
+        FileEditorManager.getInstance(project).openFile(virtualFile, true)
     }
 }
 

@@ -81,6 +81,7 @@ fun ChatMessageList(
                                 blocks = message.blocks,
                                 subAgentTasks = subAgentTasks,
                                 project = project,
+                                timestamp = message.timestamp,
                             )
                         }
                     }
