@@ -2,19 +2,18 @@ package me.matsumo.agentguiplugin.service
 
 import androidx.compose.runtime.Immutable
 import com.intellij.openapi.components.Service
-import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import me.matsumo.agentguiplugin.model.RawContentBlock
+import me.matsumo.agentguiplugin.model.RawConversationEntry
+import me.matsumo.agentguiplugin.model.RawSessionMeta
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 import java.nio.file.Files
@@ -40,13 +39,9 @@ class SessionHistoryService(private val project: Project) {
     )
 
     companion object {
-        private val logger = Logger.getInstance(SessionHistoryService::class.java)
         private val claudeDir: Path = Path.of(System.getProperty("user.home"), ".claude")
         private val json = Json { ignoreUnknownKeys = true }
 
-        /**
-         * プロジェクトパスを正規化する（symlink 解決）。
-         */
         fun normalizeProjectPath(path: String): String {
             return try {
                 Path.of(path).toRealPath().toString()
@@ -55,19 +50,11 @@ class SessionHistoryService(private val project: Project) {
             }
         }
 
-        /**
-         * Claude Code CLI と同じ方式でプロジェクトパスをエンコードする。
-         * "/" → "-" に置換。
-         */
         fun encodeClaudeProjectPath(normalizedPath: String): String {
             return normalizedPath.replace("/", "-")
         }
     }
 
-    /**
-     * 現在のプロジェクトのセッション一覧を取得する。
-     * ~/.claude/usage-data/session-meta/ からメタデータを読み取り、プロジェクトパスでフィルタリング。
-     */
     suspend fun listSessions(): List<SessionSummary> = withContext(Dispatchers.IO) {
         val metaDir = claudeDir.resolve("usage-data").resolve("session-meta")
         if (!Files.isDirectory(metaDir)) return@withContext emptyList()
@@ -83,9 +70,6 @@ class SessionHistoryService(private val project: Project) {
         }
     }
 
-    /**
-     * セッションの会話メッセージを読み取る（UI 表示用）。
-     */
     suspend fun readSessionMessages(sessionId: String): List<ChatMessage> = withContext(Dispatchers.IO) {
         val projectPath = project.basePath ?: return@withContext emptyList()
         val normalizedPath = normalizeProjectPath(projectPath)
@@ -101,38 +85,49 @@ class SessionHistoryService(private val project: Project) {
     private fun parseSummary(file: Path, normalizedProjectPath: String): SessionSummary? {
         return try {
             val text = Files.readString(file)
-            val obj = json.parseToJsonElement(text).jsonObject
+            val meta = json.decodeFromString<RawSessionMeta>(text)
 
-            val sessionProjectPath = obj["project_path"]?.jsonPrimitive?.contentOrNull ?: return null
-            val normalizedSessionPath = normalizeProjectPath(sessionProjectPath)
+            val sessionProjectPath = meta.projectPath ?: return null
+            val normalizedProjectPath = normalizeProjectPath(normalizedProjectPath)
 
-            if (normalizedSessionPath != normalizedProjectPath) return null
+            if (normalizedProjectPath != normalizeProjectPath(sessionProjectPath)) return null
 
-            val sessionId = obj["session_id"]?.jsonPrimitive?.contentOrNull
-                ?: file.fileName.toString().removeSuffix(".json")
+            val sessionId = meta.sessionId ?: file.fileName.toString().removeSuffix(".json")
 
             SessionSummary(
                 sessionId = sessionId,
-                projectPath = sessionProjectPath,
-                firstPrompt = obj["first_prompt"]?.jsonPrimitive?.contentOrNull,
-                userMessageCount = obj["user_message_count"]?.jsonPrimitive?.intOrNull ?: 0,
-                assistantMessageCount = obj["assistant_message_count"]?.jsonPrimitive?.intOrNull ?: 0,
-                startTime = obj["start_time"]?.jsonPrimitive?.longOrNull?.let { Instant.ofEpochMilli(it) }
-                    ?: obj["start_time"]?.jsonPrimitive?.contentOrNull?.let {
-                        try {
-                            Instant.parse(it)
-                        } catch (_: Exception) {
-                            null
-                        }
-                    },
-                durationMinutes = obj["duration_minutes"]?.jsonPrimitive?.intOrNull,
-                model = obj["model"]?.jsonPrimitive?.contentOrNull,
-                totalCostUsd = obj["total_cost_usd"]?.jsonPrimitive?.doubleOrNull,
+                projectPath = normalizedProjectPath,
+                firstPrompt = meta.firstPrompt,
+                userMessageCount = meta.userMessageCount,
+                assistantMessageCount = meta.assistantMessageCount,
+                startTime = parseStartTime(meta.startTime),
+                durationMinutes = meta.durationMinutes,
+                model = meta.model,
+                totalCostUsd = meta.totalCostUsd,
             )
         } catch (e: Exception) {
-            logger.debug("Failed to parse session meta: $file", e)
+            println("Failed to parse session meta: $file, ${e.message}")
             null
         }
+    }
+
+    private fun parseStartTime(element: kotlinx.serialization.json.JsonElement?): Instant? {
+        if (element == null) return null
+        val primitive = element.jsonPrimitive
+
+        // Long (epochMillis) → Instant
+        primitive.longOrNull?.let { return Instant.ofEpochMilli(it) }
+
+        // ISO 8601 string → Instant
+        primitive.contentOrNull?.let {
+            return try {
+                Instant.parse(it)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        return null
     }
 
     private fun parseSessionMessages(sessionFile: Path): List<ChatMessage> {
@@ -142,80 +137,74 @@ class SessionHistoryService(private val project: Project) {
             Files.readAllLines(sessionFile).forEach { line ->
                 if (line.isBlank()) return@forEach
                 try {
-                    val obj = json.parseToJsonElement(line).jsonObject
+                    val entry = json.decodeFromString<RawConversationEntry>(line)
+                    if (entry.isSidechain) return@forEach
 
-                    // Skip sidechain messages
-                    if (obj["isSidechain"]?.jsonPrimitive?.contentOrNull == "true") return@forEach
-
-                    val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: return@forEach
-
-                    when (type) {
-                        "human", "user" -> {
-                            val messageObj = obj["message"]?.jsonObject ?: return@forEach
-                            val content = messageObj["content"]
-                            val text = when {
-                                content?.jsonPrimitive != null -> content.jsonPrimitive.contentOrNull
-                                content?.jsonArray != null -> {
-                                    content.jsonArray
-                                        .filter {
-                                            it.jsonObject["type"]?.jsonPrimitive?.contentOrNull == "text"
-                                        }
-                                        .joinToString("\n") {
-                                            it.jsonObject["text"]?.jsonPrimitive?.contentOrNull ?: ""
-                                        }
-                                }
-                                else -> null
-                            }
-                            if (!text.isNullOrBlank()) {
-                                messages.add(
-                                    ChatMessage.User(
-                                        id = UUID.randomUUID().toString(),
-                                        text = text,
-                                    ),
-                                )
-                            }
-                        }
-
-                        "assistant" -> {
-                            val messageObj = obj["message"]?.jsonObject ?: return@forEach
-                            val contentArray = messageObj["content"]?.jsonArray ?: return@forEach
-                            val blocks = contentArray.mapNotNull { element ->
-                                val blockObj = element.jsonObject
-                                when (blockObj["type"]?.jsonPrimitive?.contentOrNull) {
-                                    "text" -> {
-                                        val text = blockObj["text"]?.jsonPrimitive?.contentOrNull
-                                        text?.let { UiContentBlock.Text(it) }
-                                    }
-                                    "thinking" -> {
-                                        val text = blockObj["thinking"]?.jsonPrimitive?.contentOrNull
-                                        text?.let { UiContentBlock.Thinking(it) }
-                                    }
-                                    "tool_use" -> {
-                                        val toolName = blockObj["name"]?.jsonPrimitive?.contentOrNull ?: "unknown"
-                                        val inputJson = blockObj["input"]?.jsonObject ?: JsonObject(emptyMap())
-                                        UiContentBlock.ToolUse(toolName = toolName, inputJson = inputJson)
-                                    }
-                                    else -> null
-                                }
-                            }
-                            if (blocks.isNotEmpty()) {
-                                messages.add(
-                                    ChatMessage.Assistant(
-                                        id = UUID.randomUUID().toString(),
-                                        blocks = blocks,
-                                    ),
-                                )
-                            }
-                        }
+                    when (entry.type) {
+                        "human", "user" -> parseUserMessage(entry)?.let(messages::add)
+                        "assistant" -> parseAssistantMessage(entry)?.let(messages::add)
                     }
                 } catch (e: Exception) {
-                    logger.debug("Failed to parse session message line", e)
+                    println("Failed to parse session message line: $line, ${e.message}")
                 }
             }
         } catch (e: Exception) {
-            logger.warn("Failed to read session file: $sessionFile", e)
+            println("Failed to read session file: $sessionFile, ${e.message}")
         }
 
         return messages
+    }
+
+    private fun parseUserMessage(entry: RawConversationEntry): ChatMessage.User? {
+        val content = entry.message?.content ?: return null
+
+        val text = when {
+            // String 形式
+            runCatching { content.jsonPrimitive }.isSuccess ->
+                content.jsonPrimitive.contentOrNull
+
+            // Array 形式: text ブロックを結合
+            runCatching { content.jsonArray }.isSuccess ->
+                content.jsonArray
+                    .map { json.decodeFromString<RawContentBlock>(it.toString()) }
+                    .filter { it.type == "text" }
+                    .joinToString("\n") { it.text.orEmpty() }
+
+            else -> null
+        }
+
+        if (text.isNullOrBlank()) return null
+
+        return ChatMessage.User(
+            id = UUID.randomUUID().toString(),
+            text = text,
+        )
+    }
+
+    private fun parseAssistantMessage(entry: RawConversationEntry): ChatMessage.Assistant? {
+        val contentArray = runCatching {
+            entry.message?.content?.jsonArray
+        }.getOrNull() ?: return null
+
+        val blocks = contentArray
+            .map { json.decodeFromString<RawContentBlock>(it.toString()) }
+            .mapNotNull { block ->
+                when (block.type) {
+                    "text" -> block.text?.let(UiContentBlock::Text)
+                    "thinking" -> block.thinking?.let(UiContentBlock::Thinking)
+                    "tool_use" -> UiContentBlock.ToolUse(
+                        toolName = block.name ?: "unknown",
+                        inputJson = block.input ?: JsonObject(emptyMap()),
+                    )
+                    else -> null
+                }
+            }
+
+        if (blocks.isEmpty()) return null
+
+        return ChatMessage.Assistant(
+            id = UUID.randomUUID().toString(),
+            blocks = blocks,
+        )
     }
 }

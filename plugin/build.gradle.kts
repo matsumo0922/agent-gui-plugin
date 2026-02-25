@@ -1,6 +1,7 @@
 plugins {
     id("java")
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.intellij.platform)
 }
@@ -13,6 +14,7 @@ repositories {
 }
 
 dependencies {
+    compileOnly(libs.kotlinx.serialization.json)
     implementation(libs.java.diff.utils)
 
     implementation("me.matsumo.claude.agent:agent:local") {

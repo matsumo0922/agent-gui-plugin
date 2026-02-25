@@ -36,6 +36,8 @@ object SessionHistoryAction {
             val historyService = project.service<SessionHistoryService>()
             val sessions = historyService.listSessions()
 
+            println(sessions.joinToString("\n") { it.toString() })
+
             invokeLater {
                 val dialog = SessionHistoryDialog(project, sessions)
                 if (dialog.showAndGet()) {
