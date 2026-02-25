@@ -20,6 +20,12 @@
     </dependencies>
 
     <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+            parentId="tools"
+            instance="me.matsumo.agentguiplugin.settings.AgentGuiSettingsConfigurable"
+            id="me.matsumo.agentguiplugin.settings"
+            displayName="Agent GUI"/>
+
         <toolWindow id="Agent GUI"
                     factoryClass="me.matsumo.agentguiplugin.toolwindow.AgentToolWindowFactory"
                     anchor="right"
