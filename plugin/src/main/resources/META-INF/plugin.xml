@@ -23,9 +23,11 @@
         <toolWindow id="AgentGuiPlugin"
                     factoryClass="me.matsumo.agentguiplugin.toolwindow.AgentToolWindowFactory"
                     anchor="right"
+                    canCloseContents="true"
                     icon="AllIcons.Actions.Execute"/>
 
         <projectService serviceImplementation="me.matsumo.agentguiplugin.service.SessionService"/>
+        <projectService serviceImplementation="me.matsumo.agentguiplugin.service.SessionHistoryService"/>
         <applicationService serviceImplementation="me.matsumo.agentguiplugin.service.SettingsService"/>
     </extensions>
 

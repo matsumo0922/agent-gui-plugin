@@ -4,10 +4,10 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.ToolWindow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import me.matsumo.agentguiplugin.viewmodel.TabViewModel
 
 @Service(Service.Level.PROJECT)
 class SessionService(
@@ -16,26 +16,20 @@ class SessionService(
 
     private val scope = CoroutineScope(SupervisorJob())
 
-    val projectBasePath: String
-        get() = project.basePath ?: System.getProperty("user.dir")
+    private var tabManager: TabManager? = null
 
-    val claudeCodePath: String?
-        get() = service<SettingsService>().claudeCodePath
-
-    private var tabViewModel: TabViewModel? = null
-
-    fun getOrCreateTabViewModel(): TabViewModel {
-        return tabViewModel ?: TabViewModel(
-            projectBasePath = projectBasePath,
-            claudeCodePath = claudeCodePath,
+    fun getOrCreateTabManager(toolWindow: ToolWindow): TabManager {
+        return tabManager ?: TabManager(
+            toolWindow = toolWindow,
+            project = project,
             settingsService = service<SettingsService>(),
             scope = scope,
-        ).also { tabViewModel = it }
+        ).also { tabManager = it }
     }
 
     override fun dispose() {
-        tabViewModel?.dispose()
-        tabViewModel = null
+        tabManager?.dispose()
+        tabManager = null
         scope.cancel()
     }
 }
