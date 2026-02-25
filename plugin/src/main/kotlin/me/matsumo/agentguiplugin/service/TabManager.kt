@@ -1,9 +1,9 @@
 package me.matsumo.agentguiplugin.service
 
-import androidx.compose.runtime.LaunchedEffect
+import com.intellij.execution.ui.RunnerLayoutUi
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
@@ -16,21 +16,27 @@ import me.matsumo.agentguiplugin.ui.ChatPanel
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
-import org.jetbrains.jewel.bridge.addComposeTab
+import org.jetbrains.jewel.bridge.JewelComposePanel
+import java.awt.BorderLayout
+import java.awt.Graphics
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+import javax.swing.JComponent
+import javax.swing.JPanel
 
 /**
- * IntelliJ ToolWindow の Content タブと ChatViewModel のライフサイクルを管理する。
- * 各タブ = 1 つの addComposeTab() 呼び出し + 1 つの ChatViewModel。
+ * RunnerLayoutUi の Content タブと ChatViewModel のライフサイクルを管理する。
+ * 各タブ = 1 つの JewelComposePanel + 1 つの ChatViewModel。
  */
 class TabManager(
-    private val toolWindow: ToolWindow,
+    private val layoutUi: RunnerLayoutUi,
     private val project: Project,
     private val settingsService: SettingsService,
     private val scope: CoroutineScope,
 ) {
     private val viewModels = ConcurrentHashMap<Content, ChatViewModel>()
     private val titleJobs = ConcurrentHashMap<Content, Job>()
+    private val tabCounter = AtomicInteger(0)
 
     private val projectBasePath: String
         get() = project.basePath ?: System.getProperty("user.dir")
@@ -39,14 +45,14 @@ class TabManager(
         get() = settingsService.claudeCodePath
 
     init {
-        toolWindow.contentManager.addContentManagerListener(object : ContentManagerListener {
+        layoutUi.contentManager.addContentManagerListener(object : ContentManagerListener {
             override fun contentRemoved(event: ContentManagerEvent) {
                 val content = event.content
                 titleJobs.remove(content)?.cancel()
                 viewModels.remove(content)?.dispose()
 
                 // 最後のタブが閉じられたら新しい空タブを作成
-                if (toolWindow.contentManager.contentCount == 0) {
+                if (layoutUi.contentManager.contentCount == 0) {
                     invokeLater { addTab() }
                 }
             }
@@ -58,24 +64,22 @@ class TabManager(
      */
     fun addTab(title: String = "New chat") {
         val vm = createViewModel()
+        val contentId = "chat-tab-${tabCounter.incrementAndGet()}"
 
-        toolWindow.addComposeTab(
-            tabDisplayName = title,
-            focusOnClickInside = true,
-            isCloseable = true,
-        ) {
-            LaunchedEffect(vm) {
-                if (vm.uiState.value.sessionState == SessionState.Disconnected) {
-                    vm.start()
-                }
-            }
-            ChatPanel(viewModel = vm, project = project)
-        }
+        val component = createComposeComponent(vm)
+        val content = layoutUi.createContent(
+            contentId,
+            component,
+            title,
+            AllIcons.Actions.Execute,
+            null,
+        )
+        content.isCloseable = true
 
-        val content = toolWindow.contentManager.contents.last()
+        layoutUi.addContent(content)
         viewModels[content] = vm
 
-        toolWindow.contentManager.setSelectedContent(content, true)
+        layoutUi.contentManager.setSelectedContent(content, true)
         observeTitle(content, vm)
     }
 
@@ -87,19 +91,21 @@ class TabManager(
         val vm = createViewModel()
         vm.importHistory(historyMessages)
 
-        toolWindow.addComposeTab(title, focusOnClickInside = true) {
-            LaunchedEffect(vm) {
-                if (vm.uiState.value.sessionState == SessionState.Disconnected) {
-                    vm.start(resumeSessionId = summary.sessionId)
-                }
-            }
-            ChatPanel(viewModel = vm, project = project)
-        }
+        val contentId = "chat-tab-${tabCounter.incrementAndGet()}"
+        val component = createComposeComponent(vm, resumeSessionId = summary.sessionId)
+        val content = layoutUi.createContent(
+            contentId,
+            component,
+            title,
+            AllIcons.Actions.Execute,
+            null,
+        )
+        content.isCloseable = true
 
-        val content = toolWindow.contentManager.contents.last()
+        layoutUi.addContent(content)
         viewModels[content] = vm
 
-        toolWindow.contentManager.setSelectedContent(content, true)
+        layoutUi.contentManager.setSelectedContent(content, true)
         observeTitle(content, vm)
     }
 
@@ -108,6 +114,35 @@ class TabManager(
         titleJobs.clear()
         viewModels.values.forEach { it.dispose() }
         viewModels.clear()
+    }
+
+    private fun createComposeComponent(vm: ChatViewModel, resumeSessionId: String? = null): JComponent {
+        val composeComponent = JewelComposePanel {
+            androidx.compose.runtime.LaunchedEffect(vm) {
+                if (vm.uiState.value.sessionState == SessionState.Disconnected) {
+                    vm.start(resumeSessionId = resumeSessionId)
+                }
+            }
+            ChatPanel(viewModel = vm, project = project)
+        }
+
+        // Skiko (Metal/GPU) は BufferedImage への描画に非対応のため、
+        // RunnerLayoutUi のドラッグ時にタブ画像キャプチャで UnsupportedOperationException が発生する。
+        // ラッパー JPanel で paint 例外をキャッチし、フォールバック描画を返すことで回避する。
+        return object : JPanel(BorderLayout()) {
+            init {
+                add(composeComponent, BorderLayout.CENTER)
+            }
+
+            override fun paint(g: Graphics) {
+                try {
+                    super.paint(g)
+                } catch (_: UnsupportedOperationException) {
+                    g.color = background
+                    g.fillRect(0, 0, width, height)
+                }
+            }
+        }
     }
 
     private fun createViewModel(): ChatViewModel {

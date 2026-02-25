@@ -1,10 +1,10 @@
 package me.matsumo.agentguiplugin.service
 
+import com.intellij.execution.ui.RunnerLayoutUi
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.ToolWindow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -18,9 +18,9 @@ class SessionService(
 
     private var tabManager: TabManager? = null
 
-    fun getOrCreateTabManager(toolWindow: ToolWindow): TabManager {
+    fun getOrCreateTabManager(layoutUi: RunnerLayoutUi): TabManager {
         return tabManager ?: TabManager(
-            toolWindow = toolWindow,
+            layoutUi = layoutUi,
             project = project,
             settingsService = service<SettingsService>(),
             scope = scope,
