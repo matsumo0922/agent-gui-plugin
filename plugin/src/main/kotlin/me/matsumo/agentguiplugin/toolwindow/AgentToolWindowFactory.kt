@@ -1,6 +1,8 @@
 package me.matsumo.agentguiplugin.toolwindow
 
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -17,15 +19,18 @@ class AgentToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         toolWindow.addComposeTab("Claude Code", focusOnClickInside = true) {
             val sessionService = remember { project.service<SessionService>() }
-            val viewModel = remember { sessionService.chatViewModel }
+            val tabViewModel = remember { sessionService.getOrCreateTabViewModel() }
 
-            LaunchedEffect(viewModel) {
-                if (viewModel.uiState.value.sessionState == SessionState.Disconnected) {
-                    viewModel.initialize()
+            // 初期タブの自動初期化
+            val activeVm by tabViewModel.activeChatViewModel.collectAsState()
+            LaunchedEffect(activeVm) {
+                val vm = activeVm ?: return@LaunchedEffect
+                if (vm.uiState.value.sessionState == SessionState.Disconnected) {
+                    vm.start()
                 }
             }
 
-            ChatPanel(viewModel = viewModel, project = project)
+            ChatPanel(tabViewModel = tabViewModel, project = project)
         }
     }
 }

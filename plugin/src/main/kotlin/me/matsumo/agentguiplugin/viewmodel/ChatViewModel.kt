@@ -3,11 +3,17 @@ package me.matsumo.agentguiplugin.viewmodel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -16,12 +22,12 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import me.matsumo.agentguiplugin.model.AttachedFile
-import me.matsumo.agentguiplugin.service.SettingsService
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import me.matsumo.agentguiplugin.viewmodel.transcript.TranscriptTailer
 import me.matsumo.claude.agent.ClaudeSDKClient
 import me.matsumo.claude.agent.createSession
+import me.matsumo.claude.agent.resumeSession
 import me.matsumo.claude.agent.types.AssistantMessage
 import me.matsumo.claude.agent.types.HookEvent
 import me.matsumo.claude.agent.types.HookOutput
@@ -39,16 +45,30 @@ import java.util.concurrent.atomic.AtomicReference
 class ChatViewModel(
     private val projectBasePath: String,
     private val claudeCodePath: String?,
-    private val settingsService: SettingsService,
-    private val scope: CoroutineScope,
+    private val initialModel: Model,
+    private val initialPermissionMode: PermissionMode,
 ) {
-    private val _uiState = MutableStateFlow(ChatUiState())
+    /** VM が所有する CoroutineScope。dispose() で cancel される。 */
+    private val vmScope = CoroutineScope(SupervisorJob())
+
+    private val _uiState = MutableStateFlow(
+        ChatUiState(
+            model = initialModel,
+            permissionMode = initialPermissionMode,
+        ),
+    )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     private val permissionHandler = PermissionHandler(
         currentState = { _uiState.value },
         updateState = { transform -> _uiState.update(transform) },
     )
+
+    private val startMutex = Mutex()
+    private var startJob: Job? = null
+
+    @Volatile
+    private var disposed = false
 
     private var client: ClaudeSDKClient? = null
     private var activeTurnJob: Job? = null
@@ -70,14 +90,103 @@ class ChatViewModel(
     // Ordered list of hookToolUseIds not yet mapped to real parentToolUseId
     private val unresolvedHookIds = mutableListOf<String>()
 
-    fun initialize() {
-        scope.launch {
-            try {
-                _uiState.update { it.copy(sessionState = SessionState.Connecting) }
+    /**
+     * セッションを開始する。resumeSessionId が指定された場合はセッション再開。
+     * Mutex により多重起動を防止。dispose 済みの場合は何もしない。
+     *
+     * Idempotent: Disconnected 以外の状態 or startJob がアクティブなら何もしない。
+     */
+    suspend fun start(resumeSessionId: String? = null) {
+        startMutex.withLock {
+            if (disposed) return
+            if (startJob?.isActive == true) return
+            if (_uiState.value.sessionState != SessionState.Disconnected) return
 
+            // ロック内で先に Connecting に更新。これにより次の start() 呼び出しを確実にブロック。
+            _uiState.update { it.copy(sessionState = SessionState.Connecting) }
+
+            startJob = vmScope.launch {
+                connectSession(resumeSessionId)
+            }
+        }
+    }
+
+    /**
+     * 現在のセッションをクリアし、初期状態に戻す。
+     * 進行中の turn、permission 待ち、sub-agent tailer も安全に中断する。
+     * dispose() とは異なり、VM 自体は再利用可能。
+     */
+    suspend fun clear() {
+        startMutex.withLock {
+            startJob?.cancel()
+            startJob = null
+            activeTurnJob?.cancel()
+            activeTurnJob = null
+            stopAllTailing()
+            permissionHandler.cancelPending()
+            client?.close()
+            client = null
+            _uiState.value = ChatUiState(
+                model = _uiState.value.model,
+                permissionMode = _uiState.value.permissionMode,
+            )
+        }
+    }
+
+    /**
+     * VM を完全に破棄する。再利用不可。
+     * 所有する CoroutineScope を cancel し、全リソースを解放する。
+     */
+    fun dispose() {
+        disposed = true
+        vmScope.cancel() // startJob, activeTurnJob, tailer jobs もすべて cancel される
+        stopAllTailing()
+        permissionHandler.cancelPending()
+        client?.close()
+        client = null
+    }
+
+    /**
+     * 履歴メッセージを UI に投入する（resume 時の過去メッセージ表示用）。
+     * start() の前に呼び出すこと。
+     */
+    fun importHistory(messages: List<ChatMessage>) {
+        _uiState.update { it.copy(messages = messages) }
+    }
+
+    private suspend fun connectSession(resumeSessionId: String?) {
+        // 防御的チェック: dispose 済みなら何もしない
+        if (disposed) return
+
+        try {
+            val localClient = if (resumeSessionId != null) {
+                resumeSession(resumeSessionId) {
+                    model = _uiState.value.model
+                    permissionMode = _uiState.value.permissionMode
+                    cwd = projectBasePath
+                    cliPath = claudeCodePath
+                    includePartialMessages = true
+                    forkSession = true // 元セッション保全
+                    canUseTool { toolName, input, _ ->
+                        permissionHandler.request(toolName, input)
+                    }
+                    hooks {
+                        on(HookEvent.SUBAGENT_START) { input, toolUseId, _ ->
+                            val si = input as SubagentStartHookInput
+                            startTailing(si.agentId, si.transcriptPath, toolUseId)
+                            HookOutput.proceed()
+                        }
+                        on(HookEvent.SUBAGENT_STOP) { input, _, _ ->
+                            val si = input as SubagentStopHookInput
+                            stopTailing(si.agentId)
+                            HookOutput.proceed()
+                        }
+                    }
+                }
+            } else {
                 createSession {
-                    model = settingsService.model
-                    permissionMode = settingsService.permissionMode
+                    model = _uiState.value.model
+                    permissionMode = _uiState.value.permissionMode
                     cwd = projectBasePath
                     cliPath = claudeCodePath
                     includePartialMessages = true
@@ -96,25 +205,29 @@ class ChatViewModel(
                             HookOutput.proceed()
                         }
                     }
-                }.also {
-                    it.connect()
-                    client = it
                 }
+            }
 
-                _uiState.update {
-                    it.copy(
-                        sessionState = SessionState.Ready,
-                        model = settingsService.model,
-                        permissionMode = settingsService.permissionMode,
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        sessionState = SessionState.Error,
-                        errorMessage = e.message,
-                    )
-                }
+            // SDK client 作成後、代入前に再チェック
+            if (disposed || !currentCoroutineContext().isActive) {
+                localClient.close()
+                return
+            }
+
+            localClient.connect()
+            client = localClient
+
+            _uiState.update {
+                it.copy(sessionState = SessionState.Ready)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    sessionState = SessionState.Error,
+                    errorMessage = e.message,
+                )
             }
         }
     }
@@ -134,6 +247,7 @@ class ChatViewModel(
 
     fun sendMessage(text: String) {
         if (text.isEmpty()) return
+        if (disposed) return
 
         val session = client ?: return
         val files = _uiState.value.attachedFiles
@@ -153,7 +267,7 @@ class ChatViewModel(
         }
 
         activeTurnJob?.cancel()
-        activeTurnJob = scope.launch {
+        activeTurnJob = vmScope.launch {
             try {
                 val turnId = ++activeTurnId
 
@@ -326,7 +440,7 @@ class ChatViewModel(
 
         agentKeyRefs[agentId] = keyRef
 
-        val tailer = TranscriptTailer(scope)
+        val tailer = TranscriptTailer(vmScope)
         activeTailers[agentId] = tailer
 
         tailer.start(jsonlPath) { message ->
@@ -375,14 +489,12 @@ class ChatViewModel(
     // --- Public API ---
 
     fun changeModel(model: Model) {
-        settingsService.model = model
-        scope.launch { client?.setModel(model.modelId) }
+        vmScope.launch { client?.setModel(model.modelId) }
         _uiState.update { it.copy(model = model) }
     }
 
     fun changePermissionMode(mode: PermissionMode) {
-        settingsService.permissionMode = mode
-        scope.launch { client?.setPermissionMode(mode) }
+        vmScope.launch { client?.setPermissionMode(mode) }
         _uiState.update { it.copy(permissionMode = mode) }
     }
 
@@ -398,26 +510,9 @@ class ChatViewModel(
         activeTurnJob?.cancel()
         activeTurnJob = null
         stopAllTailing()
-        scope.launch { client?.interrupt() }
+        vmScope.launch { client?.interrupt() }
         _uiState.update {
             it.copy(sessionState = SessionState.WaitingForInput)
         }
-    }
-
-    fun reconnect() {
-        activeTurnJob?.cancel()
-        activeTurnJob = null
-        stopAllTailing()
-        client?.close()
-        client = null
-        _uiState.update { ChatUiState(sessionState = SessionState.Connecting) }
-        initialize()
-    }
-
-    fun dispose() {
-        activeTurnJob?.cancel()
-        stopAllTailing()
-        client?.close()
-        client = null
     }
 }

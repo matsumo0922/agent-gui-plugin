@@ -12,20 +12,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.ui.component.AnimatedNullableVisibility
 import me.matsumo.agentguiplugin.ui.component.ChatInputArea
 import me.matsumo.agentguiplugin.ui.component.CustomCodeBlockRenderer
+import me.matsumo.agentguiplugin.ui.component.DeleteConfirmationDialog
 import me.matsumo.agentguiplugin.ui.component.ErrorBanner
+import me.matsumo.agentguiplugin.ui.component.SessionHistoryPopup
+import me.matsumo.agentguiplugin.ui.component.TabBar
 import me.matsumo.agentguiplugin.ui.component.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.component.interaction.AskUserQuestionCard
 import me.matsumo.agentguiplugin.ui.component.interaction.PermissionCard
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
+import me.matsumo.agentguiplugin.viewmodel.TabViewModel
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
@@ -51,11 +57,17 @@ import org.jetbrains.jewel.ui.component.Divider
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 fun ChatPanel(
-    viewModel: ChatViewModel,
+    tabViewModel: TabViewModel,
     project: Project,
     modifier: Modifier = Modifier,
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val tabs by tabViewModel.tabs.collectAsState()
+    val activeTabId by tabViewModel.activeTabId.collectAsState()
+    val activeViewModel by tabViewModel.activeChatViewModel.collectAsState()
+
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showHistoryPopup by remember { mutableStateOf(false) }
+
     val instanceUuid = JewelTheme.instanceUuid
     val quoteTextColor = JewelTheme.globalColors.text.info
     val quoteLineColor = JewelTheme.globalColors.borders.disabled
@@ -70,8 +82,6 @@ fun ChatPanel(
             ),
         )
     }
-
-    val isDark = JewelTheme.isDark
 
     val styling = remember(instanceUuid) {
         MarkdownStyling.create(
@@ -116,78 +126,152 @@ fun ChatPanel(
         markdownBlockRenderer = blockRenderer,
     ) {
         Column(modifier = modifier.fillMaxSize()) {
-
-            // Error banner
-            if (uiState.sessionState == SessionState.Error) {
-                ErrorBanner(
-                    modifier = Modifier.fillMaxWidth(),
-                    message = uiState.errorMessage ?: "An error occurred",
-                    onReconnect = { viewModel.reconnect() },
-                )
-            }
-
-            // Main content area
-            ChatMessageList(
-                modifier = Modifier.weight(1f),
-                messages = uiState.messages,
-                subAgentTasks = uiState.subAgentTasks,
-                project = project,
+            // Tab bar
+            TabBar(
+                tabs = tabs,
+                activeTabId = activeTabId,
+                onTabSelect = { tabViewModel.selectTab(it) },
+                onTabClose = { tabViewModel.removeTab(it) },
+                onNewChat = { tabViewModel.addTab() },
+                onHistory = { showHistoryPopup = true },
+                onDeleteCurrent = { showDeleteConfirmation = true },
             )
 
-            // Divider
             Divider(
                 modifier = Modifier.fillMaxWidth(),
                 orientation = Orientation.Horizontal,
             )
 
-            // Bottom interaction area
-            Column(
-                modifier = Modifier
-                    .padding(12.dp)
-                    .fillMaxWidth(),
+            // key(activeTabId) でタブごとの Compose local state を分離
+            // → 入力欄の下書き、スクロール位置がタブ切替時にリセットされる
+            key(activeTabId) {
+                activeViewModel?.let { vm ->
+                    ChatContent(
+                        viewModel = vm,
+                        project = project,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+
+    // 削除確認ダイアログ
+    if (showDeleteConfirmation) {
+        DeleteConfirmationDialog(
+            onConfirm = {
+                tabViewModel.clearActiveTab()
+                showDeleteConfirmation = false
+            },
+            onDismiss = { showDeleteConfirmation = false },
+        )
+    }
+
+    // 履歴ポップアップ
+    if (showHistoryPopup) {
+        SessionHistoryPopup(
+            project = project,
+            onSessionSelect = { summary, messages ->
+                tabViewModel.resumeSessionFromHistory(summary, messages)
+                showHistoryPopup = false
+            },
+            onDismiss = { showHistoryPopup = false },
+        )
+    }
+}
+
+/**
+ * key() composable wrapper — Compose for IDE (Jewel) の key() を使用。
+ */
+@Composable
+private inline fun key(key: Any?, content: @Composable () -> Unit) {
+    androidx.compose.runtime.key(key) { content() }
+}
+
+/**
+ * 個別タブのチャットコンテンツ。元の ChatPanel のメイン部分を抽出。
+ */
+@Composable
+private fun ChatContent(
+    viewModel: ChatViewModel,
+    project: Project,
+    modifier: Modifier = Modifier,
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    Column(modifier = modifier.fillMaxSize()) {
+        // Error banner
+        if (uiState.sessionState == SessionState.Error) {
+            ErrorBanner(
+                modifier = Modifier.fillMaxWidth(),
+                message = uiState.errorMessage ?: "An error occurred",
+                onReconnect = {
+                    // clear して再起動
+                },
+            )
+        }
+
+        // Main content area
+        ChatMessageList(
+            modifier = Modifier.weight(1f),
+            messages = uiState.messages,
+            subAgentTasks = uiState.subAgentTasks,
+            project = project,
+        )
+
+        // Divider
+        Divider(
+            modifier = Modifier.fillMaxWidth(),
+            orientation = Orientation.Horizontal,
+        )
+
+        // Bottom interaction area
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+        ) {
+            AnimatedNullableVisibility(
+                value = uiState.pendingPermission,
+                enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
             ) {
-                AnimatedNullableVisibility(
-                    value = uiState.pendingPermission,
-                    enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
-                ) {
-                    PermissionCard(
-                        modifier = Modifier.padding(bottom = 12.dp),
-                        permission = it,
-                        onAllow = { viewModel.respondPermission(true) },
-                        onDeny = { msg -> viewModel.respondPermission(false, msg) },
-                    )
-                }
-
-                AnimatedNullableVisibility(
-                    value = uiState.pendingQuestion,
-                    enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
-                ) {
-                    AskUserQuestionCard(
-                        modifier = Modifier.padding(bottom = 12.dp),
-                        question = it,
-                        onSubmit = { answers -> viewModel.respondQuestion(answers) },
-                        onCancel = { viewModel.respondPermission(allow = false) },
-                    )
-                }
-
-                ChatInputArea(
-                    project = project,
-                    sessionState = uiState.sessionState,
-                    attachedFiles = uiState.attachedFiles,
-                    currentModel = uiState.model,
-                    currentPermissionMode = uiState.permissionMode,
-                    contextUsage = uiState.contextUsage,
-                    totalInputTokens = uiState.totalInputTokens,
-                    onAttach = { file -> viewModel.attachFile(file) },
-                    onDetach = { file -> viewModel.detachFile(file) },
-                    onSend = viewModel::sendMessage,
-                    onAbort = viewModel::abortSession,
-                    onModelChange = viewModel::changeModel,
-                    onModeChange = viewModel::changePermissionMode,
+                PermissionCard(
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    permission = it,
+                    onAllow = { viewModel.respondPermission(true) },
+                    onDeny = { msg -> viewModel.respondPermission(false, msg) },
                 )
             }
+
+            AnimatedNullableVisibility(
+                value = uiState.pendingQuestion,
+                enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                AskUserQuestionCard(
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    question = it,
+                    onSubmit = { answers -> viewModel.respondQuestion(answers) },
+                    onCancel = { viewModel.respondPermission(allow = false) },
+                )
+            }
+
+            ChatInputArea(
+                project = project,
+                sessionState = uiState.sessionState,
+                attachedFiles = uiState.attachedFiles,
+                currentModel = uiState.model,
+                currentPermissionMode = uiState.permissionMode,
+                contextUsage = uiState.contextUsage,
+                totalInputTokens = uiState.totalInputTokens,
+                onAttach = { file -> viewModel.attachFile(file) },
+                onDetach = { file -> viewModel.detachFile(file) },
+                onSend = viewModel::sendMessage,
+                onAbort = viewModel::abortSession,
+                onModelChange = viewModel::changeModel,
+                onModeChange = viewModel::changePermissionMode,
+            )
         }
     }
 }

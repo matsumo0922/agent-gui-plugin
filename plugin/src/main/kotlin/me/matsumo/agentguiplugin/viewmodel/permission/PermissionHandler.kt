@@ -51,6 +51,16 @@ internal class PermissionHandler(
         }
     }
 
+    /**
+     * 保留中の permission/question リクエストをキャンセルする。
+     * clear() / dispose() 時に呼び出される。
+     */
+    fun cancelPending() {
+        active?.deferred?.cancel()
+        active = null
+        updateState { it.copy(pendingPermission = null, pendingQuestion = null) }
+    }
+
     fun respondPermission(allow: Boolean, denyMessage: String) {
         val req = active ?: return
         val message = denyMessage.ifBlank { "Denied by user" }
