@@ -20,7 +20,7 @@
     </dependencies>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="AgentGuiPlugin"
+        <toolWindow id="Agent GUI"
                     factoryClass="me.matsumo.agentguiplugin.toolwindow.AgentToolWindowFactory"
                     anchor="right"
                     canCloseContents="true"

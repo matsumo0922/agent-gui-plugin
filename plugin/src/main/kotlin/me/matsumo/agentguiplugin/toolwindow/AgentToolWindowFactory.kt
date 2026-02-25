@@ -17,7 +17,6 @@ class AgentToolWindowFactory : ToolWindowFactory {
         val tabManager = sessionService.getOrCreateTabManager(toolWindow)
 
         // IDE タイトルバーにアクションボタンを配置
-        toolWindow.title = ""
         toolWindow.setTitleActions(
             listOf(
                 object : DumbAwareAction("New Chat", "Start a new chat", AllIcons.General.Add) {
