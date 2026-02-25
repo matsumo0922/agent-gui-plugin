@@ -5,6 +5,7 @@ import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.content.Content
+import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
 import kotlinx.coroutines.CoroutineScope
@@ -16,7 +17,8 @@ import me.matsumo.agentguiplugin.ui.ChatPanel
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
-import org.jetbrains.jewel.bridge.addComposeTab
+import org.jetbrains.jewel.bridge.JewelComposePanel
+import org.jetbrains.jewel.foundation.enableNewSwingCompositing
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -54,29 +56,42 @@ class TabManager(
     }
 
     /**
-     * 新しいチャットタブを追加して選択する。
+     * ChatViewModel と Compose UI を持つ Content を生成して返す。
+     * ContentManager への追加は呼び出し側の責務。
+     * Split API (ToolWindowSplitContentProvider) からも利用される。
      */
-    fun addTab(title: String = "New chat") {
-        val vm = createViewModel()
+    fun createContent(
+        title: String = "New chat",
+        vm: ChatViewModel = createViewModel(),
+        resumeSessionId: String? = null,
+    ): Content {
+        enableNewSwingCompositing()
 
-        toolWindow.addComposeTab(
-            tabDisplayName = title,
-            focusOnClickInside = true,
-            isCloseable = true,
-        ) {
+        val component = JewelComposePanel(focusOnClickInside = true) {
             LaunchedEffect(vm) {
                 if (vm.uiState.value.sessionState == SessionState.Disconnected) {
-                    vm.start()
+                    vm.start(resumeSessionId = resumeSessionId)
                 }
             }
             ChatPanel(viewModel = vm, project = project)
         }
 
-        val content = toolWindow.contentManager.contents.last()
-        viewModels[content] = vm
+        val content = ContentFactory.getInstance().createContent(component, title, false)
+        content.isCloseable = true
 
-        toolWindow.contentManager.setSelectedContent(content, true)
+        viewModels[content] = vm
         observeTitle(content, vm)
+
+        return content
+    }
+
+    /**
+     * 新しいチャットタブを追加して選択する。
+     */
+    fun addTab(title: String = "New chat") {
+        val content = createContent(title)
+        toolWindow.contentManager.addContent(content)
+        toolWindow.contentManager.setSelectedContent(content, true)
     }
 
     /**
@@ -87,20 +102,9 @@ class TabManager(
         val vm = createViewModel()
         vm.importHistory(historyMessages)
 
-        toolWindow.addComposeTab(title, focusOnClickInside = true) {
-            LaunchedEffect(vm) {
-                if (vm.uiState.value.sessionState == SessionState.Disconnected) {
-                    vm.start(resumeSessionId = summary.sessionId)
-                }
-            }
-            ChatPanel(viewModel = vm, project = project)
-        }
-
-        val content = toolWindow.contentManager.contents.last()
-        viewModels[content] = vm
-
+        val content = createContent(title = title, vm = vm, resumeSessionId = summary.sessionId)
+        toolWindow.contentManager.addContent(content)
         toolWindow.contentManager.setSelectedContent(content, true)
-        observeTitle(content, vm)
     }
 
     fun dispose() {

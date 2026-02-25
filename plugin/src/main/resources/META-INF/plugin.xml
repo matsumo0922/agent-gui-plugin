@@ -26,6 +26,10 @@
                     canCloseContents="true"
                     icon="AllIcons.Actions.Execute"/>
 
+        <toolWindow.splitContentProvider
+            toolWindowId="Agent GUI"
+            implementationClass="me.matsumo.agentguiplugin.toolwindow.AgentSplitContentProvider"/>
+
         <projectService serviceImplementation="me.matsumo.agentguiplugin.service.SessionService"/>
         <projectService serviceImplementation="me.matsumo.agentguiplugin.service.SessionHistoryService"/>
         <applicationService serviceImplementation="me.matsumo.agentguiplugin.service.SettingsService"/>

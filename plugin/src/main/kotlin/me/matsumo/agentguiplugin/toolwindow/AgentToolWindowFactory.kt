@@ -5,14 +5,20 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.openapi.wm.impl.content.ToolWindowContentUi
 import me.matsumo.agentguiplugin.service.SessionService
 
 class AgentToolWindowFactory : ToolWindowFactory {
     override fun shouldBeAvailable(project: Project) = true
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+        // Split Right / Down アクションを有効化
+        Registry.get("ide.allow.split.and.reorder.in.tool.window").setValue(true)
+        ToolWindowContentUi.setAllowTabsReordering(toolWindow, true)
+
         val sessionService = project.service<SessionService>()
         val tabManager = sessionService.getOrCreateTabManager(toolWindow)
 

@@ -16,7 +16,8 @@ class SessionService(
 
     private val scope = CoroutineScope(SupervisorJob())
 
-    private var tabManager: TabManager? = null
+    var tabManager: TabManager? = null
+        private set
 
     fun getOrCreateTabManager(toolWindow: ToolWindow): TabManager {
         return tabManager ?: TabManager(
