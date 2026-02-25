@@ -105,14 +105,12 @@ object SessionHistoryAction {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
                 val summary = value as? SessionHistoryService.SessionSummary ?: return this
 
-                val dateStr = summary.startTime?.let { dateFormatter.format(it) } ?: "Unknown"
+                val dateStr = summary.lastModifiedAt?.let { dateFormatter.format(it) }
+                    ?: summary.startTime?.let { dateFormatter.format(it) }
+                    ?: "Unknown"
                 val promptStr = summary.firstPrompt?.take(60) ?: "(no prompt)"
-                val totalMessages = summary.userMessageCount + summary.assistantMessageCount
                 val metaStr = buildString {
-                    append("$totalMessages msgs")
-                    summary.model?.let { append(" · $it") }
-                    summary.durationMinutes?.let { append(" · ${it}min") }
-                    summary.totalCostUsd?.let { append(" · $${String.format("%.2f", it)}") }
+                    summary.model?.let { append(it) }
                 }
 
                 text = "<html><b>$dateStr</b><br>$promptStr<br><font color='gray'>$metaStr</font></html>"

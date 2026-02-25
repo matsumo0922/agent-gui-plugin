@@ -10,10 +10,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import me.matsumo.agentguiplugin.model.RawContentBlock
 import me.matsumo.agentguiplugin.model.RawConversationEntry
-import me.matsumo.agentguiplugin.model.RawSessionMeta
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 import java.nio.file.Files
@@ -21,6 +19,8 @@ import java.nio.file.Path
 import java.time.Instant
 import java.util.*
 import kotlin.io.path.extension
+import kotlin.io.path.getLastModifiedTime
+import kotlin.io.path.name
 
 @Service(Service.Level.PROJECT)
 class SessionHistoryService(private val project: Project) {
@@ -28,19 +28,24 @@ class SessionHistoryService(private val project: Project) {
     @Immutable
     data class SessionSummary(
         val sessionId: String,
-        val projectPath: String,
         val firstPrompt: String?,
-        val userMessageCount: Int,
-        val assistantMessageCount: Int,
         val startTime: Instant?,
-        val durationMinutes: Int?,
+        val lastModifiedAt: Instant?,
         val model: String?,
-        val totalCostUsd: Double?,
     )
 
     companion object {
         private val claudeDir: Path = Path.of(System.getProperty("user.home"), ".claude")
         private val json = Json { ignoreUnknownKeys = true }
+
+        /** セッション一覧抽出時に先頭から読む最大行数 */
+        private const val HEAD_LINE_LIMIT = 50
+
+        /** セッション一覧構築時にスキップするエントリタイプ */
+        private val SKIP_TYPES = setOf(
+            "summary", "x-error", "file-history-snapshot",
+            "queue-operation", "custom-title", "agent-name", "progress",
+        )
 
         fun normalizeProjectPath(path: String): String {
             return try {
@@ -55,18 +60,26 @@ class SessionHistoryService(private val project: Project) {
         }
     }
 
+    /**
+     * プロジェクトに紐づくセッション一覧を JSONL ファイルから直接取得する。
+     * 各 JSONL の先頭数行だけ読み、firstPrompt / startTime / model を抽出する。
+     */
     suspend fun listSessions(): List<SessionSummary> = withContext(Dispatchers.IO) {
-        val metaDir = claudeDir.resolve("usage-data").resolve("session-meta")
-        if (!Files.isDirectory(metaDir)) return@withContext emptyList()
-
         val projectPath = project.basePath ?: return@withContext emptyList()
-        val normalizedProjectPath = normalizeProjectPath(projectPath)
+        val normalizedPath = normalizeProjectPath(projectPath)
+        val encodedPath = encodeClaudeProjectPath(normalizedPath)
+        val projectDir = claudeDir.resolve("projects").resolve(encodedPath)
 
-        Files.list(metaDir).use { stream ->
-            stream.filter { it.extension == "json" }
+        if (!Files.isDirectory(projectDir)) return@withContext emptyList()
+
+        Files.list(projectDir).use { stream ->
+            stream
+                .filter { Files.isRegularFile(it) }
+                .filter { it.extension == "jsonl" }
+                .filter { !it.name.startsWith("agent-") }
                 .toList()
-                .mapNotNull { file -> parseSummary(file, normalizedProjectPath) }
-                .sortedByDescending { it.startTime }
+                .mapNotNull { file -> extractSummaryFromHead(file) }
+                .sortedByDescending { it.lastModifiedAt }
         }
     }
 
@@ -80,55 +93,110 @@ class SessionHistoryService(private val project: Project) {
         parseSessionMessages(sessionFile)
     }
 
-    // --- Private parsing methods ---
+    // --- Private: セッション一覧用の軽量パース ---
 
-    private fun parseSummary(file: Path, normalizedProjectPath: String): SessionSummary? {
-        return try {
-            val text = Files.readString(file)
-            val meta = json.decodeFromString<RawSessionMeta>(text)
+    private fun extractSummaryFromHead(file: Path): SessionSummary? {
+        val sessionId = file.name.removeSuffix(".jsonl")
+        val lastModifiedAt = try {
+            file.getLastModifiedTime().toInstant()
+        } catch (_: Exception) {
+            null
+        }
 
-            val sessionProjectPath = meta.projectPath ?: return null
-            val normalizedProjectPath = normalizeProjectPath(normalizedProjectPath)
+        var firstPrompt: String? = null
+        var startTime: Instant? = null
+        var model: String? = null
 
-            if (normalizedProjectPath != normalizeProjectPath(sessionProjectPath)) return null
+        try {
+            Files.newBufferedReader(file).use { reader ->
+                var linesRead = 0
 
-            val sessionId = meta.sessionId ?: file.fileName.toString().removeSuffix(".json")
+                while (linesRead < HEAD_LINE_LIMIT) {
+                    val line = reader.readLine() ?: break
+                    linesRead++
 
-            SessionSummary(
-                sessionId = sessionId,
-                projectPath = normalizedProjectPath,
-                firstPrompt = meta.firstPrompt,
-                userMessageCount = meta.userMessageCount,
-                assistantMessageCount = meta.assistantMessageCount,
-                startTime = parseStartTime(meta.startTime),
-                durationMinutes = meta.durationMinutes,
-                model = meta.model,
-                totalCostUsd = meta.totalCostUsd,
-            )
+                    if (line.isBlank()) continue
+
+                    val entry = try {
+                        json.decodeFromString<RawConversationEntry>(line)
+                    } catch (_: Exception) {
+                        continue
+                    }
+
+                    // スキップ対象の type
+                    if (entry.type in SKIP_TYPES) continue
+                    // サイドチェーン（サブエージェント）はスキップ
+                    if (entry.isSidechain) continue
+
+                    // startTime: 最初の user/assistant エントリの timestamp を採用
+                    if (startTime == null && entry.timestamp != null) {
+                        startTime = parseTimestamp(entry.timestamp)
+                    }
+
+                    // firstPrompt: 最初の意味のあるユーザーメッセージ
+                    if (firstPrompt == null && entry.type in setOf("user", "human") && !entry.isMeta) {
+                        firstPrompt = extractFirstPrompt(entry)
+                    }
+
+                    // model: 最初の assistant エントリの message.model
+                    if (model == null && entry.type == "assistant") {
+                        model = entry.message?.model
+                    }
+
+                    // 必要な情報が全部揃ったら早期終了
+                    if (firstPrompt != null && startTime != null && model != null) break
+                }
+            }
         } catch (e: Exception) {
-            println("Failed to parse session meta: $file, ${e.message}")
+            println("Failed to read session head: $file, ${e.message}")
+        }
+
+        // firstPrompt が取得できないセッションはスキップ
+        if (firstPrompt == null) return null
+
+        return SessionSummary(
+            sessionId = sessionId,
+            firstPrompt = firstPrompt,
+            startTime = startTime,
+            lastModifiedAt = lastModifiedAt,
+            model = model,
+        )
+    }
+
+    /**
+     * ユーザーエントリからプロンプトテキストを抽出する。
+     * local-command タグを含む場合はスキップ（null を返す）。
+     */
+    private fun extractFirstPrompt(entry: RawConversationEntry): String? {
+        val text = extractUserText(entry) ?: return null
+
+        // ローカルコマンド出力はプロンプトとして扱わない
+        if ("<local-command-caveat>" in text) return null
+
+        // コマンド入力の場合はコマンド名を抽出
+        val commandMatch = Regex("<command-name>(.*?)</command-name>").find(text)
+        if (commandMatch != null) {
+            return "/${commandMatch.groupValues[1]}"
+        }
+
+        val cleaned = text
+            .replace(Regex("<system-reminder>.*?</system-reminder>", RegexOption.DOT_MATCHES_ALL), "")
+            .trim()
+
+        if (cleaned.isBlank()) return null
+
+        return if (cleaned.length > 200) cleaned.take(200).trim() + "..." else cleaned
+    }
+
+    private fun parseTimestamp(value: String): Instant? {
+        return try {
+            Instant.parse(value)
+        } catch (_: Exception) {
             null
         }
     }
 
-    private fun parseStartTime(element: kotlinx.serialization.json.JsonElement?): Instant? {
-        if (element == null) return null
-        val primitive = element.jsonPrimitive
-
-        // Long (epochMillis) → Instant
-        primitive.longOrNull?.let { return Instant.ofEpochMilli(it) }
-
-        // ISO 8601 string → Instant
-        primitive.contentOrNull?.let {
-            return try {
-                Instant.parse(it)
-            } catch (_: Exception) {
-                null
-            }
-        }
-
-        return null
-    }
+    // --- Private: セッション詳細読み込み ---
 
     private fun parseSessionMessages(sessionFile: Path): List<ChatMessage> {
         val messages = mutableListOf<ChatMessage>()
@@ -156,9 +224,19 @@ class SessionHistoryService(private val project: Project) {
     }
 
     private fun parseUserMessage(entry: RawConversationEntry): ChatMessage.User? {
+        val text = extractUserText(entry)
+        if (text.isNullOrBlank()) return null
+
+        return ChatMessage.User(
+            id = UUID.randomUUID().toString(),
+            text = text,
+        )
+    }
+
+    private fun extractUserText(entry: RawConversationEntry): String? {
         val content = entry.message?.content ?: return null
 
-        val text = when {
+        return when {
             // String 形式
             runCatching { content.jsonPrimitive }.isSuccess ->
                 content.jsonPrimitive.contentOrNull
@@ -172,13 +250,6 @@ class SessionHistoryService(private val project: Project) {
 
             else -> null
         }
-
-        if (text.isNullOrBlank()) return null
-
-        return ChatMessage.User(
-            id = UUID.randomUUID().toString(),
-            text = text,
-        )
     }
 
     private fun parseAssistantMessage(entry: RawConversationEntry): ChatMessage.Assistant? {

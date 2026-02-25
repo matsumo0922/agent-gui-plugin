@@ -57,26 +57,29 @@ class TabManager(
      * 新しいチャットタブを追加して選択する。
      */
     fun addTab(title: String = "New chat") {
-        val vm = createViewModel()
+        val viewModel = createViewModel()
 
         toolWindow.addComposeTab(
             tabDisplayName = title,
             focusOnClickInside = true,
             isCloseable = true,
         ) {
-            LaunchedEffect(vm) {
-                if (vm.uiState.value.sessionState == SessionState.Disconnected) {
-                    vm.start()
+            LaunchedEffect(viewModel) {
+                if (viewModel.uiState.value.sessionState == SessionState.Disconnected) {
+                    viewModel.start()
                 }
             }
-            ChatPanel(viewModel = vm, project = project)
+            ChatPanel(
+                viewModel = viewModel,
+                project = project
+            )
         }
 
         val content = toolWindow.contentManager.contents.last()
-        viewModels[content] = vm
+        viewModels[content] = viewModel
 
         toolWindow.contentManager.setSelectedContent(content, true)
-        observeTitle(content, vm)
+        observeTitle(content, viewModel)
     }
 
     /**
@@ -84,23 +87,30 @@ class TabManager(
      */
     fun resumeSession(summary: SessionHistoryService.SessionSummary, historyMessages: List<ChatMessage>) {
         val title = summary.firstPrompt?.take(40) ?: "Resumed session"
-        val vm = createViewModel()
-        vm.importHistory(historyMessages)
+        val viewModel = createViewModel()
+        viewModel.importHistory(historyMessages)
 
-        toolWindow.addComposeTab(title, focusOnClickInside = true) {
-            LaunchedEffect(vm) {
-                if (vm.uiState.value.sessionState == SessionState.Disconnected) {
-                    vm.start(resumeSessionId = summary.sessionId)
+        toolWindow.addComposeTab(
+            tabDisplayName = title,
+            focusOnClickInside = true,
+            isCloseable = true,
+        ) {
+            LaunchedEffect(viewModel) {
+                if (viewModel.uiState.value.sessionState == SessionState.Disconnected) {
+                    viewModel.start(resumeSessionId = summary.sessionId)
                 }
             }
-            ChatPanel(viewModel = vm, project = project)
+            ChatPanel(
+                viewModel = viewModel,
+                project = project
+            )
         }
 
         val content = toolWindow.contentManager.contents.last()
-        viewModels[content] = vm
+        viewModels[content] = viewModel
 
         toolWindow.contentManager.setSelectedContent(content, true)
-        observeTitle(content, vm)
+        observeTitle(content, viewModel)
     }
 
     fun dispose() {

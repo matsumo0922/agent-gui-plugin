@@ -30,11 +30,13 @@ import com.intellij.openapi.ide.CopyPasteManager
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.code.highlighting.LocalCodeHighlighter
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.MarkdownBlock.CodeBlock.FencedCodeBlock
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
 import java.awt.datatransfer.StringSelection
 
 /** diff 表示時に前後に表示するコンテキスト行数 */
@@ -182,6 +184,7 @@ fun CodeBlock(
                     .padding(horizontal = 4.dp)
                     .weight(1f),
                 text = language.ifEmpty { "code" },
+                style = JewelTheme.typography.small,
                 color = ChatTheme.Text.secondary,
             )
 
