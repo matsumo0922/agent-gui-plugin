@@ -3,7 +3,6 @@ package me.matsumo.agentguiplugin.service
 import androidx.compose.runtime.LaunchedEffect
 import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManagerEvent
@@ -102,30 +101,6 @@ class TabManager(
 
         toolWindow.contentManager.setSelectedContent(content, true)
         observeTitle(content, vm)
-    }
-
-    /**
-     * 現在アクティブなタブをクリア（確認ダイアログ付き）。
-     */
-    fun clearCurrentTab() {
-        invokeLater {
-            val result = Messages.showYesNoDialog(
-                project,
-                "Clear the current chat?\n(Local history will not be deleted)",
-                "Clear Chat",
-                Messages.getQuestionIcon(),
-            )
-            if (result != Messages.YES) return@invokeLater
-
-            val content = toolWindow.contentManager.selectedContent ?: return@invokeLater
-            val vm = viewModels[content] ?: return@invokeLater
-
-            scope.launch {
-                vm.clear()
-                invokeLater { content.displayName = "New chat" }
-                vm.start()
-            }
-        }
     }
 
     fun dispose() {

@@ -29,11 +29,6 @@ class AgentToolWindowFactory : ToolWindowFactory {
                         SessionHistoryAction.show(project, tabManager)
                     }
                 },
-                object : DumbAwareAction("Clear Chat", "Clear the current chat", AllIcons.General.Remove) {
-                    override fun actionPerformed(e: AnActionEvent) {
-                        tabManager.clearCurrentTab()
-                    }
-                },
             ),
         )
 
