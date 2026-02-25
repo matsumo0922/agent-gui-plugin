@@ -24,60 +24,65 @@ IntelliJ の Settings/Preferences ダイアログから Agent GUI Plugin の設�
 
 ## 設定項目の分類
 
-### Tier 1: 基本設定 (必須)
+### Tier 0: CLI パス設定 (最優先)
+
+プラグインが動作するための前提条件。CLI が見つからないと何も始まらない。
+
+| 設定 | 型 | デフォルト | SDK マッピング | 説明 |
+|---|---|---|---|---|
+| **Claude CLI パス** | `String?` | `null` (自動検出) | `cliPath` | `claude` バイナリのパス。null/空欄 時は SDK が自動検出 |
+
+### Tier 1: 基本設定
 
 ほとんどのユーザーが触る可能性がある設定。
 
 | 設定 | 型 | デフォルト | SDK マッピング | 説明 |
 |---|---|---|---|---|
-| **Claude CLI パス** | `String?` | `null` (自動検出) | `cliPath` | `claude` バイナリのパス。null 時は `which claude` → 既知パスの順で自動検出 |
-| **モデル** | `enum` | `SONNET` | `model` | `SONNET` / `OPUS` / `HAIKU` |
-| **パーミッションモード** | `enum` | `DEFAULT` | `permissionMode` | `DEFAULT` / `ACCEPT_EDITS` / `PLAN` / `BYPASS_PERMISSIONS` |
-| **Effort レベル** | `enum?` | `null` (未指定) | `effort` | `LOW` / `MEDIUM` / `HIGH` / `MAX` — 思考の深さ制御 |
-| **最大予算 (USD)** | `Double?` | `null` (無制限) | `maxBudgetUsd` | セッション当たりのコスト上限 |
+| **デフォルトモデル** | `enum` | `SONNET` | `model` | `SONNET` / `OPUS` / `HAIKU` — セッション中は Chat 入力欄から変更可 (Settings は既定値) |
+| **デフォルトパーミッションモード** | `enum` | `DEFAULT` | `permissionMode` | `DEFAULT` / `ACCEPT_EDITS` / `PLAN` / `BYPASS_PERMISSIONS` — セッション中は Chat 入力欄から変更可 (Settings は既定値) |
 
 ### Tier 2: 詳細設定 (パワーユーザー向け)
 
-ある程度 Claude Code を理解しているユーザーが使う設定。
-
 | 設定 | 型 | デフォルト | SDK マッピング | 説明 |
 |---|---|---|---|---|
+| **Effort レベル** | `enum?` | `null` (未指定) | `effort` | `LOW` / `MEDIUM` / `HIGH` / `MAX` — 思考の深さ制御 |
+| **最大予算 (USD)** | `String?` (UI 検証) | `null` (無制限) | `maxBudgetUsd` | セッション当たりのコスト上限。誤設定の影響が大きいため Tier 2 |
 | **最大ターン数** | `Int?` | `null` (無制限) | `maxTurns` | エージェントの最大ターン数 |
-| **追加システムプロンプト** | `String?` | `null` | `systemPrompt` (append) | デフォルトプロンプトに追加するカスタム指示 |
+| **追加システムプロンプト** | `String?` | `null` | `systemPromptPreset.append` | デフォルトプロンプトに**追記**するカスタム指示。※ `systemPrompt` (置換) ではなく `SystemPromptPreset(append=...)` を使うこと |
 | **許可ツール** | `List<String>` | `[]` | `allowedTools` | 明示的に許可するツール名リスト |
 | **禁止ツール** | `List<String>` | `[]` | `disallowedTools` | 明示的に禁止するツール名リスト |
 | **追加ディレクトリ** | `List<String>` | `[]` | `addDirs` | セッションに追加するディレクトリパス (モノレポ対応) |
 | **設定ソース** | `List<SettingSource>?` | `null` (全ソース) | `settingSources` | `USER` / `PROJECT` / `LOCAL` のどれを読み込むか |
-| **カスタム設定ファイル** | `String?` | `null` | `settings` | 設定 JSON ファイルのパス |
+| **設定ファイルパス** | `String?` | `null` | `settings` | 設定 JSON ファイルのパス |
 
 ### Tier 3: 環境変数・プロバイダ設定
 
-API キーやクラウドプロバイダの切り替えなど。
-
 | 設定 | 型 | デフォルト | SDK マッピング | 説明 |
 |---|---|---|---|---|
-| **カスタム環境変数** | `Map<String, String>` | `{}` | `env` | CLI プロセスに渡す追加環境変数 |
-| **API プロバイダ** | `enum?` | `null` (Anthropic直接) | `env` 経由 | `ANTHROPIC` / `BEDROCK` / `VERTEX` — 環境変数で切り替え |
+| **API プロバイダ** | `enum?` | `null` (Anthropic 直接) | `env` 経由 | `ANTHROPIC` / `BEDROCK` / `VERTEX` |
 | **カスタム API Base URL** | `String?` | `null` | `env["ANTHROPIC_BASE_URL"]` | カスタム API エンドポイント |
-
-#### API プロバイダと環境変数の対応
-
-| プロバイダ | 設定される環境変数 |
-|---|---|
-| Anthropic (デフォルト) | なし |
-| AWS Bedrock | `CLAUDE_CODE_USE_BEDROCK=1` |
-| Google Vertex AI | `CLAUDE_CODE_USE_VERTEX=1` |
+| **カスタム環境変数** | `List<EnvVarEntry>` | `[]` | `env` | CLI プロセスに渡す非秘密環境変数。秘密値 (API キー等) は IntelliJ Password Safe に分離 |
 
 ### Tier 4: 実験的・デバッグ設定
 
-開発者やトラブルシューティング向け。
-
 | 設定 | 型 | デフォルト | SDK マッピング | 説明 |
 |---|---|---|---|---|
-| **デバッグモード** | `Boolean` | `false` | `extraArgs["--debug"]` | CLI のデバッグ出力を有効化 |
-| **デバッグログファイル** | `String?` | `null` | `extraArgs["--debug-file"]` | デバッグログの出力先ファイル |
-| **バージョンチェック無効化** | `Boolean` | `false` | `env["CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK"]` | SDK の最小バージョンチェックをスキップ |
+| **デバッグモード** | `Boolean` | `false` | `extraArgs["debug"]` | CLI のデバッグ出力を有効化。**注:** `extraArgs` のキーは `--` なしで指定 (SDK が自動付与) |
+| **Debug to stderr** | `Boolean` | `false` | `extraArgs["debug-to-stderr"]` | stderr へのデバッグ出力。stderr コールバック配線も必要 |
+| **デバッグログファイル** | `String?` | `null` | `extraArgs["debug-file"]` | デバッグログの出力先ファイル |
 | **Context 1M ベータ** | `Boolean` | `false` | `betas` | 1M コンテキストウィンドウベータを有効化 |
+
+> **注:** `skipVersionCheck` は現 SDK 実装では `options.env` 経由での per-session 設定が不可 (SDK が `System.getenv()` で親プロセス環境のみを参照)。SDK 側の修正後に UI 公開する。
+
+### 対象外 (複雑性が高いため)
+
+以下は Settings UI には含めない:
+
+- `sandbox` — Sandbox 設定 (構造が複雑)
+- `mcpServers` — MCP サーバー設定 (JSON 構造)
+- `plugins` — プラグイン設定
+- `outputFormat` — 構造化出力スキーマ
+- `hooks` — フック設定 (コールバック)
 
 ---
 
@@ -85,115 +90,167 @@ API キーやクラウドプロバイダの切り替えなど。
 
 以下は SDK が内部で自動設定するため、ユーザーが変更すべきではない項目:
 
-| 設定 | 値 | 理由 |
+| 設定 | 値 | 設定元 |
 |---|---|---|
-| `--output-format` | `stream-json` | SDK プロトコルに必須 |
-| `--input-format` | `stream-json` | SDK プロトコルに必須 |
-| `--verbose` | 常に付与 | ストリーミングに必須 |
-| `CLAUDE_CODE_ENTRYPOINT` | `sdk-kt` | SDK 識別用 |
-| `CLAUDE_AGENT_SDK_VERSION` | `0.1.0` | バージョン報告用 |
-| `includePartialMessages` | `true` | プラグインのストリーミング UI に必須 |
-| `DEFAULT_MAX_BUFFER_SIZE` | 1MB | メッセージバッファ上限 |
-| `MINIMUM_CLAUDE_CODE_VERSION` | `2.0.0` | 互換性保証 |
+| `--output-format` | `stream-json` | SDK (プロトコルに必須) |
+| `--input-format` | `stream-json` | SDK (プロトコルに必須) |
+| `--verbose` | 常に付与 | SDK (ストリーミングに必須) |
+| `CLAUDE_CODE_ENTRYPOINT` | `sdk-kt` | SDK (識別用) |
+| `CLAUDE_AGENT_SDK_VERSION` | `0.1.0` | SDK (バージョン報告用) |
+| `DEFAULT_MAX_BUFFER_SIZE` | 1MB | SDK (メッセージバッファ上限) |
+| `MINIMUM_CLAUDE_CODE_VERSION` | `2.0.0` | SDK (互換性保証) |
+| `includePartialMessages` | `true` | **プラグイン** (ストリーミング UI に必須) |
 
 ---
 
 ## 設定のスコープ
 
-| スコープ | 対象設定 | 理由 |
-|---|---|---|
-| **Application-level** | CLI パス、モデル、パーミッションモード、Effort、最大予算、API プロバイダ、環境変数、デバッグ設定 | ユーザー環境に依存し、全プロジェクト共通 |
-| **Project-level** (将来) | 追加システムプロンプト、許可/禁止ツール、追加ディレクトリ、設定ソース | プロジェクト固有のカスタマイズ |
+初期実装では **Application-level のみ**。
 
-初期実装では **Application-level のみ** とし、需要に応じて Project-level を追加する。
+| スコープ | 対象 | 理由 |
+|---|---|---|
+| **Application-level** | Tier 0〜4 全て | ユーザー環境に依存し、全プロジェクト共通 |
+| **Project-level** (将来) | 追加システムプロンプト、許可/禁止ツール、追加ディレクトリ、設定ソース | プロジェクト固有のカスタマイズ |
 
 ---
 
 ## 実装方針
 
-### 1. SettingsService の拡張
+### UI 技術: Compose for IDE (Jewel)
 
-```kotlin
-data class State(
-    // --- Tier 1: 基本設定 ---
-    var claudeCodePath: String? = null,
-    var model: String = "sonnet",
-    var permissionMode: String = "default",
-    var effort: String? = null,
-    var maxBudgetUsd: Double? = null,
+Settings ダイアログでも **Compose for IDE** を使用する。
 
-    // --- Tier 2: 詳細設定 ---
-    var maxTurns: Int? = null,
-    var appendSystemPrompt: String? = null,
-    var allowedTools: List<String> = emptyList(),
-    var disallowedTools: List<String> = emptyList(),
-    var addDirs: List<String> = emptyList(),
-    var settingSources: List<String>? = null,
-    var customSettingsFile: String? = null,
+- `Configurable.createComponent()` から `JewelComposePanel { ... }` を返すことで Compose UI を Settings に埋め込める
+- `JewelComposePanel` は `JComponent` を返すため、IntelliJ の `Configurable` API と互換性がある
+- `SwingBridgeTheme` が自動適用され、IDE テーマに追従する
+- 既存の `TabManager.kt` と同じパターン (`enableNewSwingCompositing()` + `JewelComposePanel`)
+- **注:** `BoundConfigurable` (`panel {}` DSL) は使えない — `Configurable` インターフェースを直接実装する
 
-    // --- Tier 3: 環境変数・プロバイダ ---
-    var customEnvVars: Map<String, String> = emptyMap(),
-    var apiProvider: String? = null,
-    var customApiBaseUrl: String? = null,
+### 状態管理: Configurable と Compose の橋渡し
 
-    // --- Tier 4: デバッグ ---
-    var debugMode: Boolean = false,
-    var debugLogFile: String? = null,
-    var skipVersionCheck: Boolean = false,
-    var enableContext1MBeta: Boolean = false,
-)
-```
+`Configurable` の `isModified()` / `apply()` / `reset()` は命令的 API のため、Compose の Reactive State と橋渡しが必要:
 
-### 2. Settings UI の登録 (`plugin.xml`)
+- `Configurable` クラスのフィールドに `mutableStateOf(...)` を保持
+- Compose UI はその State を参照・更新
+- `isModified()` / `apply()` / `reset()` はフィールドを直接読み書き
+
+---
+
+## Tier 0 実装計画 (Claude CLI パス)
+
+### 目的
+
+Settings ダイアログから Claude CLI のパスを設定できるようにする。これにより:
+- CLI が PATH に入っていない環境でもプラグインを使用可能に
+- 複数バージョンの Claude CLI を切り替え可能に
+
+### 変更対象ファイル
+
+1. **`plugin/src/main/resources/META-INF/plugin.xml`** — `applicationConfigurable` 登録
+2. **`plugin/src/main/kotlin/me/matsumo/agentguiplugin/settings/AgentGuiSettingsConfigurable.kt`** — 新規作成
+3. **`plugin/src/main/kotlin/me/matsumo/agentguiplugin/settings/AgentGuiSettingsPanel.kt`** — 新規作成 (Compose UI)
+
+`SettingsService` は既に `claudeCodePath` を持っているため変更不要。
+
+### 1. plugin.xml への登録
 
 ```xml
-<extensions defaultExtensionNs="com.intellij">
-    <applicationConfigurable
-        parentId="tools"
-        instance="me.matsumo.agentguiplugin.settings.AgentGuiSettingsConfigurable"
-        id="me.matsumo.agentguiplugin.settings"
-        displayName="Agent GUI" />
-</extensions>
+<applicationConfigurable
+    parentId="tools"
+    instance="me.matsumo.agentguiplugin.settings.AgentGuiSettingsConfigurable"
+    id="me.matsumo.agentguiplugin.settings"
+    displayName="Claude Code GUI"/>
 ```
 
-### 3. Configurable 実装
+### 2. AgentGuiSettingsConfigurable
 
-IntelliJ の `Configurable` インターフェースを実装。UI は Swing (JPanel) で構築する。
-Compose for IDE は Settings ダイアログ内では使えないため、標準の Swing UI を使用する。
+```kotlin
+package me.matsumo.agentguiplugin.settings
+
+class AgentGuiSettingsConfigurable : Configurable {
+    private val settings = service<SettingsService>()
+
+    // Compose UI の状態 — フィールドとして保持
+    private val cliPathState = mutableStateOf(settings.claudeCodePath.orEmpty())
+    private var originalCliPath = settings.claudeCodePath.orEmpty()
+
+    override fun getDisplayName(): String = "Claude Code GUI"
+
+    override fun createComponent(): JComponent {
+        enableNewSwingCompositing()
+        return JewelComposePanel {
+            AgentGuiSettingsPanel(
+                cliPath = cliPathState.value,
+                onCliPathChange = { cliPathState.value = it },
+            )
+        }
+    }
+
+    override fun isModified(): Boolean =
+        cliPathState.value != originalCliPath
+
+    override fun apply() {
+        settings.claudeCodePath = cliPathState.value.ifBlank { null }
+        originalCliPath = cliPathState.value
+    }
+
+    override fun reset() {
+        val current = settings.claudeCodePath.orEmpty()
+        cliPathState.value = current
+        originalCliPath = current
+    }
+}
+```
+
+### 3. AgentGuiSettingsPanel (Compose UI)
+
+```kotlin
+package me.matsumo.agentguiplugin.settings
+
+@Composable
+fun AgentGuiSettingsPanel(
+    cliPath: String,
+    onCliPathChange: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // セクションタイトル
+        Text("General", style = ...)
+
+        // Claude CLI Path
+        Row {
+            TextField(
+                value = cliPath,
+                onValueChange = onCliPathChange,
+                placeholder = { Text("Auto detect (leave empty)") },
+                modifier = Modifier.weight(1f),
+            )
+            // Browse ボタン (ファイル選択ダイアログ)
+            // Auto Detect ボタン (SDK の findCli 相当の検出)
+        }
+
+        // ヘルプテキスト: 空欄時の自動検出パス一覧
+    }
+}
+```
+
+### UI レイアウト
 
 ```
 Settings / Preferences
 └── Tools
-    └── Agent GUI
-        ├── General (基本設定)
-        │   ├── Claude CLI Path [TextField + Browse]
-        │   ├── Model [ComboBox]
-        │   ├── Permission Mode [ComboBox]
-        │   ├── Effort Level [ComboBox]
-        │   └── Max Budget (USD) [TextField]
-        ├── Advanced (詳細設定)
-        │   ├── Max Turns [TextField]
-        │   ├── Append System Prompt [TextArea]
-        │   ├── Allowed Tools [EditableList]
-        │   ├── Disallowed Tools [EditableList]
-        │   ├── Additional Directories [EditableList + Browse]
-        │   ├── Setting Sources [CheckBox group]
-        │   └── Custom Settings File [TextField + Browse]
-        ├── Provider (プロバイダ設定)
-        │   ├── API Provider [ComboBox]
-        │   ├── Custom API Base URL [TextField]
-        │   └── Custom Environment Variables [KeyValue Table]
-        └── Debug (デバッグ設定)
-            ├── Debug Mode [CheckBox]
-            ├── Debug Log File [TextField + Browse]
-            ├── Skip Version Check [CheckBox]
-            └── Context 1M Beta [CheckBox]
+    └── Claude Code GUI
+        └── General
+            ├── "Claude CLI Path" ラベル
+            ├── [TextField (placeholder: "Auto detect")] [Browse] [Auto Detect]
+            └── ヘルプテキスト: 空欄の場合、以下の順で自動検出:
+                  which claude → ~/.npm-global/bin/claude → /usr/local/bin/claude → ...
 ```
 
-### 4. ChatViewModel への反映
+### 設定反映タイミング
 
-`SettingsService` の値を `connectSession()` 内の `createSession {}` / `resumeSession {}` DSL に反映する。
-設定変更は次回のセッション作成時から反映される（既存セッションには影響しない）。
+- Settings で変更 → `Apply` → `SettingsService.claudeCodePath` が更新
+- 既存セッションには影響しない (CLI パスはセッション開始時に参照)
+- 次回タブ作成時に `TabManager.createViewModel()` 経由で `SettingsService.claudeCodePath` が参照される
 
 ---
 
@@ -225,7 +282,26 @@ SDK (`SubprocessTransport.kt`) が `cliPath` 未指定時に試行する順序:
 
 ## 実装優先順
 
-1. **Phase 1**: Tier 1 (基本設定) + Configurable 登録 + Swing UI
-2. **Phase 2**: Tier 2 (詳細設定) の追加
-3. **Phase 3**: Tier 3 (プロバイダ設定) + Tier 4 (デバッグ設定)
-4. **Phase 4**: Project-level 設定の分離 (必要に応じて)
+1. **Phase 1 (今回)**: Tier 0 — `Configurable` 登録 + Compose Settings UI + CLI パス設定のみ
+2. **Phase 2**: Tier 1 — デフォルトモデル / パーミッションモード
+3. **Phase 3**: Tier 2 — Effort / 予算 / ターン数 / プロンプト / ツール / ディレクトリ / 設定ソース
+4. **Phase 4**: Tier 3 — プロバイダ / 環境変数 + Password Safe 分離
+5. **Phase 5**: Tier 4 — デバッグ設定 (stderr 配線含む)
+6. **Phase 6**: Project-level 設定の分離 (App defaults + Project overrides の merge ルール)
+
+---
+
+## Codex レビュー指摘事項 (反映済み)
+
+| # | 指摘 | 対応 |
+|---|---|---|
+| 1 | `skipVersionCheck` は SDK が `System.getenv()` で判定するため `options.env` 経由では効かない | Tier 4 の注記に追記。SDK 修正後に UI 公開 |
+| 2 | `extraArgs` のキーに `--` を付けると二重付与になる | Tier 4 の SDK マッピングを `--` なしに修正 |
+| 3 | `appendSystemPrompt` は `systemPrompt` ではなく `SystemPromptPreset(append=...)` を使う | Tier 2 の SDK マッピングを修正 |
+| 4 | `customEnvVars` に秘密値が平文保存されるリスク | Tier 3 で Password Safe 分離を明記 |
+| 5 | `ChatViewModel` のコンストラクタ注入で設定が stale になる | 設定反映タイミングの説明を追加。stale 問題は上位 Tier 実装時に対応 |
+| 6 | `Effort` / `maxBudgetUsd` は Tier 1 には重すぎる | Tier 2 へ移動 |
+| 7 | `includePartialMessages` は SDK ハードコードではなくプラグイン側設定 | SDK ハードコード表で「設定元」列を追加し明確化 |
+| 8 | Model/PermissionMode は「既定値」であることを明示すべき | Tier 1 の説明に「セッション中は Chat 入力欄から変更可 (Settings は既定値)」を追加 |
+| 9 | IntelliJ UI DSL (`panel {}`) の方が保守性が高い | Compose for IDE を採用 (プロジェクトの技術スタック統一) |
+| 10 | CLI Path に Auto Detect / Test ボタン追加推奨 | Tier 0 の UI レイアウトに反映 |
