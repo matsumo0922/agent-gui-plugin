@@ -5,6 +5,7 @@ import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.content.Content
+import com.intellij.ui.content.Content.TEMPORARY_REMOVED_KEY
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
@@ -44,6 +45,10 @@ class TabManager(
         toolWindow.contentManager.addContentManagerListener(object : ContentManagerListener {
             override fun contentRemoved(event: ContentManagerEvent) {
                 val content = event.content
+
+                // Split/Unsplit 中の一時的な移動では ViewModel を破棄しない
+                if (content.getUserData(TEMPORARY_REMOVED_KEY) == true) return
+
                 titleJobs.remove(content)?.cancel()
                 viewModels.remove(content)?.dispose()
 
