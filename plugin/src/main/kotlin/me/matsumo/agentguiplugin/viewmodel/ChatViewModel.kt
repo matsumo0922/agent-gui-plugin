@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
@@ -51,6 +53,9 @@ class ChatViewModel(
     private var client: ClaudeSDKClient? = null
     private var activeTurnJob: Job? = null
     private var activeTurnId = 0L
+
+    // Last per-turn context token count from message_start stream event (not cumulative)
+    private var lastTurnInputTokens = 0L
 
     // Sub-agent transcript tailing: agentId -> tailer
     private val activeTailers = mutableMapOf<String, TranscriptTailer>()
@@ -164,9 +169,7 @@ class ChatViewModel(
                     when (message) {
                         is SystemMessage -> handleSystemMessage(message)
 
-                        is StreamEvent -> {
-                            /* wait for completion */
-                        }
+                        is StreamEvent -> handleStreamEvent(message)
 
                         is AssistantMessage -> {
                             handleAssistantMessage(message)
@@ -269,16 +272,30 @@ class ChatViewModel(
         }
     }
 
+    private fun handleStreamEvent(event: StreamEvent) {
+        if (event.parentToolUseId != null) return // サブエージェントのイベントは無視
+        val type = event.event["type"]?.jsonPrimitive?.contentOrNull ?: return
+        if (type != "message_start") return
+
+        val usage = event.event["message"]?.jsonObject?.get("usage")?.jsonObject ?: return
+        val inputTokens = usage["input_tokens"]?.jsonPrimitive?.longOrNull ?: 0L
+        val cacheCreation = usage["cache_creation_input_tokens"]?.jsonPrimitive?.longOrNull ?: 0L
+        val cacheRead = usage["cache_read_input_tokens"]?.jsonPrimitive?.longOrNull ?: 0L
+        lastTurnInputTokens = inputTokens + cacheCreation + cacheRead
+    }
+
     private fun handleResultMessage(message: ResultMessage) {
-        val inputTokens = message.usage?.get("input_tokens")?.jsonPrimitive?.longOrNull ?: 0L
+        // lastTurnInputTokens は最後の message_start イベントの値 (単一API呼び出し分)
+        // ResultMessage.usage は全API呼び出しの累積値なので使わない
         val contextWindow = 200_000L
-        val usage = (inputTokens.toFloat() / contextWindow).coerceIn(0f, 1f)
+        val usage = (lastTurnInputTokens.toFloat() / contextWindow).coerceIn(0f, 1f)
 
         _uiState.update {
             it.copy(
                 sessionState = SessionState.WaitingForInput,
                 totalCostUsd = message.totalCostUsd ?: it.totalCostUsd,
                 contextUsage = usage,
+                totalInputTokens = lastTurnInputTokens,
                 errorMessage = if (message.isError) "Turn ended with error: ${message.subtype}" else null,
             )
         }

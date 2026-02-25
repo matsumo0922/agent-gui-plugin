@@ -179,6 +179,7 @@ fun ChatPanel(
                     currentModel = uiState.model,
                     currentPermissionMode = uiState.permissionMode,
                     contextUsage = uiState.contextUsage,
+                    totalInputTokens = uiState.totalInputTokens,
                     onAttach = { file -> viewModel.attachFile(file) },
                     onDetach = { file -> viewModel.detachFile(file) },
                     onSend = viewModel::sendMessage,

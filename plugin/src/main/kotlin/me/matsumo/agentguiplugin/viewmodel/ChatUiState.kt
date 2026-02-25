@@ -38,6 +38,7 @@ data class ChatUiState(
     val model: Model = Model.SONNET,
     val permissionMode: PermissionMode = PermissionMode.DEFAULT,
     val contextUsage: Float = 0f,
+    val totalInputTokens: Long = 0L,
     val totalCostUsd: Double = 0.0,
     val pendingPermission: PendingPermission? = null,
     val pendingQuestion: PendingQuestion? = null,

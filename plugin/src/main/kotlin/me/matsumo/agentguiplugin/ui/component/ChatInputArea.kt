@@ -67,6 +67,7 @@ fun ChatInputArea(
     currentModel: Model,
     currentPermissionMode: PermissionMode,
     contextUsage: Float,
+    totalInputTokens: Long,
     onAttach: (AttachedFile) -> Unit,
     onDetach: (AttachedFile) -> Unit,
     onSend: (String) -> Unit,
@@ -98,6 +99,7 @@ fun ChatInputArea(
             onAttach = onAttach,
             onDetach = onDetach,
             contextUsage = contextUsage,
+            totalInputTokens = totalInputTokens,
         )
 
         InputSection(
@@ -128,6 +130,7 @@ private fun TopSection(
     onAttach: (AttachedFile) -> Unit,
     onDetach: (AttachedFile) -> Unit,
     contextUsage: Float,
+    totalInputTokens: Long,
     modifier: Modifier = Modifier,
 ) {
     var showPopup by remember { mutableStateOf(false) }
@@ -176,12 +179,12 @@ private fun TopSection(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             ContextUsageIndicator(
+                modifier = Modifier.size(14.dp),
                 usage = contextUsage,
-                modifier = Modifier.size(16.dp),
             )
 
             Text(
-                text = "${(contextUsage * 100).toInt()}%",
+                text = "%,d tkn".format(totalInputTokens) + " (${(contextUsage * 100).toInt()}%)",
                 style = JewelTheme.typography.small,
                 color = JewelTheme.globalColors.text.info,
             )
