@@ -2,7 +2,9 @@ package me.matsumo.agentguiplugin.toolwindow
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.components.service
+import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.registry.Registry
@@ -10,6 +12,7 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.impl.content.ToolWindowContentUi
 import me.matsumo.agentguiplugin.service.SessionService
+import me.matsumo.agentguiplugin.settings.AgentGuiSettingsConfigurable
 
 class AgentToolWindowFactory : ToolWindowFactory {
     override fun shouldBeAvailable(project: Project) = true
@@ -36,6 +39,20 @@ class AgentToolWindowFactory : ToolWindowFactory {
                     }
                 },
             ),
+        )
+
+        // ギアメニューに Settings アクションを追加
+        toolWindow.setAdditionalGearActions(
+            DefaultActionGroup().apply {
+                add(object : DumbAwareAction("Settings...", "Open Agent GUI settings", AllIcons.General.Settings) {
+                    override fun actionPerformed(e: AnActionEvent) {
+                        ShowSettingsUtil.getInstance().showSettingsDialog(
+                            project,
+                            AgentGuiSettingsConfigurable::class.java,
+                        )
+                    }
+                })
+            },
         )
 
         // 初期タブを作成
