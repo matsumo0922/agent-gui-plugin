@@ -52,6 +52,7 @@ sealed interface ChatMessage {
 
     data class User(
         override val id: String,
+        val editGroupId: String = id,
         val text: String,
         val attachedFiles: List<AttachedFile> = emptyList(),
     ) : ChatMessage

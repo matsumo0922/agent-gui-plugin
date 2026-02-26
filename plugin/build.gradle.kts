@@ -17,6 +17,9 @@ dependencies {
     compileOnly(libs.kotlinx.serialization.json)
     implementation(libs.java.diff.utils)
 
+    testImplementation(kotlin("test"))
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+
     implementation("me.matsumo.claude.agent:agent:local") {
         exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-json")
         exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-json-jvm")
@@ -29,6 +32,7 @@ dependencies {
     intellijPlatform {
         intellijIdea("2025.3.3")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
+        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.JUnit5)
         composeUI()
         bundledPlugin("org.jetbrains.kotlin")
         bundledModule("intellij.platform.jewel.markdown.core")
@@ -56,6 +60,26 @@ tasks {
     withType<JavaCompile> {
         sourceCompatibility = "17"
         targetCompatibility = "17"
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
+
+// Register a separate unitTest task for pure unit tests (no IntelliJ Platform sandbox)
+val unitTest by tasks.registering(Test::class) {
+    description = "Runs pure unit tests without IntelliJ Platform test infrastructure."
+    group = "verification"
+
+    useJUnitPlatform()
+
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+
+    // Remove IntelliJ Platform's PathClassLoader and sandbox JVM args
+    jvmArgs = jvmArgs.orEmpty().filter {
+        !it.contains("PathClassLoader") && !it.contains("idea.home.path")
     }
 }
 
