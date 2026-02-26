@@ -77,6 +77,10 @@ class ChatViewModel(
         updateState = { transform -> _uiState.update(transform) },
     )
 
+    val branchSessionManager = BranchSessionManager(
+        applyCommonConfig = { model, permissionMode -> applyCommonConfig(model, permissionMode) },
+    )
+
     private val startMutex = Mutex()
     private var startJob: Job? = null
 
@@ -161,6 +165,7 @@ class ChatViewModel(
             cleanupAuthProcess()
             stopAllTailing()
             permissionHandler.cancelPending()
+            branchSessionManager.closeAll()
             client?.close()
             client = null
             _uiState.value = ChatUiState(
@@ -180,6 +185,7 @@ class ChatViewModel(
         cleanupAuthProcess()
         stopAllTailing()
         permissionHandler.cancelPending()
+        branchSessionManager.closeAll()
         client?.close()
         client = null
     }

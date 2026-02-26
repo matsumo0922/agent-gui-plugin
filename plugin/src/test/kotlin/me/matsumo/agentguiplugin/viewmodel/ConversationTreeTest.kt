@@ -1,5 +1,7 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -993,5 +995,78 @@ class ConversationTreeTest {
         val original = tree.getActiveMessages()
         assertEquals(4, original.size)
         assertEquals("A", (original[0] as ChatMessage.User).text)
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // buildContextSystemPrompt
+    // ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `buildContextSystemPrompt with empty messages`() {
+        val prompt = buildContextSystemPrompt(emptyList(), emptyList())
+        assertTrue(prompt.contains("branched conversation"))
+        assertTrue(prompt.contains("Continue the conversation"))
+    }
+
+    @Test
+    fun `buildContextSystemPrompt includes user and assistant messages`() {
+        val messages = listOf<ChatMessage>(
+            userMsg("Hello", editGroupId = "eg-1"),
+            ChatMessage.Assistant(
+                id = "a-1",
+                blocks = listOf(UiContentBlock.Text("Hi there!")),
+            ),
+        )
+        val prompt = buildContextSystemPrompt(messages, emptyList())
+        assertTrue(prompt.contains("[User]: Hello"))
+        assertTrue(prompt.contains("[Assistant]: Hi there!"))
+    }
+
+    @Test
+    fun `buildContextSystemPrompt includes tool use summary`() {
+        val messages = listOf<ChatMessage>(
+            ChatMessage.Assistant(
+                id = "a-1",
+                blocks = listOf(
+                    UiContentBlock.Text("Let me read that file."),
+                    UiContentBlock.ToolUse(
+                        toolName = "Read",
+                        inputJson = buildJsonObject {
+                            put("file_path", "/src/main.kt")
+                        },
+                    ),
+                ),
+            ),
+        )
+        val prompt = buildContextSystemPrompt(messages, emptyList())
+        assertTrue(prompt.contains("[Tool used: Read]"))
+        assertTrue(prompt.contains("target: \"/src/main.kt\""))
+    }
+
+    @Test
+    fun `buildContextSystemPrompt includes interrupted message`() {
+        val messages = listOf<ChatMessage>(
+            ChatMessage.Interrupted(id = "int-1"),
+        )
+        val prompt = buildContextSystemPrompt(messages, emptyList())
+        assertTrue(prompt.contains("[System: Response was interrupted]"))
+    }
+
+    @Test
+    fun `buildContextSystemPrompt includes attached files info`() {
+        val messages = listOf<ChatMessage>(
+            userMsg("Check this", editGroupId = "eg-1"),
+        )
+        val files = listOf(
+            me.matsumo.agentguiplugin.model.AttachedFile(
+                id = "f-1",
+                name = "screenshot.png",
+                path = "/tmp/screenshot.png",
+                icon = null,
+                isImage = true,
+            ),
+        )
+        val prompt = buildContextSystemPrompt(messages, files)
+        assertTrue(prompt.contains("Previously attached files: screenshot.png"))
     }
 }
