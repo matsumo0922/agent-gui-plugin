@@ -522,12 +522,16 @@ class ChatViewModel(
         tailerKeyRefs[hookToolUseId] = keyRef
         unresolvedHookIds.add(hookToolUseId)
 
-        // Create initial SubAgentTask under hookToolUseId
+        // Create initial SubAgentTask under hookToolUseId with current branch sessionId
         _uiState.update { state ->
             if (state.subAgentTasks.containsKey(hookToolUseId)) state
             else state.copy(
                 subAgentTasks = state.subAgentTasks + (
-                    hookToolUseId to SubAgentTask(id = hookToolUseId, startedAt = System.currentTimeMillis())
+                    hookToolUseId to SubAgentTask(
+                        id = hookToolUseId,
+                        timelineSessionId = state.sessionId,
+                        startedAt = System.currentTimeMillis(),
+                    )
                 ),
             )
         }
@@ -551,7 +555,8 @@ class ChatViewModel(
                     oldMessages + message
                 }
 
-                val task = (existing ?: SubAgentTask(id = currentKey)).copy(messages = newMessages)
+                val task = (existing ?: SubAgentTask(id = currentKey, timelineSessionId = state.sessionId))
+                    .copy(messages = newMessages)
                 state.copy(subAgentTasks = state.subAgentTasks + (currentKey to task))
             }
         }

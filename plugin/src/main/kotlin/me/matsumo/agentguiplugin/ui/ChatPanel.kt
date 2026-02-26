@@ -136,12 +136,21 @@ fun ChatPanel(
                     onDone = viewModel::confirmAuthComplete,
                 )
             } else {
+                // SubAgentTask をアクティブブランチの sessionId でフィルタ。
+                // timelineSessionId == null のタスクは全ブランチで表示（レガシー互換）。
+                val filteredSubAgentTasks = remember(uiState.subAgentTasks, uiState.sessionId) {
+                    val activeSessionId = uiState.sessionId
+                    uiState.subAgentTasks.filterValues { task ->
+                        task.timelineSessionId == null || task.timelineSessionId == activeSessionId
+                    }
+                }
+
                 ChatMessageList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
                     messages = uiState.activeMessages,
-                    subAgentTasks = uiState.subAgentTasks,
+                    subAgentTasks = filteredSubAgentTasks,
                     project = project,
                 )
 
