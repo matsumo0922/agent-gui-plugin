@@ -609,13 +609,15 @@ class ChatViewModel(
     }
 
     private fun cleanupAuthProcess() {
-        authReaderJob?.cancel()
-        authReaderJob = null
-        runCatching { authStdin?.close() }
-        runCatching { authStdout?.close() }
+        // プロセス破棄 → ストリーム close を先に行い、readLine() のブロッキングを解除してから
+        // ジョブを cancel する。逆順だと readLine() が永久に suspend する。
         authProcess?.destroyForcibly()
         authProcess = null
-        authStdout = null
+        runCatching { authStdin?.close() }
+        runCatching { authStdout?.close() }
         authStdin = null
+        authStdout = null
+        authReaderJob?.cancel()
+        authReaderJob = null
     }
 }
