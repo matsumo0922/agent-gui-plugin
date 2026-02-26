@@ -577,7 +577,7 @@ class ChatViewModel(
         }
     }
 
-    private fun confirmAuthComplete() {
+    fun confirmAuthComplete() {
         vmScope.launch {
             cleanupAuthProcess()
             _uiState.update {

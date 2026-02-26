@@ -133,6 +133,7 @@ fun ChatPanel(
                         .weight(1f),
                     outputLines = uiState.authOutputLines,
                     onSendInput = viewModel::sendAuthInput,
+                    onDone = viewModel::confirmAuthComplete,
                 )
             } else {
                 ChatMessageList(

@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,13 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isShiftPressed
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.matsumo.agentguiplugin.ui.component.Button
@@ -41,14 +38,23 @@ import org.jetbrains.jewel.ui.theme.colorPalette
 import org.jetbrains.jewel.ui.typography
 
 private val warningColor = Color(0xFFF59E0B)
+private val doneColor = Color(0xFF22C55E)
 
 @Composable
 fun AuthenticationCard(
     outputLines: List<String>,
     onSendInput: (String) -> Unit,
+    onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var inputText by remember { mutableStateOf("") }
+
+    val sendInput = {
+        if (inputText.isNotEmpty()) {
+            onSendInput(inputText)
+            inputText = ""
+        }
+    }
 
     Column(
         modifier = modifier
@@ -124,7 +130,7 @@ fun AuthenticationCard(
             }
         }
 
-        // Input area
+        // Input + Done row
         Row(
             modifier = Modifier
                 .padding(top = 12.dp)
@@ -134,7 +140,8 @@ fun AuthenticationCard(
         ) {
             val textColor = JewelTheme.globalColors.text.normal
 
-            BasicTextField(
+            // Text field with inline send icon
+            Row(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(4.dp))
@@ -143,47 +150,46 @@ fun AuthenticationCard(
                         color = JewelTheme.globalColors.borders.normal,
                         shape = RoundedCornerShape(4.dp),
                     )
-                    .padding(8.dp)
-                    .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && event.isShiftPressed) {
-                            onSendInput(inputText)
-                            inputText = ""
-                            true
-                        } else {
-                            false
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicTextField(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp),
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    textStyle = JewelTheme.typography.medium.copy(color = textColor),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { sendInput() },
+                    ),
+                    cursorBrush = SolidColor(textColor),
+                    singleLine = true,
+                    decorationBox = { innerTextField ->
+                        Box {
+                            if (inputText.isEmpty()) {
+                                Text(
+                                    text = "Type response and press Send...",
+                                    fontSize = 12.sp,
+                                    color = JewelTheme.globalColors.text.info,
+                                )
+                            }
+                            innerTextField()
                         }
                     },
-                value = inputText,
-                onValueChange = { inputText = it },
-                textStyle = JewelTheme.typography.medium.copy(color = textColor),
-                cursorBrush = SolidColor(textColor),
-                singleLine = true,
-                decorationBox = { innerTextField ->
-                    Box {
-                        if (inputText.isEmpty()) {
-                            Text(
-                                text = "Type response and press Send...",
-                                fontSize = 12.sp,
-                                color = JewelTheme.globalColors.text.info,
-                            )
-                        }
-                        innerTextField()
-                    }
-                },
-            )
+                )
+            }
 
+            // Done button
             Button(
-                text = "Send",
-                onClick = {
-                    if (inputText.isNotEmpty()) {
-                        onSendInput(inputText)
-                        inputText = ""
-                    }
-                },
-                borderColor = warningColor.copy(alpha = 0.5f),
-                backgroundColor = warningColor.copy(alpha = 0.15f),
+                text = "Done",
+                onClick = onDone,
+                borderColor = doneColor.copy(alpha = 0.5f),
+                backgroundColor = doneColor.copy(alpha = 0.15f),
                 textColor = JewelTheme.globalColors.text.normal,
-                enabled = inputText.isNotEmpty(),
             )
         }
     }
