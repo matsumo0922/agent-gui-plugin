@@ -706,6 +706,79 @@ class ChatViewModel(
             state.pendingQuestion == null
     }
 
+    /**
+     * 編集バージョンをナビゲーションする（左右矢印）。
+     * direction: -1 = 前のバージョン, +1 = 次のバージョン
+     *
+     * ブランチ切替時は非同期でセッションを再接続する。
+     * null session ブランチへの移動時は activeClient をクリアし、
+     * 次の sendMessage() で ensureActiveClient() が lazy reconstruction する。
+     */
+    fun navigateEditVersion(editGroupId: String, direction: Int) {
+        if (disposed) return
+        val state = _uiState.value
+        if (!canEditOrNavigate(state)) return
+
+        val newTree = state.conversationTree.navigateVersion(editGroupId, direction)
+        val newPath = newTree.getActiveLeafPath()
+        val newSessionId = newTree.getActiveLeafSessionId()
+        val currentSessionId = state.sessionId
+        val needsSessionSwitch = newSessionId != null && newSessionId != currentSessionId
+        val isNullSession = newSessionId == null
+
+        _uiState.update {
+            it.copy(
+                conversationTree = newTree,
+                conversationCursor = ConversationCursor(activeLeafPath = newPath),
+                sessionState = if (needsSessionSwitch) SessionState.Connecting
+                    else it.sessionState,
+                sessionId = newSessionId,
+            )
+        }
+
+        // null session ブランチへの移動: activeClient をクリアし、
+        // 次の sendMessage() で ensureActiveClient() が新規作成する (lazy reconstruction)
+        if (isNullSession) {
+            client = null
+            return
+        }
+
+        // アクティブセッションの非同期切り替え
+        if (needsSessionSwitch) {
+            vmScope.launch {
+                try {
+                    val newClient = branchSessionManager.getOrResumeSession(
+                        branchSessionId = newSessionId,
+                        model = state.model,
+                        permissionMode = state.permissionMode,
+                    )
+                    client = newClient
+                    _uiState.update {
+                        it.copy(
+                            sessionId = newSessionId,
+                            sessionState = SessionState.WaitingForInput,
+                        )
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // 失敗時: activeClient/sessionId を null 化し、WaitingForInput に戻す。
+                    // 次の sendMessage() で ensureActiveClient() がリカバリ。
+                    // Error ではなく WaitingForInput にするのは、sendMessage() が
+                    // Ready/WaitingForInput のみ許可するため、Error だとリカバリ不能になるため。
+                    client = null
+                    _uiState.update {
+                        it.copy(
+                            sessionId = null,
+                            sessionState = SessionState.WaitingForInput,
+                            errorMessage = "Failed to switch branch session: ${e.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun abortSession() {
         // activeTurnId をインクリメントして現在のターンのメッセージ処理を無効化する。
         // activeTurnJob はキャンセルしない。interrupt 後に CLI が送る ResultMessage を
