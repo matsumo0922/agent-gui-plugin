@@ -1,10 +1,14 @@
 package me.matsumo.agentguiplugin.ui.component.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -23,6 +27,7 @@ import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.theme.colorPalette
 import org.jetbrains.jewel.ui.typography
 
 @Composable
@@ -83,6 +88,35 @@ fun ChatMessageList(
                                 project = project,
                                 timestamp = message.timestamp,
                             )
+                        }
+
+                        is ChatMessage.Interrupted -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(1.dp)
+                                        .background(JewelTheme.colorPalette.gray(4)),
+                                )
+
+                                Text(
+                                    text = "Response interrupted",
+                                    style = JewelTheme.typography.small,
+                                    color = JewelTheme.colorPalette.gray(7),
+                                    modifier = Modifier.padding(horizontal = 4.dp),
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(1.dp)
+                                        .background(JewelTheme.colorPalette.gray(4)),
+                                )
+                            }
                         }
                     }
                 }

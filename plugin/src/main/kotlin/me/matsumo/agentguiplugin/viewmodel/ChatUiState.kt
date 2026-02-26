@@ -61,6 +61,11 @@ sealed interface ChatMessage {
         val blocks: List<UiContentBlock> = emptyList(),
         val timestamp: Long = System.currentTimeMillis(),
     ) : ChatMessage
+
+    data class Interrupted(
+        override val id: String,
+        val timestamp: Long = System.currentTimeMillis(),
+    ) : ChatMessage
 }
 
 @Immutable

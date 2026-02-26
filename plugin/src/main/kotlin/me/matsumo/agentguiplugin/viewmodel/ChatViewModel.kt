@@ -555,7 +555,12 @@ class ChatViewModel(
         stopAllTailing()
         vmScope.launch { client?.interrupt() }
         _uiState.update {
-            it.copy(sessionState = SessionState.WaitingForInput)
+            it.copy(
+                sessionState = SessionState.WaitingForInput,
+                messages = it.messages + ChatMessage.Interrupted(
+                    id = UUID.randomUUID().toString(),
+                ),
+            )
         }
     }
 
