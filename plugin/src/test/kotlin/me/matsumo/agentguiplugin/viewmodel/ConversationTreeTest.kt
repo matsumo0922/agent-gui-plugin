@@ -804,4 +804,194 @@ class ConversationTreeTest {
         assertEquals(1, edited.slots[0].activeTimelineIndex)
         assertEquals(0, navigated.slots[0].activeTimelineIndex)
     }
+
+    // ──────────────────────────────────────────────────────────
+    // buildConversationTreeFromFlatList
+    // ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `buildConversationTreeFromFlatList with empty list returns empty tree`() {
+        val tree = buildConversationTreeFromFlatList(emptyList())
+        assertEquals(0, tree.slots.size)
+        assertEquals(emptyList<ChatMessage>(), tree.getActiveMessages())
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList with single user message`() {
+        val msg = userMsg("Hello", editGroupId = "eg-1")
+        val tree = buildConversationTreeFromFlatList(listOf(msg))
+
+        assertEquals(1, tree.slots.size)
+        assertEquals("eg-1", tree.slots[0].editGroupId)
+        assertEquals(1, tree.slots[0].timelines.size)
+        assertEquals("Hello", tree.slots[0].timelines[0].userMessage.text)
+        assertEquals(0, tree.slots[0].timelines[0].responses.size)
+        assertEquals(0, tree.slots[0].timelines[0].childSlots.size)
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList with user and assistant pair`() {
+        val messages = listOf(
+            userMsg("Hello", editGroupId = "eg-1"),
+            assistantMsg("Hi there"),
+        )
+        val tree = buildConversationTreeFromFlatList(messages)
+
+        assertEquals(1, tree.slots.size)
+        val timeline = tree.slots[0].timelines[0]
+        assertEquals("Hello", timeline.userMessage.text)
+        assertEquals(1, timeline.responses.size)
+        assertTrue(timeline.responses[0] is ChatMessage.Assistant)
+        assertEquals(0, timeline.childSlots.size)
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList builds chain structure`() {
+        val messages = listOf(
+            userMsg("A", editGroupId = "eg-1"),
+            assistantMsg("R1"),
+            userMsg("B", editGroupId = "eg-2"),
+            assistantMsg("R2"),
+            userMsg("C", editGroupId = "eg-3"),
+            assistantMsg("R3"),
+        )
+        val tree = buildConversationTreeFromFlatList(messages)
+
+        // Root has 1 slot (not 3 - they are chained via childSlots)
+        assertEquals(1, tree.slots.size)
+        assertEquals("eg-1", tree.slots[0].editGroupId)
+
+        val t0 = tree.slots[0].timelines[0]
+        assertEquals("A", t0.userMessage.text)
+        assertEquals(1, t0.responses.size)
+        assertEquals(1, t0.childSlots.size)
+
+        val t1 = t0.childSlots[0].timelines[0]
+        assertEquals("B", t1.userMessage.text)
+        assertEquals(1, t1.responses.size)
+        assertEquals(1, t1.childSlots.size)
+
+        val t2 = t1.childSlots[0].timelines[0]
+        assertEquals("C", t2.userMessage.text)
+        assertEquals(1, t2.responses.size)
+        assertEquals(0, t2.childSlots.size)
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList getActiveMessages returns original order`() {
+        val messages = listOf(
+            userMsg("A", editGroupId = "eg-1"),
+            assistantMsg("R1"),
+            userMsg("B", editGroupId = "eg-2"),
+            assistantMsg("R2"),
+        )
+        val tree = buildConversationTreeFromFlatList(messages)
+        val active = tree.getActiveMessages()
+
+        assertEquals(4, active.size)
+        assertEquals("A", (active[0] as ChatMessage.User).text)
+        assertTrue(active[1] is ChatMessage.Assistant)
+        assertEquals("B", (active[2] as ChatMessage.User).text)
+        assertTrue(active[3] is ChatMessage.Assistant)
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList with multiple responses per turn`() {
+        val messages = listOf(
+            userMsg("A", editGroupId = "eg-1"),
+            assistantMsg("R1a"),
+            assistantMsg("R1b"),
+            userMsg("B", editGroupId = "eg-2"),
+            assistantMsg("R2"),
+        )
+        val tree = buildConversationTreeFromFlatList(messages)
+
+        val t0 = tree.slots[0].timelines[0]
+        assertEquals(2, t0.responses.size) // R1a, R1b
+        assertEquals(1, t0.childSlots.size)
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList with Interrupted message`() {
+        val messages = listOf(
+            userMsg("A", editGroupId = "eg-1"),
+            assistantMsg("R1"),
+            ChatMessage.Interrupted(id = "int-1"),
+            userMsg("B", editGroupId = "eg-2"),
+        )
+        val tree = buildConversationTreeFromFlatList(messages)
+
+        val t0 = tree.slots[0].timelines[0]
+        assertEquals(2, t0.responses.size) // R1, Interrupted
+        assertTrue(t0.responses[1] is ChatMessage.Interrupted)
+        assertEquals(1, t0.childSlots.size)
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList with branchSessionId`() {
+        val messages = listOf(
+            userMsg("A", editGroupId = "eg-1"),
+            assistantMsg("R1"),
+            userMsg("B", editGroupId = "eg-2"),
+        )
+        val tree = buildConversationTreeFromFlatList(messages, branchSessionId = "sess-42")
+
+        // All timelines should have the same branchSessionId
+        assertEquals("sess-42", tree.slots[0].timelines[0].branchSessionId)
+        assertEquals("sess-42", tree.slots[0].timelines[0].childSlots[0].timelines[0].branchSessionId)
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList getActiveLeafPath is correct`() {
+        val messages = listOf(
+            userMsg("A", editGroupId = "eg-1"),
+            assistantMsg("R1"),
+            userMsg("B", editGroupId = "eg-2"),
+            assistantMsg("R2"),
+        )
+        val tree = buildConversationTreeFromFlatList(messages)
+        val path = tree.getActiveLeafPath()
+
+        assertEquals(2, path.size)
+        assertEquals(SlotPathSegment(0, 0), path[0])
+        assertEquals(SlotPathSegment(0, 0), path[1])
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList leading non-user messages are ignored`() {
+        val messages = listOf(
+            assistantMsg("stray"),
+            userMsg("A", editGroupId = "eg-1"),
+        )
+        val tree = buildConversationTreeFromFlatList(messages)
+
+        // The stray assistant message has no preceding user message, so it's dropped
+        assertEquals(1, tree.slots.size)
+        assertEquals(0, tree.slots[0].timelines[0].responses.size)
+    }
+
+    @Test
+    fun `buildConversationTreeFromFlatList tree supports edit after import`() {
+        val messages = listOf(
+            userMsg("A", editGroupId = "eg-1"),
+            assistantMsg("R1"),
+            userMsg("B", editGroupId = "eg-2"),
+            assistantMsg("R2"),
+        )
+        var tree = buildConversationTreeFromFlatList(messages)
+
+        // Edit the first message
+        tree = tree.editMessage("eg-1", userMsg("A-v2", editGroupId = "eg-1"), branchSessionId = "sess-new")
+
+        // Active messages should now be just A-v2 (new timeline has no children)
+        val active = tree.getActiveMessages()
+        assertEquals(1, active.size)
+        assertEquals("A-v2", (active[0] as ChatMessage.User).text)
+
+        // Navigate back
+        tree = tree.navigateVersion("eg-1", direction = -1)
+        val original = tree.getActiveMessages()
+        assertEquals(4, original.size)
+        assertEquals("A", (original[0] as ChatMessage.User).text)
+    }
 }

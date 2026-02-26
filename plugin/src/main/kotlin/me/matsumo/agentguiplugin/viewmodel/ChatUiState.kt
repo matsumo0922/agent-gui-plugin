@@ -31,7 +31,12 @@ data class PendingQuestion(
 
 @Stable
 data class ChatUiState(
+    val conversationTree: ConversationTree = ConversationTree(),
+    val conversationCursor: ConversationCursor = ConversationCursor(),
+
+    // --- 移行期間中のみ併存 (Step 11 で削除) ---
     val messages: List<ChatMessage> = emptyList(),
+
     val subAgentTasks: Map<String, SubAgentTask> = emptyMap(),
     val attachedFiles: List<AttachedFile> = emptyList(),
     val sessionState: SessionState = SessionState.Disconnected,
@@ -45,7 +50,11 @@ data class ChatUiState(
     val pendingQuestion: PendingQuestion? = null,
     val errorMessage: String? = null,
     val authOutputLines: List<String> = emptyList(),
-)
+) {
+    /** アクティブパスのフラットメッセージリスト（UI 互換用） */
+    val activeMessages: List<ChatMessage>
+        get() = conversationTree.getActiveMessages()
+}
 
 sealed interface ChatMessage {
     val id: String
@@ -72,6 +81,7 @@ sealed interface ChatMessage {
 @Immutable
 data class SubAgentTask(
     val id: String,                                    // = parentToolUseId
+    val timelineSessionId: String? = null,             // どのブランチのタスクか
     val spawnedByToolName: String? = null,             // 呼び出し元ツール名
     val messages: List<ChatMessage> = emptyList(),     // サブエージェントのメッセージ列
     val startedAt: Long? = null,                       // 開始時刻 (epochMillis)

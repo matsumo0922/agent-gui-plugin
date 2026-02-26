@@ -187,8 +187,15 @@ class ChatViewModel(
      * 履歴メッセージを UI に投入する（resume 時の過去メッセージ表示用）。
      * start() の前に呼び出すこと。
      */
-    fun importHistory(messages: List<ChatMessage>) {
-        _uiState.update { it.copy(messages = messages) }
+    fun importHistory(messages: List<ChatMessage>, branchSessionId: String? = null) {
+        val tree = buildConversationTreeFromFlatList(messages, branchSessionId)
+        _uiState.update {
+            it.copy(
+                messages = messages,
+                conversationTree = tree,
+                conversationCursor = ConversationCursor(activeLeafPath = tree.getActiveLeafPath()),
+            )
+        }
     }
 
     private suspend fun connectSession(resumeSessionId: String?) {

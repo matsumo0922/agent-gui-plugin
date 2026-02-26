@@ -333,6 +333,58 @@ fun ConversationTree.getActiveLeafSessionId(): String? {
 }
 
 // ──────────────────────────────────────────────────────────
+// Factory
+// ──────────────────────────────────────────────────────────
+
+/**
+ * フラットなメッセージリストから ConversationTree を構築。
+ * セッション再開時の履歴インポート用。
+ *
+ * 重要: User メッセージ間は parent-child (childSlots) で連結する。
+ * root siblings にしてはならない（getActiveLeafPath() や navigateVersion() が壊れるため）。
+ */
+fun buildConversationTreeFromFlatList(
+    messages: List<ChatMessage>,
+    branchSessionId: String? = null,
+): ConversationTree {
+    if (messages.isEmpty()) return ConversationTree()
+
+    // メッセージを (User, [responses...]) のペアに分割
+    data class Turn(val user: ChatMessage.User, val responses: MutableList<ChatMessage> = mutableListOf())
+    val turns = mutableListOf<Turn>()
+
+    for (msg in messages) {
+        when (msg) {
+            is ChatMessage.User -> turns.add(Turn(msg))
+            else -> turns.lastOrNull()?.responses?.add(msg)
+        }
+    }
+
+    if (turns.isEmpty()) return ConversationTree()
+
+    // 末尾から再帰的にチェーン構造を構築
+    fun buildChain(index: Int): List<MessageSlot> {
+        if (index >= turns.size) return emptyList()
+        val turn = turns[index]
+        val childSlots = buildChain(index + 1)
+        val timeline = Timeline(
+            userMessage = turn.user,
+            responses = turn.responses.toList(),
+            childSlots = childSlots,
+            branchSessionId = branchSessionId,
+        )
+        return listOf(
+            MessageSlot(
+                editGroupId = turn.user.editGroupId,
+                timelines = listOf(timeline),
+            )
+        )
+    }
+
+    return ConversationTree(slots = buildChain(0))
+}
+
+// ──────────────────────────────────────────────────────────
 // Internal helpers
 // ──────────────────────────────────────────────────────────
 
