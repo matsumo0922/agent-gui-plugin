@@ -24,8 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,14 +39,11 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 
 private val warningColor = Color(0xFFF59E0B)
-private val confirmColor = Color(0xFF22C55E)
 
 @Composable
 fun AuthenticationCard(
     outputLines: List<String>,
-    authProcessExited: Boolean,
     onSendInput: (String) -> Unit,
-    onConfirmComplete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var inputText by remember { mutableStateOf("") }
@@ -70,7 +71,7 @@ fun AuthenticationCard(
             )
 
             Text(
-                text = "The CLI wrapper requires authentication before starting a session. Please complete the authentication below.",
+                text = "The Claude CLI requires authentication before starting a session. Please complete the authentication below.",
                 style = JewelTheme.typography.medium,
                 color = JewelTheme.globalColors.text.info,
             )
@@ -103,11 +104,7 @@ fun AuthenticationCard(
             items(outputLines) { line ->
                 Text(
                     text = line,
-                    style = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = JewelTheme.globalColors.text.normal,
-                    ),
+                    style = JewelTheme.typography.medium,
                 )
             }
 
@@ -123,66 +120,6 @@ fun AuthenticationCard(
         }
 
         // Input area
-        if (!authProcessExited) {
-            Row(
-                modifier = Modifier
-                    .padding(top = 12.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val textColor = JewelTheme.globalColors.text.normal
-
-                BasicTextField(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(4.dp))
-                        .border(
-                            width = 1.dp,
-                            color = JewelTheme.globalColors.borders.normal,
-                            shape = RoundedCornerShape(4.dp),
-                        )
-                        .padding(8.dp),
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    textStyle = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = textColor,
-                    ),
-                    cursorBrush = SolidColor(textColor),
-                    singleLine = true,
-                    decorationBox = { innerTextField ->
-                        Box {
-                            if (inputText.isEmpty()) {
-                                Text(
-                                    text = "Type response and press Send...",
-                                    fontSize = 12.sp,
-                                    color = JewelTheme.globalColors.text.info,
-                                )
-                            }
-                            innerTextField()
-                        }
-                    },
-                )
-
-                Button(
-                    text = "Send",
-                    onClick = {
-                        if (inputText.isNotEmpty()) {
-                            onSendInput(inputText)
-                            inputText = ""
-                        }
-                    },
-                    borderColor = warningColor.copy(alpha = 0.5f),
-                    backgroundColor = warningColor.copy(alpha = 0.15f),
-                    textColor = JewelTheme.globalColors.text.normal,
-                    enabled = inputText.isNotEmpty(),
-                )
-            }
-        }
-
-        // Complete button
         Row(
             modifier = Modifier
                 .padding(top = 12.dp)
@@ -190,21 +127,58 @@ fun AuthenticationCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (authProcessExited) {
-                Text(
-                    text = "Authentication process has exited.",
-                    style = JewelTheme.typography.medium,
-                    color = JewelTheme.globalColors.text.info,
-                )
-            }
+            val textColor = JewelTheme.globalColors.text.normal
+
+            BasicTextField(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(4.dp))
+                    .border(
+                        width = 1.dp,
+                        color = JewelTheme.globalColors.borders.normal,
+                        shape = RoundedCornerShape(4.dp),
+                    )
+                    .padding(8.dp)
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && event.isShiftPressed) {
+                            onSendInput(inputText)
+                            inputText = ""
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                value = inputText,
+                onValueChange = { inputText = it },
+                textStyle = JewelTheme.typography.medium.copy(color = textColor),
+                cursorBrush = SolidColor(textColor),
+                singleLine = true,
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (inputText.isEmpty()) {
+                            Text(
+                                text = "Type response and press Send...",
+                                fontSize = 12.sp,
+                                color = JewelTheme.globalColors.text.info,
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
+            )
 
             Button(
-                modifier = Modifier.fillMaxWidth(),
-                text = "Authentication Complete",
-                onClick = onConfirmComplete,
-                borderColor = confirmColor.copy(alpha = 0.5f),
-                backgroundColor = confirmColor.copy(alpha = 0.15f),
+                text = "Send",
+                onClick = {
+                    if (inputText.isNotEmpty()) {
+                        onSendInput(inputText)
+                        inputText = ""
+                    }
+                },
+                borderColor = warningColor.copy(alpha = 0.5f),
+                backgroundColor = warningColor.copy(alpha = 0.15f),
                 textColor = JewelTheme.globalColors.text.normal,
+                enabled = inputText.isNotEmpty(),
             )
         }
     }

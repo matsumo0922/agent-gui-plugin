@@ -577,14 +577,13 @@ class ChatViewModel(
         }
     }
 
-    fun confirmAuthComplete() {
+    private fun confirmAuthComplete() {
         vmScope.launch {
             cleanupAuthProcess()
             _uiState.update {
                 it.copy(
                     sessionState = SessionState.Disconnected,
                     authOutputLines = emptyList(),
-                    authProcessExited = false,
                 )
             }
             start()
@@ -593,16 +592,10 @@ class ChatViewModel(
 
     private fun startAuthOutputReader() {
         val reader = authStdout ?: return
-        val process = authProcess ?: return
         authReaderJob = vmScope.launch(Dispatchers.IO) {
             try {
                 while (currentCoroutineContext().isActive) {
-                    val line = reader.readLine()
-                    if (line == null) {
-                        // Process stdout closed
-                        _uiState.update { it.copy(authProcessExited = true) }
-                        break
-                    }
+                    val line = reader.readLine() ?: break
                     _uiState.update {
                         it.copy(authOutputLines = it.authOutputLines + line)
                     }
@@ -610,10 +603,8 @@ class ChatViewModel(
             } catch (_: IOException) {
                 // Stream closed
             }
-            // Mark exited if process is no longer alive
-            if (!process.isAlive) {
-                _uiState.update { it.copy(authProcessExited = true) }
-            }
+            // Process exited — auto-proceed to re-preflight
+            confirmAuthComplete()
         }
     }
 

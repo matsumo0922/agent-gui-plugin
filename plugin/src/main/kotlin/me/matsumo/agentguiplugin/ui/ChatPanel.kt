@@ -132,9 +132,7 @@ fun ChatPanel(
                         .fillMaxWidth()
                         .weight(1f),
                     outputLines = uiState.authOutputLines,
-                    authProcessExited = uiState.authProcessExited,
                     onSendInput = viewModel::sendAuthInput,
-                    onConfirmComplete = viewModel::confirmAuthComplete,
                 )
             } else {
                 ChatMessageList(

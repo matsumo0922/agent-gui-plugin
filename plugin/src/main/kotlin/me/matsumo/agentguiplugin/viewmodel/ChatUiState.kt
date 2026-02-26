@@ -45,7 +45,6 @@ data class ChatUiState(
     val pendingQuestion: PendingQuestion? = null,
     val errorMessage: String? = null,
     val authOutputLines: List<String> = emptyList(),
-    val authProcessExited: Boolean = false,
 )
 
 sealed interface ChatMessage {
