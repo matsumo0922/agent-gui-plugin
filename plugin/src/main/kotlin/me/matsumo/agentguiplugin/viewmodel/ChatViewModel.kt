@@ -47,6 +47,7 @@ import java.io.BufferedReader
 import java.io.IOException
 import java.io.OutputStreamWriter
 import java.util.*
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 class ChatViewModel(
@@ -87,9 +88,11 @@ class ChatViewModel(
     @Volatile
     private var disposed = false
 
+    @Volatile
     private var client: ClaudeSDKClient? = null
     private var activeTurnJob: Job? = null
-    private var activeTurnId = 0L
+    private val activeTurnId = AtomicLong(0L)
+    private var branchSwitchJob: Job? = null
 
     // Last per-turn context token count from message_start stream event (not cumulative)
     private var lastTurnInputTokens = 0L
@@ -162,6 +165,8 @@ class ChatViewModel(
             startJob = null
             activeTurnJob?.cancel()
             activeTurnJob = null
+            branchSwitchJob?.cancel()
+            branchSwitchJob = null
             cleanupAuthProcess()
             stopAllTailing()
             permissionHandler.cancelPending()
@@ -298,10 +303,18 @@ class ChatViewModel(
     }
 
     fun sendMessage(text: String) {
-        if (text.isEmpty()) return
+        if (text.isBlank()) return
         if (disposed) return
 
-        val session = client ?: return
+        val session = client ?: run {
+            _uiState.update {
+                it.copy(
+                    sessionState = SessionState.Error,
+                    errorMessage = "No active session for this branch. Please start a new conversation.",
+                )
+            }
+            return
+        }
         val files = _uiState.value.attachedFiles
 
         val editGroupId = UUID.randomUUID().toString()
@@ -329,7 +342,7 @@ class ChatViewModel(
         activeTurnJob?.cancel()
         activeTurnJob = vmScope.launch {
             try {
-                val turnId = ++activeTurnId
+                val turnId = activeTurnId.incrementAndGet()
 
                 if (files.isEmpty()) {
                     session.send(text)
@@ -338,7 +351,7 @@ class ChatViewModel(
                 }
 
                 session.receiveResponse().collect { message ->
-                    if (turnId != activeTurnId) return@collect
+                    if (turnId != activeTurnId.get()) return@collect
 
                     when (message) {
                         is SystemMessage -> handleSystemMessage(message)
@@ -615,7 +628,8 @@ class ChatViewModel(
         if (currentTimeline.userMessage.text == newText) return
 
         activeTurnJob?.cancel()
-        val turnId = ++activeTurnId
+        stopAllTailing() // 旧セッションの sub-agent tailer を停止
+        val turnId = activeTurnId.incrementAndGet()
 
         // 先に Processing に遷移し、createEditBranchSession() の suspend 中に
         // 他の操作 (edit/navigate/send) が入るのを canEditOrNavigate() でブロック
@@ -671,7 +685,7 @@ class ChatViewModel(
 
                 // 7. 応答を収集
                 newClient.receiveResponse().collect { message ->
-                    if (turnId != activeTurnId) return@collect
+                    if (turnId != activeTurnId.get()) return@collect
 
                     when (message) {
                         is SystemMessage -> handleSystemMessage(message)
@@ -710,8 +724,8 @@ class ChatViewModel(
      * direction: -1 = 前のバージョン, +1 = 次のバージョン
      *
      * ブランチ切替時は非同期でセッションを再接続する。
-     * null session ブランチへの移動時は activeClient をクリアし、
-     * 次の sendMessage() で ensureActiveClient() が lazy reconstruction する。
+     * null session ブランチへの移動時は activeClient をクリアする。
+     * 送信時に client == null であればエラーを表示する。
      */
     fun navigateEditVersion(editGroupId: String, direction: Int) {
         if (disposed) return
@@ -736,8 +750,7 @@ class ChatViewModel(
             )
         }
 
-        // null session ブランチへの移動: activeClient をクリアし、
-        // 次の sendMessage() で ensureActiveClient() が新規作成する (lazy reconstruction)
+        // null session ブランチへの移動: activeClient をクリア
         if (isNullSession) {
             client = null
             return
@@ -745,13 +758,21 @@ class ChatViewModel(
 
         // アクティブセッションの非同期切り替え
         if (needsSessionSwitch) {
-            vmScope.launch {
+            client = null // reconnect 中に旧セッションへ誤送信されるのを防止
+            branchSwitchJob?.cancel()
+            branchSwitchJob = vmScope.launch {
                 try {
                     val newClient = branchSessionManager.getOrResumeSession(
                         branchSessionId = newSessionId,
                         model = state.model,
                         permissionMode = state.permissionMode,
                     )
+                    // clear() や別の navigateEditVersion() で既にキャンセル/上書きされた場合は
+                    // 生成したクライアントを閉じて何もしない
+                    if (_uiState.value.sessionId != newSessionId) {
+                        newClient.close()
+                        return@launch
+                    }
                     client = newClient
                     _uiState.update {
                         it.copy(
@@ -762,15 +783,10 @@ class ChatViewModel(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    // 失敗時: activeClient/sessionId を null 化し、WaitingForInput に戻す。
-                    // 次の sendMessage() で ensureActiveClient() がリカバリ。
-                    // Error ではなく WaitingForInput にするのは、sendMessage() が
-                    // Ready/WaitingForInput のみ許可するため、Error だとリカバリ不能になるため。
                     client = null
                     _uiState.update {
                         it.copy(
-                            sessionId = null,
-                            sessionState = SessionState.WaitingForInput,
+                            sessionState = SessionState.Error,
                             errorMessage = "Failed to switch branch session: ${e.message}",
                         )
                     }
@@ -784,7 +800,7 @@ class ChatViewModel(
         // activeTurnJob はキャンセルしない。interrupt 後に CLI が送る ResultMessage を
         // 既存の receiveResponse() Flow に消費させ、messageChannel に残留させないため。
         // 残留すると次の receiveResponse() が古い ResultMessage を拾って即終了してしまう。
-        activeTurnId++
+        activeTurnId.incrementAndGet()
         stopAllTailing()
         vmScope.launch { client?.interrupt() }
 

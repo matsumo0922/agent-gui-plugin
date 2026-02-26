@@ -1,5 +1,7 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.claude.agent.ClaudeSDKClient
 import me.matsumo.claude.agent.createSession
@@ -18,6 +20,7 @@ class BranchSessionManager(
 ) {
     // branchSessionId -> ClaudeSDKClient
     private val activeSessions = ConcurrentHashMap<String, ClaudeSDKClient>()
+    private val sessionMutex = Mutex()
 
     /**
      * 編集による新しいブランチのセッションを作成。
@@ -51,7 +54,7 @@ class BranchSessionManager(
         branchSessionId: String,
         model: Model,
         permissionMode: PermissionMode,
-    ): ClaudeSDKClient {
+    ): ClaudeSDKClient = sessionMutex.withLock {
         activeSessions[branchSessionId]?.let { return it }
         val client = resumeSession(branchSessionId) {
             applyCommonConfig(model, permissionMode)
@@ -59,7 +62,7 @@ class BranchSessionManager(
         }
         client.connect()
         activeSessions[branchSessionId] = client
-        return client
+        client
     }
 
     fun removeSession(sessionId: String) {
