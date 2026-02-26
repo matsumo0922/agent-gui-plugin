@@ -24,6 +24,7 @@ import com.intellij.openapi.ide.CopyPasteManager
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.ui.component.MarkdownText
 import me.matsumo.agentguiplugin.ui.component.SwingIcon
+import me.matsumo.agentguiplugin.viewmodel.EditInfo
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
@@ -37,7 +38,11 @@ import java.awt.datatransfer.StringSelection
 fun UserMessageBubble(
     text: String,
     attachedFiles: List<AttachedFile>,
+    editInfo: EditInfo?,
+    canInteract: Boolean,
     onEdit: (String) -> Unit,
+    onNavigatePrev: () -> Unit,
+    onNavigateNext: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(8.dp)
@@ -98,9 +103,13 @@ fun UserMessageBubble(
 
             UserMessageFooter(
                 text = text,
+                editInfo = editInfo,
+                canInteract = canInteract,
                 onEdit = {
                     showEditor = true
                 },
+                onNavigatePrev = onNavigatePrev,
+                onNavigateNext = onNavigateNext,
             )
         } else {
             UserMessageEditBubble(
@@ -122,7 +131,11 @@ fun UserMessageBubble(
 @Composable
 private fun UserMessageFooter(
     text: String,
-    onEdit: (String) -> Unit,
+    editInfo: EditInfo?,
+    canInteract: Boolean,
+    onEdit: () -> Unit,
+    onNavigatePrev: () -> Unit,
+    onNavigateNext: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -130,33 +143,33 @@ private fun UserMessageFooter(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        IconActionButton(
-            key = AllIconsKeys.Actions.ArrowCollapse,
-            onClick = {
-                // TODO: 前の編集内容へ
-            },
-            contentDescription = null,
-        )
+        // バージョンナビゲーション: 複数バージョンが存在する時のみ表示
+        if (editInfo != null && editInfo.hasMultipleVersions) {
+            IconActionButton(
+                key = AllIconsKeys.Actions.ArrowCollapse,
+                onClick = onNavigatePrev,
+                enabled = canInteract && editInfo.currentIndex > 0,
+                contentDescription = "前のバージョン",
+            )
 
-        Text(
-            text = "1", // TODO: 現在の編集履歴
-            style = JewelTheme.typography.small,
-            color = JewelTheme.globalColors.text.info,
-        )
+            Text(
+                text = "${editInfo.currentIndex + 1} / ${editInfo.totalVersions}",
+                style = JewelTheme.typography.small,
+                color = JewelTheme.globalColors.text.info,
+            )
 
-        IconActionButton(
-            key = AllIconsKeys.Actions.ArrowExpand,
-            onClick = {
-                // TODO: 次の編集内容へ
-            },
-            contentDescription = null,
-        )
+            IconActionButton(
+                key = AllIconsKeys.Actions.ArrowExpand,
+                onClick = onNavigateNext,
+                enabled = canInteract && editInfo.currentIndex < editInfo.totalVersions - 1,
+                contentDescription = "次のバージョン",
+            )
+        }
 
         IconActionButton(
             key = AllIconsKeys.Actions.Edit,
-            onClick = {
-                onEdit(text)
-            },
+            onClick = onEdit,
+            enabled = canInteract,
             contentDescription = "編集",
         )
 

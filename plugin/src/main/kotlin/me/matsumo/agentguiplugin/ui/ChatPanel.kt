@@ -27,6 +27,7 @@ import me.matsumo.agentguiplugin.ui.component.interaction.PermissionCard
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
+import me.matsumo.agentguiplugin.viewmodel.getAllEditInfo
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
@@ -145,13 +146,26 @@ fun ChatPanel(
                     }
                 }
 
+                val editInfoMap = remember(uiState.conversationTree) {
+                    uiState.conversationTree.getAllEditInfo()
+                }
+
+                val canInteract = uiState.sessionState != SessionState.Processing &&
+                    uiState.sessionState != SessionState.Connecting &&
+                    uiState.pendingPermission == null &&
+                    uiState.pendingQuestion == null
+
                 ChatMessageList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
                     messages = uiState.activeMessages,
                     subAgentTasks = filteredSubAgentTasks,
+                    editInfoMap = editInfoMap,
+                    canInteract = canInteract,
                     project = project,
+                    onEdit = viewModel::editMessage,
+                    onNavigateVersion = viewModel::navigateEditVersion,
                 )
 
                 Divider(

@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
+import me.matsumo.agentguiplugin.viewmodel.EditInfo
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
@@ -34,7 +35,11 @@ import org.jetbrains.jewel.ui.typography
 fun ChatMessageList(
     messages: List<ChatMessage>,
     subAgentTasks: Map<String, SubAgentTask>,
+    editInfoMap: Map<String, EditInfo>,
+    canInteract: Boolean,
     project: Project,
+    onEdit: (editGroupId: String, newText: String) -> Unit,
+    onNavigateVersion: (editGroupId: String, direction: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -73,13 +78,16 @@ fun ChatMessageList(
                 ) { message ->
                     when (message) {
                         is ChatMessage.User -> {
+                            val editInfo = editInfoMap[message.editGroupId]
                             UserMessageBubble(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = message.text,
                                 attachedFiles = message.attachedFiles,
-                                onEdit = { newText ->
-                                    // TODO: Implement user message editing
-                                },
+                                editInfo = editInfo,
+                                canInteract = canInteract,
+                                onEdit = { newText -> onEdit(message.editGroupId, newText) },
+                                onNavigatePrev = { onNavigateVersion(message.editGroupId, -1) },
+                                onNavigateNext = { onNavigateVersion(message.editGroupId, +1) },
                             )
                         }
 
