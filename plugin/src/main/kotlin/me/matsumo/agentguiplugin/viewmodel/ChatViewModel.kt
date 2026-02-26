@@ -594,7 +594,7 @@ class ChatViewModel(
         val reader = authStdout ?: return
         authReaderJob = vmScope.launch(Dispatchers.IO) {
             try {
-                while (currentCoroutineContext().isActive) {
+                while (isActive) {
                     val line = reader.readLine() ?: break
                     _uiState.update {
                         it.copy(authOutputLines = it.authOutputLines + line)
