@@ -597,6 +597,115 @@ class ChatViewModel(
         permissionHandler.respondQuestion(answers)
     }
 
+    /**
+     * ユーザーメッセージを編集し、新しいブランチで応答を取得する。
+     * 同じ editGroupId のスロットに新しいタイムラインを追加し、
+     * BranchSessionManager 経由で新セッションを作成して応答を収集する。
+     */
+    fun editMessage(editGroupId: String, newText: String) {
+        if (newText.isBlank()) return
+        if (disposed) return
+        val state = _uiState.value
+        if (!canEditOrNavigate(state)) return
+
+        val tree = state.conversationTree
+
+        // 編集内容が元と同一の場合は no-op
+        val currentSlot = tree.findSlot(editGroupId) ?: return
+        val currentTimeline = currentSlot.timelines[currentSlot.activeTimelineIndex]
+        if (currentTimeline.userMessage.text == newText) return
+
+        activeTurnJob?.cancel()
+        val turnId = ++activeTurnId
+
+        // 先に Processing に遷移し、createEditBranchSession() の suspend 中に
+        // 他の操作 (edit/navigate/send) が入るのを canEditOrNavigate() でブロック
+        _uiState.update { it.copy(sessionState = SessionState.Processing) }
+
+        activeTurnJob = vmScope.launch {
+            try {
+                // 1. 編集対象より前のメッセージを取得
+                val messagesBeforeEdit = tree.getMessagesBeforeSlot(editGroupId)
+                val originalAttachedFiles = currentTimeline.userMessage.attachedFiles
+
+                // 2. 新しいブランチセッションを作成
+                val newClient = branchSessionManager.createEditBranchSession(
+                    messagesBeforeEdit = messagesBeforeEdit,
+                    originalAttachedFiles = originalAttachedFiles,
+                    model = state.model,
+                    permissionMode = state.permissionMode,
+                )
+
+                // 3. 新しいユーザーメッセージを作成 (添付ファイルも引き継ぐ)
+                val newUserMessage = ChatMessage.User(
+                    id = UUID.randomUUID().toString(),
+                    editGroupId = editGroupId, // 同じ editGroupId を維持
+                    text = newText,
+                    attachedFiles = originalAttachedFiles,
+                )
+
+                // 4. ConversationTree を更新 (新タイムライン追加)
+                val newTree = tree.editMessage(
+                    editGroupId = editGroupId,
+                    newUserMessage = newUserMessage,
+                    branchSessionId = newClient.sessionId,
+                )
+                val newPath = newTree.getActiveLeafPath()
+
+                _uiState.update {
+                    it.copy(
+                        conversationTree = newTree,
+                        conversationCursor = ConversationCursor(activeLeafPath = newPath),
+                    )
+                }
+
+                // 5. activeClient を新ブランチに切り替え + UI sessionId 同期
+                client = newClient
+                _uiState.update { it.copy(sessionId = newClient.sessionId) }
+
+                // 6. 編集メッセージを送信
+                if (originalAttachedFiles.isEmpty()) {
+                    newClient.send(newText)
+                } else {
+                    newClient.send(buildContentBlocks(newText, originalAttachedFiles))
+                }
+
+                // 7. 応答を収集
+                newClient.receiveResponse().collect { message ->
+                    if (turnId != activeTurnId) return@collect
+
+                    when (message) {
+                        is SystemMessage -> handleSystemMessage(message)
+                        is StreamEvent -> handleStreamEvent(message)
+                        is AssistantMessage -> handleAssistantMessage(message)
+                        is ResultMessage -> handleResultMessage(message)
+                        is UserMessage -> { /* tool results - ignore */ }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        sessionState = SessionState.WaitingForInput,
+                        errorMessage = "Failed to edit message: ${e.message}",
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Phase 1 安全制約: 編集/ナビゲーションが可能な状態かチェック。
+     * Processing / Connecting 中、または permission/question 待ち中は不可。
+     */
+    private fun canEditOrNavigate(state: ChatUiState): Boolean {
+        return state.sessionState != SessionState.Processing &&
+            state.sessionState != SessionState.Connecting &&
+            state.pendingPermission == null &&
+            state.pendingQuestion == null
+    }
+
     fun abortSession() {
         // activeTurnId をインクリメントして現在のターンのメッセージ処理を無効化する。
         // activeTurnJob はキャンセルしない。interrupt 後に CLI が送る ResultMessage を
