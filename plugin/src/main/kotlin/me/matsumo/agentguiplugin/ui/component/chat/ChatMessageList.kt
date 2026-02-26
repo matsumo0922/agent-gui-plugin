@@ -77,6 +77,9 @@ fun ChatMessageList(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = message.text,
                                 attachedFiles = message.attachedFiles,
+                                onEdit = { newText ->
+                                    // TODO: Implement user message editing
+                                },
                             )
                         }
 
