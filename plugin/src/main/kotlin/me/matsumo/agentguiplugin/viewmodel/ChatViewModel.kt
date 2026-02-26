@@ -2,6 +2,7 @@ package me.matsumo.agentguiplugin.viewmodel
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -24,6 +25,8 @@ import kotlinx.serialization.json.put
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
+import me.matsumo.agentguiplugin.viewmodel.preflight.PreflightChecker
+import me.matsumo.agentguiplugin.viewmodel.preflight.PreflightResult
 import me.matsumo.agentguiplugin.viewmodel.transcript.TranscriptTailer
 import me.matsumo.claude.agent.ClaudeSDKClient
 import me.matsumo.claude.agent.createSession
@@ -39,6 +42,9 @@ import me.matsumo.claude.agent.types.SubagentStartHookInput
 import me.matsumo.claude.agent.types.SubagentStopHookInput
 import me.matsumo.claude.agent.types.SystemMessage
 import me.matsumo.claude.agent.types.UserMessage
+import java.io.BufferedReader
+import java.io.IOException
+import java.io.OutputStreamWriter
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 
@@ -58,6 +64,12 @@ class ChatViewModel(
         ),
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    private val preflightChecker = PreflightChecker()
+    private var authProcess: Process? = null
+    private var authStdout: BufferedReader? = null
+    private var authStdin: OutputStreamWriter? = null
+    private var authReaderJob: Job? = null
 
     private val permissionHandler = PermissionHandler(
         currentState = { _uiState.value },
@@ -106,7 +118,30 @@ class ChatViewModel(
             _uiState.update { it.copy(sessionState = SessionState.Connecting) }
 
             startJob = vmScope.launch {
-                connectSession(resumeSessionId)
+                val result = preflightChecker.check(claudeCodePath)
+                when (result) {
+                    is PreflightResult.Ready -> connectSession(resumeSessionId)
+                    is PreflightResult.AuthRequired -> {
+                        authProcess = result.process
+                        authStdout = result.stdout
+                        authStdin = result.stdin
+                        _uiState.update {
+                            it.copy(
+                                sessionState = SessionState.AuthRequired,
+                                authOutputLines = result.initialOutput,
+                            )
+                        }
+                        startAuthOutputReader()
+                    }
+                    is PreflightResult.Error -> {
+                        _uiState.update {
+                            it.copy(
+                                sessionState = SessionState.Error,
+                                errorMessage = result.message,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -122,6 +157,7 @@ class ChatViewModel(
             startJob = null
             activeTurnJob?.cancel()
             activeTurnJob = null
+            cleanupAuthProcess()
             stopAllTailing()
             permissionHandler.cancelPending()
             client?.close()
@@ -140,6 +176,7 @@ class ChatViewModel(
     fun dispose() {
         disposed = true
         vmScope.cancel() // startJob, activeTurnJob, tailer jobs もすべて cancel される
+        cleanupAuthProcess()
         stopAllTailing()
         permissionHandler.cancelPending()
         client?.close()
@@ -167,6 +204,9 @@ class ChatViewModel(
                     cliPath = claudeCodePath
                     includePartialMessages = true
                     forkSession = true // 元セッション保全
+                    if (claudeCodePath != null) {
+                        env { put("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1") }
+                    }
                     canUseTool { toolName, input, _ ->
                         permissionHandler.request(toolName, input)
                     }
@@ -190,6 +230,9 @@ class ChatViewModel(
                     cwd = projectBasePath
                     cliPath = claudeCodePath
                     includePartialMessages = true
+                    if (claudeCodePath != null) {
+                        env { put("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1") }
+                    }
                     canUseTool { toolName, input, _ ->
                         permissionHandler.request(toolName, input)
                     }
@@ -514,5 +557,74 @@ class ChatViewModel(
         _uiState.update {
             it.copy(sessionState = SessionState.WaitingForInput)
         }
+    }
+
+    fun reconnect() {
+        vmScope.launch { clear(); start() }
+    }
+
+    // --- Auth process management ---
+
+    fun sendAuthInput(text: String) {
+        val writer = authStdin ?: return
+        vmScope.launch(Dispatchers.IO) {
+            try {
+                writer.write(text + "\n")
+                writer.flush()
+            } catch (_: IOException) {
+                // Process may have exited
+            }
+        }
+    }
+
+    fun confirmAuthComplete() {
+        vmScope.launch {
+            cleanupAuthProcess()
+            _uiState.update {
+                it.copy(
+                    sessionState = SessionState.Disconnected,
+                    authOutputLines = emptyList(),
+                    authProcessExited = false,
+                )
+            }
+            start()
+        }
+    }
+
+    private fun startAuthOutputReader() {
+        val reader = authStdout ?: return
+        val process = authProcess ?: return
+        authReaderJob = vmScope.launch(Dispatchers.IO) {
+            try {
+                while (currentCoroutineContext().isActive) {
+                    val line = reader.readLine()
+                    if (line == null) {
+                        // Process stdout closed
+                        _uiState.update { it.copy(authProcessExited = true) }
+                        break
+                    }
+                    _uiState.update {
+                        it.copy(authOutputLines = it.authOutputLines + line)
+                    }
+                }
+            } catch (_: IOException) {
+                // Stream closed
+            }
+            // Mark exited if process is no longer alive
+            if (!process.isAlive) {
+                _uiState.update { it.copy(authProcessExited = true) }
+            }
+        }
+    }
+
+    private fun cleanupAuthProcess() {
+        authReaderJob?.cancel()
+        authReaderJob = null
+        runCatching { authStdin?.close() }
+        runCatching { authStdout?.close() }
+        authProcess?.destroyForcibly()
+        authProcess = null
+        authStdout = null
+        authStdin = null
     }
 }

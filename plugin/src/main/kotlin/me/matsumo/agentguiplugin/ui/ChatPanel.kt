@@ -22,6 +22,7 @@ import me.matsumo.agentguiplugin.ui.component.CustomCodeBlockRenderer
 import me.matsumo.agentguiplugin.ui.component.ErrorBanner
 import me.matsumo.agentguiplugin.ui.component.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.component.interaction.AskUserQuestionCard
+import me.matsumo.agentguiplugin.ui.component.interaction.AuthenticationCard
 import me.matsumo.agentguiplugin.ui.component.interaction.PermissionCard
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
@@ -120,71 +121,83 @@ fun ChatPanel(
                 ErrorBanner(
                     modifier = Modifier.fillMaxWidth(),
                     message = uiState.errorMessage ?: "An error occurred",
-                    onReconnect = { },
+                    onReconnect = viewModel::reconnect,
                 )
             }
 
-            // Main content area
-            ChatMessageList(
-                modifier = Modifier.weight(1f),
-                messages = uiState.messages,
-                subAgentTasks = uiState.subAgentTasks,
-                project = project,
-            )
-
-            // Divider
-            Divider(
-                modifier = Modifier.fillMaxWidth(),
-                orientation = Orientation.Horizontal,
-            )
-
-            // Bottom interaction area
-            Column(
-                modifier = Modifier
-                    .padding(12.dp)
-                    .fillMaxWidth(),
-            ) {
-                AnimatedNullableVisibility(
-                    value = uiState.pendingPermission,
-                    enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
-                ) {
-                    PermissionCard(
-                        modifier = Modifier.padding(bottom = 12.dp),
-                        permission = it,
-                        onAllow = { viewModel.respondPermission(true) },
-                        onDeny = { msg -> viewModel.respondPermission(false, msg) },
-                    )
-                }
-
-                AnimatedNullableVisibility(
-                    value = uiState.pendingQuestion,
-                    enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
-                ) {
-                    AskUserQuestionCard(
-                        modifier = Modifier.padding(bottom = 12.dp),
-                        question = it,
-                        onSubmit = { answers -> viewModel.respondQuestion(answers) },
-                        onCancel = { viewModel.respondPermission(allow = false) },
-                    )
-                }
-
-                ChatInputArea(
-                    project = project,
-                    sessionState = uiState.sessionState,
-                    attachedFiles = uiState.attachedFiles,
-                    currentModel = uiState.model,
-                    currentPermissionMode = uiState.permissionMode,
-                    contextUsage = uiState.contextUsage,
-                    totalInputTokens = uiState.totalInputTokens,
-                    onAttach = { file -> viewModel.attachFile(file) },
-                    onDetach = { file -> viewModel.detachFile(file) },
-                    onSend = viewModel::sendMessage,
-                    onAbort = viewModel::abortSession,
-                    onModelChange = viewModel::changeModel,
-                    onModeChange = viewModel::changePermissionMode,
+            // Auth card or main content area
+            if (uiState.sessionState == SessionState.AuthRequired) {
+                AuthenticationCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    outputLines = uiState.authOutputLines,
+                    authProcessExited = uiState.authProcessExited,
+                    onSendInput = viewModel::sendAuthInput,
+                    onConfirmComplete = viewModel::confirmAuthComplete,
                 )
+            } else {
+                ChatMessageList(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    messages = uiState.messages,
+                    subAgentTasks = uiState.subAgentTasks,
+                    project = project,
+                )
+
+                Divider(
+                    modifier = Modifier.fillMaxWidth(),
+                    orientation = Orientation.Horizontal,
+                )
+
+                Column(
+                    modifier = Modifier
+                        .padding(12.dp)
+                        .fillMaxWidth(),
+                ) {
+                    AnimatedNullableVisibility(
+                        value = uiState.pendingPermission,
+                        enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                    ) {
+                        PermissionCard(
+                            modifier = Modifier.padding(bottom = 12.dp),
+                            permission = it,
+                            onAllow = { viewModel.respondPermission(true) },
+                            onDeny = { msg -> viewModel.respondPermission(false, msg) },
+                        )
+                    }
+
+                    AnimatedNullableVisibility(
+                        value = uiState.pendingQuestion,
+                        enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                    ) {
+                        AskUserQuestionCard(
+                            modifier = Modifier.padding(bottom = 12.dp),
+                            question = it,
+                            onSubmit = { answers -> viewModel.respondQuestion(answers) },
+                            onCancel = { viewModel.respondPermission(allow = false) },
+                        )
+                    }
+
+                    ChatInputArea(
+                        project = project,
+                        sessionState = uiState.sessionState,
+                        attachedFiles = uiState.attachedFiles,
+                        currentModel = uiState.model,
+                        currentPermissionMode = uiState.permissionMode,
+                        contextUsage = uiState.contextUsage,
+                        totalInputTokens = uiState.totalInputTokens,
+                        onAttach = { file -> viewModel.attachFile(file) },
+                        onDetach = { file -> viewModel.detachFile(file) },
+                        onSend = viewModel::sendMessage,
+                        onAbort = viewModel::abortSession,
+                        onModelChange = viewModel::changeModel,
+                        onModeChange = viewModel::changePermissionMode,
+                    )
+                }
             }
         }
     }

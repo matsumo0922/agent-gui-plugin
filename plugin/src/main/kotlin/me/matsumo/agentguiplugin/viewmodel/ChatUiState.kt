@@ -10,6 +10,7 @@ import me.matsumo.claude.agent.types.PermissionMode
 enum class SessionState {
     Disconnected,
     Connecting,
+    AuthRequired,
     Ready,
     Processing,
     WaitingForInput,
@@ -43,6 +44,8 @@ data class ChatUiState(
     val pendingPermission: PendingPermission? = null,
     val pendingQuestion: PendingQuestion? = null,
     val errorMessage: String? = null,
+    val authOutputLines: List<String> = emptyList(),
+    val authProcessExited: Boolean = false,
 )
 
 sealed interface ChatMessage {
