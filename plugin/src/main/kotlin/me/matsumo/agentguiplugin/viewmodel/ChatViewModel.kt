@@ -198,7 +198,6 @@ class ChatViewModel(
         val tree = buildConversationTreeFromFlatList(messages, branchSessionId)
         _uiState.update {
             it.copy(
-                messages = messages,
                 conversationTree = tree,
                 conversationCursor = ConversationCursor(activeLeafPath = tree.getActiveLeafPath()),
             )
@@ -319,7 +318,6 @@ class ChatViewModel(
                 branchSessionId = state.sessionId,
             )
             state.copy(
-                messages = state.messages + userMsg,
                 conversationTree = newTree,
                 conversationCursor = ConversationCursor(activeLeafPath = newPath),
                 attachedFiles = emptyList(),
@@ -423,14 +421,6 @@ class ChatViewModel(
                 }
 
                 state.copy(
-                    // Legacy: flat list (並行書込み、Step 11 で削除)
-                    messages = if (isSameStreaming) {
-                        val idx = state.messages.indexOfLast { it.id == messageId }
-                        if (idx >= 0) state.messages.toMutableList().apply { set(idx, assistantMsg) }
-                        else state.messages + assistantMsg
-                    } else {
-                        state.messages + assistantMsg
-                    },
                     conversationTree = newTree,
                     conversationCursor = cursor.copy(activeStreamingMessageId = messageId),
                 )
@@ -803,7 +793,6 @@ class ChatViewModel(
             val path = state.conversationCursor.activeLeafPath
             state.copy(
                 sessionState = SessionState.WaitingForInput,
-                messages = state.messages + interruptedMsg,
                 conversationTree = state.conversationTree.appendResponse(path, interruptedMsg),
                 conversationCursor = state.conversationCursor.copy(activeStreamingMessageId = null),
             )

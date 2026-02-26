@@ -33,10 +33,6 @@ data class PendingQuestion(
 data class ChatUiState(
     val conversationTree: ConversationTree = ConversationTree(),
     val conversationCursor: ConversationCursor = ConversationCursor(),
-
-    // --- 移行期間中のみ併存 (Step 11 で削除) ---
-    val messages: List<ChatMessage> = emptyList(),
-
     val subAgentTasks: Map<String, SubAgentTask> = emptyMap(),
     val attachedFiles: List<AttachedFile> = emptyList(),
     val sessionState: SessionState = SessionState.Disconnected,
