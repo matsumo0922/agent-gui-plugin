@@ -232,7 +232,10 @@ class ChatViewModel(
             client = localClient
 
             _uiState.update {
-                it.copy(sessionState = SessionState.Ready)
+                it.copy(
+                    sessionState = SessionState.Ready,
+                    sessionId = localClient.sessionId,
+                )
             }
         } catch (e: CancellationException) {
             throw e
