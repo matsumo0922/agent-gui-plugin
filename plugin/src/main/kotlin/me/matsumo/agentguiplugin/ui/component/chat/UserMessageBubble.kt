@@ -131,6 +131,28 @@ private fun UserMessageFooter(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         IconActionButton(
+            key = AllIconsKeys.Actions.ArrowCollapse,
+            onClick = {
+                // TODO: 前の編集内容へ
+            },
+            contentDescription = null,
+        )
+
+        Text(
+            text = "1", // TODO: 現在の編集履歴
+            style = JewelTheme.typography.small,
+            color = JewelTheme.globalColors.text.info,
+        )
+
+        IconActionButton(
+            key = AllIconsKeys.Actions.ArrowExpand,
+            onClick = {
+                // TODO: 次の編集内容へ
+            },
+            contentDescription = null,
+        )
+
+        IconActionButton(
             key = AllIconsKeys.Actions.Edit,
             onClick = {
                 onEdit(text)
