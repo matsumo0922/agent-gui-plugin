@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,6 +30,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,6 +38,7 @@ import me.matsumo.agentguiplugin.ui.component.Button
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
+import sh.calvin.autolinktext.rememberAutoLinkText
 
 private val warningColor = Color(0xFFF59E0B)
 
@@ -87,37 +88,35 @@ fun AuthenticationCard(
             }
         }
 
-        SelectionContainer {
-            LazyColumn(
-                modifier = Modifier
-                    .padding(top = 12.dp)
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(JewelTheme.globalColors.panelBackground)
-                    .border(
-                        width = 1.dp,
-                        color = JewelTheme.globalColors.borders.normal,
-                        shape = RoundedCornerShape(4.dp),
-                    )
-                    .padding(8.dp),
-                state = listState,
-            ) {
-                items(outputLines) { line ->
-                    Text(
-                        text = line,
-                        style = JewelTheme.typography.medium,
-                    )
-                }
+        LazyColumn(
+            modifier = Modifier
+                .padding(top = 12.dp)
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(4.dp))
+                .background(JewelTheme.globalColors.panelBackground)
+                .border(
+                    width = 1.dp,
+                    color = JewelTheme.globalColors.borders.normal,
+                    shape = RoundedCornerShape(4.dp),
+                )
+                .padding(8.dp),
+            state = listState,
+        ) {
+            items(outputLines) { line ->
+                Text(
+                    text = AnnotatedString.rememberAutoLinkText(line),
+                    style = JewelTheme.typography.medium,
+                )
+            }
 
-                if (outputLines.isEmpty()) {
-                    item {
-                        Text(
-                            text = "Waiting for CLI output...",
-                            style = JewelTheme.typography.medium,
-                            color = JewelTheme.globalColors.text.info,
-                        )
-                    }
+            if (outputLines.isEmpty()) {
+                item {
+                    Text(
+                        text = "Waiting for CLI output...",
+                        style = JewelTheme.typography.medium,
+                        color = JewelTheme.globalColors.text.info,
+                    )
                 }
             }
         }
