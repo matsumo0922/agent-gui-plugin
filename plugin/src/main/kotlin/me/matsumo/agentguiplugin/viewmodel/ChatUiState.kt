@@ -50,6 +50,10 @@ data class ChatUiState(
     /** アクティブパスのフラットメッセージリスト（UI 互換用） */
     val activeMessages: List<ChatMessage>
         get() = conversationTree.getActiveMessages()
+
+    /** 現在のアクティブパスが編集ブランチ（コンテキスト復元済み）かどうか */
+    val isReconstructedContext: Boolean
+        get() = conversationCursor.activeLeafPath.any { it.timelineIndex > 0 }
 }
 
 sealed interface ChatMessage {

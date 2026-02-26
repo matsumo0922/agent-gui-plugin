@@ -5,10 +5,14 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,6 +52,11 @@ import org.jetbrains.jewel.markdown.rendering.DefaultInlineMarkdownRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
+import org.jetbrains.jewel.ui.component.Icon
+import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.theme.colorPalette
+import org.jetbrains.jewel.ui.typography
 
 @Suppress("UnstableApiUsage")
 @OptIn(ExperimentalJewelApi::class)
@@ -154,6 +163,28 @@ fun ChatPanel(
                     uiState.sessionState != SessionState.Connecting &&
                     uiState.pendingPermission == null &&
                     uiState.pendingQuestion == null
+
+                if (uiState.isReconstructedContext) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(JewelTheme.colorPalette.blue(2).copy(alpha = 0.15f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            key = AllIconsKeys.General.Information,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = "Reconstructed context — tool execution history may be incomplete",
+                            style = JewelTheme.typography.small,
+                            color = JewelTheme.globalColors.text.info,
+                        )
+                    }
+                }
 
                 ChatMessageList(
                     modifier = Modifier

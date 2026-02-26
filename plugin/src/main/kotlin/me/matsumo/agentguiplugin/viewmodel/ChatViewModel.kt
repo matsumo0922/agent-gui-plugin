@@ -322,6 +322,7 @@ class ChatViewModel(
                 conversationCursor = ConversationCursor(activeLeafPath = newPath),
                 attachedFiles = emptyList(),
                 sessionState = SessionState.Processing,
+                errorMessage = null,
             )
         }
 
@@ -618,7 +619,7 @@ class ChatViewModel(
 
         // 先に Processing に遷移し、createEditBranchSession() の suspend 中に
         // 他の操作 (edit/navigate/send) が入るのを canEditOrNavigate() でブロック
-        _uiState.update { it.copy(sessionState = SessionState.Processing) }
+        _uiState.update { it.copy(sessionState = SessionState.Processing, errorMessage = null) }
 
         activeTurnJob = vmScope.launch {
             try {
@@ -731,6 +732,7 @@ class ChatViewModel(
                 sessionState = if (needsSessionSwitch) SessionState.Connecting
                     else it.sessionState,
                 sessionId = newSessionId,
+                errorMessage = null,
             )
         }
 
