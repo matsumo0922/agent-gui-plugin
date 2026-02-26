@@ -37,6 +37,7 @@ import me.matsumo.claude.agent.types.HookOutput
 import me.matsumo.claude.agent.types.Model
 import me.matsumo.claude.agent.types.PermissionMode
 import me.matsumo.claude.agent.types.ResultMessage
+import me.matsumo.claude.agent.types.SessionOptionsBuilder
 import me.matsumo.claude.agent.types.StreamEvent
 import me.matsumo.claude.agent.types.SubagentStartHookInput
 import me.matsumo.claude.agent.types.SubagentStopHookInput
@@ -203,58 +204,15 @@ class ChatViewModel(
         if (disposed) return
 
         try {
+            val state = _uiState.value
             val localClient = if (resumeSessionId != null) {
                 resumeSession(resumeSessionId) {
-                    model = _uiState.value.model
-                    permissionMode = _uiState.value.permissionMode
-                    cwd = projectBasePath
-                    cliPath = claudeCodePath
-                    includePartialMessages = true
+                    applyCommonConfig(state.model, state.permissionMode)
                     forkSession = true // 元セッション保全
-                    if (claudeCodePath != null) {
-                        env { put("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1") }
-                    }
-                    canUseTool { toolName, input, _ ->
-                        permissionHandler.request(toolName, input)
-                    }
-                    hooks {
-                        on(HookEvent.SUBAGENT_START) { input, toolUseId, _ ->
-                            val si = input as SubagentStartHookInput
-                            startTailing(si.agentId, si.transcriptPath, toolUseId)
-                            HookOutput.proceed()
-                        }
-                        on(HookEvent.SUBAGENT_STOP) { input, _, _ ->
-                            val si = input as SubagentStopHookInput
-                            stopTailing(si.agentId)
-                            HookOutput.proceed()
-                        }
-                    }
                 }
             } else {
                 createSession {
-                    model = _uiState.value.model
-                    permissionMode = _uiState.value.permissionMode
-                    cwd = projectBasePath
-                    cliPath = claudeCodePath
-                    includePartialMessages = true
-                    if (claudeCodePath != null) {
-                        env { put("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1") }
-                    }
-                    canUseTool { toolName, input, _ ->
-                        permissionHandler.request(toolName, input)
-                    }
-                    hooks {
-                        on(HookEvent.SUBAGENT_START) { input, toolUseId, _ ->
-                            val si = input as SubagentStartHookInput
-                            startTailing(si.agentId, si.transcriptPath, toolUseId)
-                            HookOutput.proceed()
-                        }
-                        on(HookEvent.SUBAGENT_STOP) { input, _, _ ->
-                            val si = input as SubagentStopHookInput
-                            stopTailing(si.agentId)
-                            HookOutput.proceed()
-                        }
-                    }
+                    applyCommonConfig(state.model, state.permissionMode)
                 }
             }
 
@@ -282,6 +240,42 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * 全セッション（初期・ブランチ・再接続）で共通の設定を適用。
+     * セッション設定要件を一元化し、設定漏れによる回帰を防ぐ。
+     */
+    private fun SessionOptionsBuilder.applyCommonConfig(
+        model: Model,
+        permissionMode: PermissionMode,
+    ) {
+        this.model = model
+        this.permissionMode = permissionMode
+        this.cwd = projectBasePath
+        this.cliPath = claudeCodePath
+        this.includePartialMessages = true
+
+        if (claudeCodePath != null) {
+            env { put("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1") }
+        }
+
+        canUseTool { toolName, input, _ ->
+            permissionHandler.request(toolName, input)
+        }
+
+        hooks {
+            on(HookEvent.SUBAGENT_START) { input, toolUseId, _ ->
+                val si = input as SubagentStartHookInput
+                startTailing(si.agentId, si.transcriptPath, toolUseId)
+                HookOutput.proceed()
+            }
+            on(HookEvent.SUBAGENT_STOP) { input, _, _ ->
+                val si = input as SubagentStopHookInput
+                stopTailing(si.agentId)
+                HookOutput.proceed()
+            }
+        }
+    }
+
     fun attachFile(file: AttachedFile) {
         _uiState.update { state ->
             if (state.attachedFiles.any { it.id == file.id }) state
@@ -302,15 +296,23 @@ class ChatViewModel(
         val session = client ?: return
         val files = _uiState.value.attachedFiles
 
+        val editGroupId = UUID.randomUUID().toString()
         val userMsg = ChatMessage.User(
             id = UUID.randomUUID().toString(),
+            editGroupId = editGroupId,
             text = text,
             attachedFiles = files,
         )
 
-        _uiState.update {
-            it.copy(
-                messages = it.messages + userMsg,
+        _uiState.update { state ->
+            val (newTree, newPath) = state.conversationTree.appendUserMessage(
+                userMessage = userMsg,
+                branchSessionId = state.sessionId,
+            )
+            state.copy(
+                messages = state.messages + userMsg,
+                conversationTree = newTree,
+                conversationCursor = ConversationCursor(activeLeafPath = newPath),
                 attachedFiles = emptyList(),
                 sessionState = SessionState.Processing,
             )
@@ -387,52 +389,84 @@ class ChatViewModel(
     private fun handleAssistantMessage(message: AssistantMessage) {
         val pid = message.parentToolUseId
         if (pid != null) {
-            // Sub-agent message from stream-json.
-            // Resolve hookToolUseId → real parentToolUseId (toolu_...) if needed.
-            if (!_uiState.value.subAgentTasks.containsKey(pid) && unresolvedHookIds.isNotEmpty()) {
-                val hookId = unresolvedHookIds.removeFirst()
-
-                // Update the tailer's key so new messages go to the correct key
-                tailerKeyRefs[hookId]?.set(pid)
-
-                // Re-key the SubAgentTask from hookId to pid
-                _uiState.update { state ->
-                    val task = state.subAgentTasks[hookId] ?: return@update state
-                    val newTasks = state.subAgentTasks.toMutableMap()
-                    newTasks.remove(hookId)
-                    // Merge with any messages that may have arrived at pid during the race window
-                    val existingAtPid = newTasks[pid]
-                    val mergedMessages = task.messages + (existingAtPid?.messages ?: emptyList())
-                    newTasks[pid] = task.copy(id = pid, messages = mergedMessages)
-                    state.copy(subAgentTasks = newTasks)
-                }
-            }
-
-            // Update spawnedByToolName from stream-json if not yet set
-            _uiState.update { state ->
-                val existing = state.subAgentTasks[pid]
-                if (existing == null || existing.spawnedByToolName != null) state
-                else {
-                    val toolName = message.parentToolName
-                    if (toolName != null) {
-                        state.copy(
-                            subAgentTasks = state.subAgentTasks + (
-                                pid to existing.copy(spawnedByToolName = toolName)
-                            ),
-                        )
-                    } else {
-                        state
-                    }
-                }
-            }
+            handleSubAgentAssistantMessage(message, pid)
         } else {
             val blocks = message.content.map { it.toUiBlock() }
+            val messageId = message.uuid ?: UUID.randomUUID().toString()
             val assistantMsg = ChatMessage.Assistant(
-                id = UUID.randomUUID().toString(),
+                id = messageId,
                 blocks = blocks,
             )
 
-            _uiState.update { it.copy(messages = it.messages + assistantMsg) }
+            _uiState.update { state ->
+                val cursor = state.conversationCursor
+                val targetPath = cursor.activeLeafPath
+                val isSameStreaming = cursor.activeStreamingMessageId == messageId
+
+                val newTree = if (isSameStreaming) {
+                    // 同一メッセージの partial update: 最後の応答を差し替え
+                    state.conversationTree.updateLastResponse(targetPath) { last ->
+                        if (last is ChatMessage.Assistant && last.id == messageId) assistantMsg else last
+                    }
+                } else {
+                    // 新しいメッセージ: 追加
+                    state.conversationTree.appendResponse(targetPath, assistantMsg)
+                }
+
+                state.copy(
+                    // Legacy: flat list (並行書込み、Step 11 で削除)
+                    messages = if (isSameStreaming) {
+                        val idx = state.messages.indexOfLast { it.id == messageId }
+                        if (idx >= 0) state.messages.toMutableList().apply { set(idx, assistantMsg) }
+                        else state.messages + assistantMsg
+                    } else {
+                        state.messages + assistantMsg
+                    },
+                    conversationTree = newTree,
+                    conversationCursor = cursor.copy(activeStreamingMessageId = messageId),
+                )
+            }
+        }
+    }
+
+    private fun handleSubAgentAssistantMessage(message: AssistantMessage, pid: String) {
+        // Sub-agent message from stream-json.
+        // Resolve hookToolUseId → real parentToolUseId (toolu_...) if needed.
+        if (!_uiState.value.subAgentTasks.containsKey(pid) && unresolvedHookIds.isNotEmpty()) {
+            val hookId = unresolvedHookIds.removeFirst()
+
+            // Update the tailer's key so new messages go to the correct key
+            tailerKeyRefs[hookId]?.set(pid)
+
+            // Re-key the SubAgentTask from hookId to pid
+            _uiState.update { state ->
+                val task = state.subAgentTasks[hookId] ?: return@update state
+                val newTasks = state.subAgentTasks.toMutableMap()
+                newTasks.remove(hookId)
+                // Merge with any messages that may have arrived at pid during the race window
+                val existingAtPid = newTasks[pid]
+                val mergedMessages = task.messages + (existingAtPid?.messages ?: emptyList())
+                newTasks[pid] = task.copy(id = pid, messages = mergedMessages)
+                state.copy(subAgentTasks = newTasks)
+            }
+        }
+
+        // Update spawnedByToolName from stream-json if not yet set
+        _uiState.update { state ->
+            val existing = state.subAgentTasks[pid]
+            if (existing == null || existing.spawnedByToolName != null) state
+            else {
+                val toolName = message.parentToolName
+                if (toolName != null) {
+                    state.copy(
+                        subAgentTasks = state.subAgentTasks + (
+                            pid to existing.copy(spawnedByToolName = toolName)
+                        ),
+                    )
+                } else {
+                    state
+                }
+            }
         }
     }
 
@@ -457,6 +491,7 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 sessionState = SessionState.WaitingForInput,
+                conversationCursor = it.conversationCursor.copy(activeStreamingMessageId = null),
                 totalCostUsd = message.totalCostUsd ?: it.totalCostUsd,
                 contextUsage = usage,
                 totalInputTokens = lastTurnInputTokens,
@@ -564,12 +599,17 @@ class ChatViewModel(
         activeTurnId++
         stopAllTailing()
         vmScope.launch { client?.interrupt() }
-        _uiState.update {
-            it.copy(
+
+        val interruptedMsg = ChatMessage.Interrupted(
+            id = UUID.randomUUID().toString(),
+        )
+        _uiState.update { state ->
+            val path = state.conversationCursor.activeLeafPath
+            state.copy(
                 sessionState = SessionState.WaitingForInput,
-                messages = it.messages + ChatMessage.Interrupted(
-                    id = UUID.randomUUID().toString(),
-                ),
+                messages = state.messages + interruptedMsg,
+                conversationTree = state.conversationTree.appendResponse(path, interruptedMsg),
+                conversationCursor = state.conversationCursor.copy(activeStreamingMessageId = null),
             )
         }
     }

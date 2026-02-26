@@ -134,7 +134,7 @@ class TabManager(
     private fun observeTitle(content: Content, vm: ChatViewModel) {
         val job = scope.launch {
             vm.uiState
-                .map { state -> state.messages.filterIsInstance<ChatMessage.User>().firstOrNull()?.text }
+                .map { state -> state.activeMessages.filterIsInstance<ChatMessage.User>().firstOrNull()?.text }
                 .distinctUntilChanged()
                 .collect { firstUserMessage ->
                     if (firstUserMessage != null) {

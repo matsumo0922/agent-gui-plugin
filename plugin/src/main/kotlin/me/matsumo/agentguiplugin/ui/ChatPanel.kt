@@ -140,7 +140,7 @@ fun ChatPanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    messages = uiState.messages,
+                    messages = uiState.activeMessages,
                     subAgentTasks = uiState.subAgentTasks,
                     project = project,
                 )
