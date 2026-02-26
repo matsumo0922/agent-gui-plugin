@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -86,35 +87,37 @@ fun AuthenticationCard(
             }
         }
 
-        LazyColumn(
-            modifier = Modifier
-                .padding(top = 12.dp)
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(4.dp))
-                .background(JewelTheme.globalColors.panelBackground)
-                .border(
-                    width = 1.dp,
-                    color = JewelTheme.globalColors.borders.normal,
-                    shape = RoundedCornerShape(4.dp),
-                )
-                .padding(8.dp),
-            state = listState,
-        ) {
-            items(outputLines) { line ->
-                Text(
-                    text = line,
-                    style = JewelTheme.typography.medium,
-                )
-            }
-
-            if (outputLines.isEmpty()) {
-                item {
-                    Text(
-                        text = "Waiting for CLI output...",
-                        style = JewelTheme.typography.medium,
-                        color = JewelTheme.globalColors.text.info,
+        SelectionContainer {
+            LazyColumn(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(JewelTheme.globalColors.panelBackground)
+                    .border(
+                        width = 1.dp,
+                        color = JewelTheme.globalColors.borders.normal,
+                        shape = RoundedCornerShape(4.dp),
                     )
+                    .padding(8.dp),
+                state = listState,
+            ) {
+                items(outputLines) { line ->
+                    Text(
+                        text = line,
+                        style = JewelTheme.typography.medium,
+                    )
+                }
+
+                if (outputLines.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Waiting for CLI output...",
+                            style = JewelTheme.typography.medium,
+                            color = JewelTheme.globalColors.text.info,
+                        )
+                    }
                 }
             }
         }
