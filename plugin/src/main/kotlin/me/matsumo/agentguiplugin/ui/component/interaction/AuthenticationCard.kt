@@ -30,15 +30,15 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.matsumo.agentguiplugin.ui.component.Button
+import me.matsumo.agentguiplugin.ui.component.LinkableText
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.theme.colorPalette
 import org.jetbrains.jewel.ui.typography
-import sh.calvin.autolinktext.rememberAutoLinkText
 
 private val warningColor = Color(0xFFF59E0B)
 
@@ -81,6 +81,8 @@ fun AuthenticationCard(
 
         // Output area
         val listState = rememberLazyListState()
+        val linkColor = JewelTheme.colorPalette.blue(9)
+        val textStyle = JewelTheme.typography.medium.copy(color = JewelTheme.globalColors.text.normal)
 
         LaunchedEffect(outputLines.size) {
             if (outputLines.isNotEmpty()) {
@@ -104,9 +106,10 @@ fun AuthenticationCard(
             state = listState,
         ) {
             items(outputLines) { line ->
-                Text(
-                    text = AnnotatedString.rememberAutoLinkText(line),
-                    style = JewelTheme.typography.medium,
+                LinkableText(
+                    text = line,
+                    style = textStyle,
+                    linkColor = linkColor,
                 )
             }
 

@@ -16,7 +16,6 @@ repositories {
 dependencies {
     compileOnly(libs.kotlinx.serialization.json)
     implementation(libs.java.diff.utils)
-    implementation(libs.autolinktext)
 
     implementation("me.matsumo.claude.agent:agent:local") {
         exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-json")
