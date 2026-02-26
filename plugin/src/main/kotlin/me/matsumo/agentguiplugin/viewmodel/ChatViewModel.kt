@@ -550,8 +550,11 @@ class ChatViewModel(
     }
 
     fun abortSession() {
-        activeTurnJob?.cancel()
-        activeTurnJob = null
+        // activeTurnId をインクリメントして現在のターンのメッセージ処理を無効化する。
+        // activeTurnJob はキャンセルしない。interrupt 後に CLI が送る ResultMessage を
+        // 既存の receiveResponse() Flow に消費させ、messageChannel に残留させないため。
+        // 残留すると次の receiveResponse() が古い ResultMessage を拾って即終了してしまう。
+        activeTurnId++
         stopAllTailing()
         vmScope.launch { client?.interrupt() }
         _uiState.update {
