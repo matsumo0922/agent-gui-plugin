@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -91,30 +92,36 @@ fun ToolUseBlock(
             enter = fadeIn(tween(delayMillis = 200)),
             exit = fadeOut(tween(100)),
         ) {
-            Column(
-                modifier = modifier
+            SelectionContainer(
+                modifier = Modifier
+                    .fillMaxWidth()
                     .padding(top = 8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(JewelTheme.colorPalette.gray(2))
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                inputMap.forEach { (key, value) ->
-                    Text(
-                        text = buildAnnotatedString {
-                            append("$key: ")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(JewelTheme.colorPalette.gray(2))
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    inputMap.forEach { (key, value) ->
+                        Text(
+                            text = buildAnnotatedString {
+                                append("$key: ")
 
-                            withStyle(
-                                JewelTheme.typography.medium.copy(
-                                    color = JewelTheme.globalColors.text.normal,
-                                ).toSpanStyle()
-                            ) {
-                                append(value.take(300))
-                            }
-                        },
-                        style = JewelTheme.typography.medium,
-                        color = JewelTheme.globalColors.text.info,
-                    )
+                                withStyle(
+                                    JewelTheme.typography.medium.copy(
+                                        color = JewelTheme.globalColors.text.normal,
+                                    ).toSpanStyle()
+                                ) {
+                                    append(value.take(300))
+                                }
+                            },
+                            style = JewelTheme.typography.medium,
+                            color = JewelTheme.globalColors.text.info,
+                        )
+                    }
                 }
             }
         }

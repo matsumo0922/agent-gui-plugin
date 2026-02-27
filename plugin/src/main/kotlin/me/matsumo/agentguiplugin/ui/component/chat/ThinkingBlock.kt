@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,12 +68,16 @@ fun ThinkingBlock(
                     thickness = 2.dp,
                 )
 
-                Text(
+                SelectionContainer(
                     modifier = Modifier.weight(1f),
-                    text = text,
-                    style = JewelTheme.typography.medium,
-                    color = JewelTheme.globalColors.text.info,
-                )
+                ) {
+                    Text(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = text,
+                        style = JewelTheme.typography.medium,
+                        color = JewelTheme.globalColors.text.info,
+                    )
+                }
             }
         }
     }
