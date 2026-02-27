@@ -1,7 +1,7 @@
 # ChatViewModel リファクタリング分析 — 統合レポート
 
-> Claude と Codex (OpenAI) による並列調査 + 相互レビューの結果を統合。
-> 2026-02-27
+> Claude と Codex (OpenAI) による並列調査 + 相互レビュー + 最終レビューの結果を統合。
+> 2026-02-27 (Rev.2: Codex 最終レビュー反映)
 
 ---
 
@@ -63,7 +63,7 @@ if (originalAttachedFiles.isEmpty()) newClient.send(newText) else newClient.send
 
 ## 3. バグ・脆弱性の指摘（P0: 即時修正対象）
 
-### 3.1 hookToolUseId の FIFO 解決によるマッピング誤り
+### 3.1 hookToolUseId の FIFO 解決によるマッピング誤り `Confirmed`
 
 **箇所**: `ChatViewModel.kt:448-449`
 
@@ -76,22 +76,27 @@ if (!_uiState.value.subAgentTasks.containsKey(pid) && unresolvedHookIds.isNotEmp
 
 **改善案**: SDK 側で hookToolUseId と parentToolUseId の対応を提供するか、hook コールバックに parentToolUseId を含める。Plugin 側の暫定対策として、agentId をキーにした Map での解決を検討。
 
-### 3.2 `client` ライフサイクル漏れ
+### 3.2 `client` ライフサイクル漏れ（条件付き） `Partial`
 
 **箇所**: `ChatViewModel.kt:676` (editMessage), `ChatViewModel.kt:761` (navigateEditVersion)
 
-**問題**: `editMessage()` で `client = newClient` に上書きする際、旧 `client` を close していない。`navigateEditVersion()` でも `client = null` 後の再接続で旧クライアントが leak する経路がある。
+**問題**: `editMessage()` で `client = newClient` に上書きする際、初期セッションの旧 `client` が `BranchSessionManager` 管理外のまま残り、close されない経路がある。
 
-**改善案**: `SessionCoordinator` に `client` 管理を集約し、切替時に必ず旧クライアントを `BranchSessionManager` に返却 or close する。
+**注意**: `navigateEditVersion()` の `client = null` は誤送信防止目的であり、ブランチ client は `BranchSessionManager.activeSessions` に保持されて再利用される設計。従って `navigateEditVersion` 自体は常にリークするわけではなく、**リークが発生するのは初期セッション client が editMessage で上書きされるケースに限定される**。
 
-### 3.3 PermissionHandler の型検証不足
+**改善案**: `SessionCoordinator` に `client` 管理を集約し、切替時に初期セッション client を `BranchSessionManager` に返却するか、明示的に close する。
+
+### 3.3 PermissionHandler の型検証不足 `Confirmed`
 
 **箇所**: `PermissionHandler.kt:64-68`
 
 **問題**: `respondPermission()` が `active.type == RequestType.Question` の場合でもそのまま complete してしまう。UI の実装ミスで不整合が発生しうる。
 
+**注意（Codex 最終レビュー指摘）**: 現行 UI では質問カードのキャンセル時に `respondPermission(allow = false)` を呼んでいる（`ChatPanel.kt:234`）。そのまま型ガードを入れると **質問キャンセルが無効化される**。修正時は UI 側の呼び出し経路も同時に変更する必要がある。
+
 **改善案**:
 ```kotlin
+// 1. PermissionHandler に型ガード + キャンセル用メソッドを追加
 fun respondPermission(allow: Boolean, denyMessage: String) {
     val req = active ?: return
     if (req.type != RequestType.Permission) return  // ← ガード追加
@@ -103,9 +108,19 @@ fun respondQuestion(answers: Map<String, String>) {
     if (req.type != RequestType.Question) return  // ← ガード追加
     // ...
 }
+
+/** 質問カードのキャンセル（型を問わず deny で完了） */
+fun cancelActiveRequest() {
+    val req = active ?: return
+    req.deferred.complete(PermissionResultDeny("Cancelled by user"))
+}
+
+// 2. ChatPanel.kt の質問カード onCancel を修正
+//    Before: onCancel = { viewModel.respondPermission(allow = false) }
+//    After:  onCancel = { viewModel.cancelActiveRequest() }
 ```
 
-### 3.4 TranscriptTailer の partial line 欠落
+### 3.4 TranscriptTailer の partial line 欠落 `Confirmed`
 
 **箇所**: `TranscriptTailer.kt:60-81`
 
@@ -119,7 +134,7 @@ val bytesConsumed = completeLines.sumOf { it.toByteArray(Charsets.UTF_8).size + 
 // pos = fromPosition + bytesConsumed
 ```
 
-### 3.5 非スレッドセーフなコレクション
+### 3.5 非スレッドセーフなコレクション + 複合整合性 `Confirmed`
 
 **箇所**: `ChatViewModel.kt:101-111`
 
@@ -132,15 +147,27 @@ private val unresolvedHookIds = mutableListOf<String>()                     // N
 
 `startTailing` は SDK スレッド（hook コールバック）から呼ばれ、`stopAllTailing` は VM スレッドから呼ばれるため、同時アクセスの可能性がある。
 
-**改善案**: `SubAgentCoordinator` に集約して内部で Mutex/actor 保護、または最低限 `ConcurrentHashMap` に変更。
+**注意（Codex 最終レビュー指摘）**: 問題は Map 単体のスレッド安全性だけでなく、`unresolvedHookIds`（MutableList）と複数 Map の **複合整合性** にある。`ConcurrentHashMap` 化だけでは不十分で、複数コレクション間の操作の原子性が保証されない。
 
-### 3.6 BranchSessionManager.createEditBranchSession の mutex 保護不足
+**改善案**: `SubAgentCoordinator` に集約し、内部で Mutex/actor による一貫した排他制御を行う。単純な `ConcurrentHashMap` 化は暫定措置としても不十分であり、Phase 1 の `SubAgentCoordinator` 導入で根本対応する。
+
+### 3.6 BranchSessionManager.createEditBranchSession の mutex 保護不足 `Partial`
 
 **箇所**: `BranchSessionManager.kt:30`
 
-**問題**: `getOrResumeSession` は `sessionMutex` で保護されているが、`createEditBranchSession` は保護されていない。同時呼び出しで `activeSessions` への書き込みが競合しうる。
+**問題**: `getOrResumeSession` は `sessionMutex` で保護されているが、`createEditBranchSession` は保護されていない。
 
-**改善案**: `activeSessions` が `ConcurrentHashMap` であるため即座にクラッシュはしないが、セッション作成の一貫性のため `sessionMutex` で保護すべき。
+**注意（Codex 最終レビュー指摘）**: `activeSessions` は `ConcurrentHashMap` であるため、単純な put 操作の競合でクラッシュすることはない。真の論点は `closeAll()` と `createEditBranchSession`/`getOrResumeSession` の **並行実行時の整合性** にある（closeAll で全セッションを閉じている最中に新規セッションが作成される可能性）。
+
+**改善案**: `closeAll()` と create/resume の並行実行をガードするため、`createEditBranchSession` も `sessionMutex` で保護すべき。
+
+### 3.7 tailer 停止時の join 不足 `Hypothesis`
+
+**箇所**: `ChatViewModel.kt:584` (stopAllTailing)
+
+**問題（Codex 最終レビュー指摘）**: `stopAllTailing()` が tailer の coroutine を `cancel()` するのみで `join()` しないため、停止直後に遅延更新が混入するリスクがある。
+
+**改善案**: `SubAgentCoordinator.stopAll()` で cancel + join を行い、全 tailer の完全停止を保証する。
 
 ---
 
@@ -435,7 +462,9 @@ init {
 }
 ```
 
-### 6.4 PermissionHandler の型検証追加
+### 6.4 PermissionHandler の型安全化
+
+型ガード追加に加え、質問キャンセルの専用メソッドを導入（§3.3 参照）:
 
 ```kotlin
 fun respondPermission(allow: Boolean, denyMessage: String) {
@@ -443,7 +472,15 @@ fun respondPermission(allow: Boolean, denyMessage: String) {
     if (req.type != RequestType.Permission) return  // ← ガード
     req.deferred.complete(if (allow) PermissionResultAllow() else PermissionResultDeny(denyMessage))
 }
+
+/** 型を問わず現在のリクエストをキャンセル */
+fun cancelActiveRequest() {
+    val req = active ?: return
+    req.deferred.complete(PermissionResultDeny("Cancelled by user"))
+}
 ```
+
+**UI 側の修正も必須**: `ChatPanel.kt:234` の `onCancel` を `viewModel.cancelActiveRequest()` に変更。
 
 ---
 
@@ -506,14 +543,14 @@ val messages by remember { derivedStateOf { uiState.conversationTree.getActiveMe
 
 ## 9. 優先度付き改善ロードマップ
 
-### Phase 0: 即時バグ修正（1-2日）
+### Phase 0: 即時バグ修正（2-3日）
 
-| 項目 | 深刻度 | 工数 |
-|------|--------|------|
-| TranscriptTailer の partial line 修正 | バグ | XS |
-| PermissionHandler の型チェック追加 | バグ | XS |
-| mutableMapOf → ConcurrentHashMap（暫定） | バグ | XS |
-| client 切替時の旧 client close 追加 | リーク | S |
+| 項目 | 深刻度 | 工数 | 備考 |
+|------|--------|------|------|
+| TranscriptTailer の partial line 修正 | バグ `Confirmed` | XS | §3.4 |
+| PermissionHandler の型チェック追加 + UI 修正 | バグ `Confirmed` | S | §3.3 — `cancelActiveRequest()` 追加 + ChatPanel 修正が必要 |
+| サブエージェント管理の暫定排他制御（Mutex） | バグ `Confirmed` | S | §3.5 — 単純な ConcurrentHashMap 化では複合整合性が不十分。暫定 Mutex で保護し、Phase 1 で SubAgentCoordinator に移行 |
+| client 切替時の旧 client close 追加 | リーク `Partial` | S | §3.2 — editMessage での初期セッション client リークに限定 |
 
 ### Phase 1: 重複除去・共通化（3-5日）
 
@@ -562,6 +599,13 @@ val messages by remember { derivedStateOf { uiState.conversationTree.getActiveMe
 1. **並列調査**: Claude と Codex がそれぞれ独立に ChatViewModel を分析
 2. **相互レビュー**: 各レポートを相手がレビューし、見落とし・優先度のズレを指摘
 3. **統合**: 両者の強みを統合
+4. **最終レビュー (Rev.2)**: 統合レポートを Codex がレビューし、以下を反映:
+   - PermissionHandler 型ガードと UI 呼び出し経路の衝突（`cancelActiveRequest()` 追加）
+   - `navigateEditVersion` client リーク指摘の条件限定
+   - `createEditBranchSession` mutex 指摘の根拠精緻化（`closeAll()` との並行整合性）
+   - 非スレッドセーフコレクションの工数再見積もり（XS → S、複合整合性の明記）
+   - tailer 停止時の join 不足の追加指摘
+   - 各指摘への `Confirmed` / `Partial` / `Hypothesis` ラベル付与
 
 | 観点 | Claude の強み | Codex の強み |
 |------|--------------|-------------|
@@ -570,7 +614,9 @@ val messages by remember { derivedStateOf { uiState.conversationTree.getActiveMe
 | Kotlin 活用 | collectLatest、structured concurrency | actor ベースの並行制御 |
 | Compose | derivedStateOf、SubAgentTask の StateFlow 分離 | @Immutable 前提設計 |
 | 優先度 | Phase 分けと工数見積もり | バグ修正を最優先とする実務的判断 |
+| 最終レビュー | — | UI 呼び出し経路との整合性検証、指摘の信頼度ラベリング |
 
 ---
 
 *統合レポート作成: Claude + Codex / 2026-02-27*
+*Rev.2: Codex 最終レビュー反映 / 2026-02-27*
