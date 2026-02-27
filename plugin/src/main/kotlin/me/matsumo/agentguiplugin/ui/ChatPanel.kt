@@ -27,11 +27,13 @@ import me.matsumo.agentguiplugin.ui.component.ErrorBanner
 import me.matsumo.agentguiplugin.ui.component.chat.ChatMessageList
 import me.matsumo.agentguiplugin.ui.component.interaction.AskUserQuestionCard
 import me.matsumo.agentguiplugin.ui.component.interaction.AuthenticationCard
+import me.matsumo.agentguiplugin.ui.component.interaction.ExitPlanCard
 import me.matsumo.agentguiplugin.ui.component.interaction.PermissionCard
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import me.matsumo.agentguiplugin.viewmodel.getAllEditInfo
+import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
@@ -217,13 +219,23 @@ fun ChatPanel(
                         value = uiState.pendingPermission,
                         enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
                         exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        PermissionCard(
-                            modifier = Modifier.padding(bottom = 12.dp),
-                            permission = it,
-                            onAllow = { viewModel.respondPermission(true) },
-                            onDeny = { msg -> viewModel.respondPermission(false, msg) },
-                        )
+                    ) { permission ->
+                        if (permission.toolName == ToolNames.EXIT_PLAN_MODE) {
+                            ExitPlanCard(
+                                modifier = Modifier.padding(bottom = 12.dp),
+                                permission = permission,
+                                project = project,
+                                onAllow = { mode -> viewModel.respondExitPlan(true, mode) },
+                                onDeny = { msg -> viewModel.respondExitPlan(false, null, msg) },
+                            )
+                        } else {
+                            PermissionCard(
+                                modifier = Modifier.padding(bottom = 12.dp),
+                                permission = permission,
+                                onAllow = { viewModel.respondPermission(true) },
+                                onDeny = { msg -> viewModel.respondPermission(false, msg) },
+                            )
+                        }
                     }
 
                     AnimatedNullableVisibility(

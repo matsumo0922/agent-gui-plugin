@@ -559,16 +559,15 @@ class ChatViewModel(
     }
 
     fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
-        val pending = _uiState.value.pendingPermission
         permissionHandler.respondPermission(allow, denyMessage)
+    }
 
-        // ExitPlanMode の承認/拒否に応じてモードを切り替え
-        if (pending?.toolName == ToolNames.EXIT_PLAN_MODE) {
-            if (allow) {
-                dispatch(StateAction.PermissionModeChanged(PermissionMode.ACCEPT_EDITS))
-            }
-            // 拒否の場合は Plan モードを維持（何もしない）
+    fun respondExitPlan(allow: Boolean, targetMode: PermissionMode?, denyMessage: String = "Denied by user") {
+        permissionHandler.respondPermission(allow, denyMessage)
+        if (allow && targetMode != null) {
+            dispatch(StateAction.PermissionModeChanged(targetMode))
         }
+        // 拒否の場合は Plan モード維持（何もしない）
     }
 
     fun respondQuestion(answers: Map<String, String>) {
