@@ -131,8 +131,7 @@ class ChatViewModel(
             dispatch(StateAction.StartConnecting)
 
             startJob = vmScope.launch {
-                val result = preflightChecker.check(claudeCodePath)
-                when (result) {
+                when (val result = preflightChecker.check(claudeCodePath)) {
                     is PreflightResult.Ready -> connectSession(resumeSessionId)
                     is PreflightResult.AuthRequired -> {
                         authFlowHandler.startAuth(
@@ -521,7 +520,10 @@ class ChatViewModel(
     }
 
     fun reconnect() {
-        vmScope.launch { clear(); start() }
+        vmScope.launch {
+            clear()
+            start()
+        }
     }
 
     // --- Public API ---
