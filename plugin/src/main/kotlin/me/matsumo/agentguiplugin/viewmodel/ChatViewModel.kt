@@ -429,20 +429,18 @@ class ChatViewModel(
     }
 
     /**
-     * アシスタントメッセージ内の EnterPlanMode / ExitPlanMode ツール使用を検知し、
-     * UI のパーミッションモード表示を同期する。
+     * アシスタントメッセージ内の EnterPlanMode ツール使用を検知し、
+     * UI のパーミッションモード表示を Plan に切り替える。
+     *
+     * ExitPlanMode はここでは処理しない。
+     * ExitPlanMode のモード切替は respondPermission() でユーザーの承認/拒否に応じて行う。
      */
     private fun detectPlanModeChange(message: AssistantMessage) {
         for (block in message.content) {
             if (block !is ToolUseBlock) continue
-            when (block.name) {
-                ToolNames.ENTER_PLAN_MODE -> {
-                    dispatch(StateAction.PermissionModeChanged(PermissionMode.PLAN))
-                }
-                ToolNames.EXIT_PLAN_MODE -> {
-                    val previous = _uiState.value.permissionModeBeforePlan ?: PermissionMode.DEFAULT
-                    dispatch(StateAction.PermissionModeChanged(previous))
-                }
+            if (block.name == ToolNames.ENTER_PLAN_MODE) {
+                dispatch(StateAction.PermissionModeChanged(PermissionMode.PLAN))
+                return
             }
         }
     }
@@ -561,7 +559,16 @@ class ChatViewModel(
     }
 
     fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
+        val pending = _uiState.value.pendingPermission
         permissionHandler.respondPermission(allow, denyMessage)
+
+        // ExitPlanMode の承認/拒否に応じてモードを切り替え
+        if (pending?.toolName == ToolNames.EXIT_PLAN_MODE) {
+            if (allow) {
+                dispatch(StateAction.PermissionModeChanged(PermissionMode.ACCEPT_EDITS))
+            }
+            // 拒否の場合は Plan モードを維持（何もしない）
+        }
     }
 
     fun respondQuestion(answers: Map<String, String>) {
