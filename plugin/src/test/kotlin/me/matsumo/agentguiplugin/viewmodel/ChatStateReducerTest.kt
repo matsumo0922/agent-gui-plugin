@@ -1,5 +1,6 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import kotlinx.collections.immutable.persistentListOf
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.claude.agent.types.Model
 import me.matsumo.claude.agent.types.PermissionMode
@@ -106,7 +107,7 @@ class ChatStateReducerTest {
     fun `SessionDisconnected clears authOutputLines`() {
         val state = defaultState.copy(
             session = SessionStatus(state = SessionState.AuthRequired),
-            authOutputLines = listOf("line1"),
+            authOutputLines = persistentListOf("line1"),
         )
         val result = reduce(state, StateAction.SessionDisconnected)
         assertEquals(SessionState.Disconnected, result.sessionState)
@@ -132,7 +133,7 @@ class ChatStateReducerTest {
         val file = AttachedFile(id = "f1", name = "test.kt", path = "/test.kt", icon = null)
         val state = defaultState.copy(
             session = SessionStatus(state = SessionState.Ready),
-            attachedFiles = listOf(file),
+            attachedFiles = persistentListOf(file),
         )
 
         val result = reduce(state, StateAction.TurnStarted(newTree = tree, newPath = path))
@@ -159,7 +160,7 @@ class ChatStateReducerTest {
             conversationCursor = ConversationCursor(activeLeafPath = path),
         )
 
-        val assistantMsg = ChatMessage.Assistant(id = "a1", blocks = emptyList())
+        val assistantMsg = ChatMessage.Assistant(id = "a1", blocks = persistentListOf())
         val result = reduce(state, StateAction.AssistantMessageReceived(assistantMsg))
 
         assertEquals("a1", result.conversationCursor.activeStreamingMessageId)
@@ -171,7 +172,7 @@ class ChatStateReducerTest {
     @Test
     fun `AssistantMessageReceived updates existing message when same streaming id`() {
         val userMsg = ChatMessage.User(id = "u1", text = "hello")
-        val existingAssistant = ChatMessage.Assistant(id = "a1", blocks = emptyList())
+        val existingAssistant = ChatMessage.Assistant(id = "a1", blocks = persistentListOf())
         val tree = ConversationTree(
             slots = listOf(
                 MessageSlot(
@@ -193,7 +194,7 @@ class ChatStateReducerTest {
 
         val updatedMsg = ChatMessage.Assistant(
             id = "a1",
-            blocks = listOf(UiContentBlock.Text("updated")),
+            blocks = persistentListOf(UiContentBlock.Text("updated")),
         )
         val result = reduce(state, StateAction.AssistantMessageReceived(updatedMsg))
 
@@ -370,7 +371,7 @@ class ChatStateReducerTest {
     @Test
     fun `FileAttached ignores duplicate`() {
         val file = AttachedFile(id = "f1", name = "test.kt", path = "/test.kt", icon = null)
-        val state = defaultState.copy(attachedFiles = listOf(file))
+        val state = defaultState.copy(attachedFiles = persistentListOf(file))
         val result = reduce(state, StateAction.FileAttached(file))
         assertEquals(1, result.attachedFiles.size)
     }
@@ -378,7 +379,7 @@ class ChatStateReducerTest {
     @Test
     fun `FileDetached removes file`() {
         val file = AttachedFile(id = "f1", name = "test.kt", path = "/test.kt", icon = null)
-        val state = defaultState.copy(attachedFiles = listOf(file))
+        val state = defaultState.copy(attachedFiles = persistentListOf(file))
         val result = reduce(state, StateAction.FileDetached(file))
         assertTrue(result.attachedFiles.isEmpty())
     }
@@ -447,8 +448,8 @@ class ChatStateReducerTest {
     fun `Reset creates fresh state with model and permissionMode`() {
         val state = defaultState.copy(
             session = SessionStatus(state = SessionState.Processing, sessionId = "s1"),
-            attachedFiles = listOf(AttachedFile(id = "f1", name = "test.kt", path = "/test.kt", icon = null)),
-            authOutputLines = listOf("line"),
+            attachedFiles = persistentListOf(AttachedFile(id = "f1", name = "test.kt", path = "/test.kt", icon = null)),
+            authOutputLines = persistentListOf("line"),
         )
         val result = reduce(state, StateAction.Reset(model = Model.HAIKU, permissionMode = PermissionMode.PLAN))
 

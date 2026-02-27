@@ -3,6 +3,7 @@ package me.matsumo.agentguiplugin.service
 import androidx.compose.runtime.Immutable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -204,7 +205,7 @@ class SessionHistoryService(private val project: Project) {
 
         return ChatMessage.Assistant(
             id = UUID.randomUUID().toString(),
-            blocks = blocks,
+            blocks = blocks.toImmutableList(),
         )
     }
 }

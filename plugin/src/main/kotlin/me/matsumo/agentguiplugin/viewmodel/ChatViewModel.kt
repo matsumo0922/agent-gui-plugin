@@ -1,5 +1,6 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -8,6 +9,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -88,14 +90,14 @@ class ChatViewModel(
 
         // SubAgentCoordinator の tasks を ChatUiState に同期
         vmScope.launch {
-            subAgentCoordinator.tasks.collect { tasks ->
+            subAgentCoordinator.tasks.collectLatest { tasks ->
                 dispatch(StateAction.SubAgentTasksUpdated(tasks))
             }
         }
 
         // UsageTracker の usage を ChatUiState に同期（onResult 時のみ更新されるので頻度は低い）
         vmScope.launch {
-            usageTracker.usage.collect { usage ->
+            usageTracker.usage.collectLatest { usage ->
                 dispatch(
                     StateAction.UsageUpdated(
                         UsageInfo(
@@ -110,7 +112,7 @@ class ChatViewModel(
 
         // AuthFlowHandler の state を ChatUiState に同期
         vmScope.launch {
-            authFlowHandler.state.collect { authState ->
+            authFlowHandler.state.collectLatest { authState ->
                 dispatch(StateAction.AuthOutputUpdated(authState.outputLines))
             }
         }
@@ -413,7 +415,7 @@ class ChatViewModel(
                 subAgentCoordinator.updateSpawnedByToolName(pid, toolName)
             }
         } else {
-            val blocks = message.content.map { it.toUiBlock() }
+            val blocks = message.content.map { it.toUiBlock() }.toImmutableList()
             val messageId = message.uuid ?: UUID.randomUUID().toString()
             val assistantMsg = ChatMessage.Assistant(
                 id = messageId,

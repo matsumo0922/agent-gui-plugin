@@ -1,5 +1,7 @@
 package me.matsumo.agentguiplugin.testutil
 
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
@@ -18,7 +20,7 @@ object TestFixtures {
     fun userMsg(
         text: String,
         editGroupId: String = "eg-${text.hashCode()}",
-        attachedFiles: List<AttachedFile> = emptyList(),
+        attachedFiles: ImmutableList<AttachedFile> = persistentListOf(),
     ) = ChatMessage.User(
         id = UUID.randomUUID().toString(),
         editGroupId = editGroupId,
@@ -31,7 +33,7 @@ object TestFixtures {
         id: String = UUID.randomUUID().toString(),
     ) = ChatMessage.Assistant(
         id = id,
-        blocks = listOf(UiContentBlock.Text(text)),
+        blocks = persistentListOf(UiContentBlock.Text(text)),
         timestamp = 0L,
     )
 

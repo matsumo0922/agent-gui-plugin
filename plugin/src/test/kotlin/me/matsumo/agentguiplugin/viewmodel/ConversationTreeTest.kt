@@ -1,5 +1,6 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.Test
@@ -26,7 +27,7 @@ class ConversationTreeTest {
     private fun assistantMsg(text: String): ChatMessage.Assistant {
         return ChatMessage.Assistant(
             id = "ast-${text.hashCode()}",
-            blocks = listOf(UiContentBlock.Text(text)),
+            blocks = persistentListOf(UiContentBlock.Text(text)),
             timestamp = 0L,
         )
     }
@@ -174,7 +175,7 @@ class ConversationTreeTest {
 
         val updated = treeWithResponse.updateLastResponse(path) { existing ->
             (existing as ChatMessage.Assistant).copy(
-                blocks = listOf(UiContentBlock.Text("Complete response"))
+                blocks = persistentListOf(UiContentBlock.Text("Complete response"))
             )
         }
 
@@ -1014,7 +1015,7 @@ class ConversationTreeTest {
             userMsg("Hello", editGroupId = "eg-1"),
             ChatMessage.Assistant(
                 id = "a-1",
-                blocks = listOf(UiContentBlock.Text("Hi there!")),
+                blocks = persistentListOf(UiContentBlock.Text("Hi there!")),
             ),
         )
         val prompt = buildContextSystemPrompt(messages, emptyList())
@@ -1027,7 +1028,7 @@ class ConversationTreeTest {
         val messages = listOf<ChatMessage>(
             ChatMessage.Assistant(
                 id = "a-1",
-                blocks = listOf(
+                blocks = persistentListOf(
                     UiContentBlock.Text("Let me read that file."),
                     UiContentBlock.ToolUse(
                         toolName = "Read",

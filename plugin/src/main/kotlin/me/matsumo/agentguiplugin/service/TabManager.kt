@@ -18,6 +18,7 @@ import me.matsumo.agentguiplugin.ui.ChatPanel
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
+import me.matsumo.agentguiplugin.viewmodel.getActiveMessages
 import org.jetbrains.jewel.bridge.JewelComposePanel
 import org.jetbrains.jewel.foundation.enableNewSwingCompositing
 import java.util.concurrent.ConcurrentHashMap
@@ -134,7 +135,9 @@ class TabManager(
     private fun observeTitle(content: Content, vm: ChatViewModel) {
         val job = scope.launch {
             vm.uiState
-                .map { state -> state.activeMessages.filterIsInstance<ChatMessage.User>().firstOrNull()?.text }
+                .map { state -> state.conversationTree }
+                .distinctUntilChanged()
+                .map { tree -> tree.getActiveMessages().filterIsInstance<ChatMessage.User>().firstOrNull()?.text }
                 .distinctUntilChanged()
                 .collect { firstUserMessage ->
                     if (firstUserMessage != null) {

@@ -16,6 +16,7 @@ repositories {
 dependencies {
     compileOnly(libs.kotlinx.serialization.json)
     implementation(libs.java.diff.utils)
+    implementation(libs.kotlinx.collections.immutable)
 
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")

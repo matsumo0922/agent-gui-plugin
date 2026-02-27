@@ -1,5 +1,7 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -72,13 +74,13 @@ class SubAgentCoordinator(
                 val currentKey = keyRef.currentKey
                 _tasks.update { tasks ->
                     val existing = tasks[currentKey]
-                    val oldMessages = existing?.messages ?: emptyList()
+                    val oldMessages = existing?.messages ?: persistentListOf()
 
                     val existingIndex = oldMessages.indexOfFirst { it.id == message.id }
                     val newMessages = if (existingIndex >= 0) {
-                        oldMessages.toMutableList().apply { set(existingIndex, message) }
+                        oldMessages.toMutableList().apply { set(existingIndex, message) }.toImmutableList()
                     } else {
-                        oldMessages + message
+                        (oldMessages + message).toImmutableList()
                     }
 
                     val task = (existing ?: SubAgentTask(id = currentKey, timelineSessionId = sessionId))
@@ -123,7 +125,7 @@ class SubAgentCoordinator(
                 val newTasks = tasks.toMutableMap()
                 newTasks.remove(result.hookToolUseId)
                 val existingAtPid = newTasks[result.parentToolUseId]
-                val mergedMessages = task.messages + (existingAtPid?.messages ?: emptyList())
+                val mergedMessages = (task.messages + (existingAtPid?.messages ?: persistentListOf())).toImmutableList()
                 newTasks[result.parentToolUseId] = task.copy(id = result.parentToolUseId, messages = mergedMessages)
                 newTasks
             }

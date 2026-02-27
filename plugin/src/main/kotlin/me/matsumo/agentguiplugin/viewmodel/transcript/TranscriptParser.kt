@@ -1,5 +1,6 @@
 package me.matsumo.agentguiplugin.viewmodel.transcript
 
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -34,7 +35,7 @@ internal object TranscriptParser {
     }
 
     private fun parseAssistant(msg: AssistantMessage): ChatMessage.Assistant? {
-        val blocks = msg.content.mapNotNull { it.toUiBlockOrNull() }
+        val blocks = msg.content.mapNotNull { it.toUiBlockOrNull() }.toImmutableList()
         if (blocks.isEmpty()) return null
         return ChatMessage.Assistant(
             id = msg.uuid ?: UUID.randomUUID().toString(),

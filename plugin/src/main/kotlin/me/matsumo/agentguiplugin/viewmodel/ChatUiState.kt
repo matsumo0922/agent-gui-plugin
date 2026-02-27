@@ -2,6 +2,10 @@ package me.matsumo.agentguiplugin.viewmodel
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.serialization.json.JsonObject
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.claude.agent.types.Model
@@ -60,13 +64,13 @@ data class ChatUiState(
     val conversationCursor: ConversationCursor = ConversationCursor(),
     val session: SessionStatus = SessionStatus(),
     val usage: UsageInfo = UsageInfo(),
-    val subAgentTasks: Map<String, SubAgentTask> = emptyMap(),
-    val attachedFiles: List<AttachedFile> = emptyList(),
+    val subAgentTasks: ImmutableMap<String, SubAgentTask> = persistentMapOf(),
+    val attachedFiles: ImmutableList<AttachedFile> = persistentListOf(),
     val model: Model = Model.SONNET,
     val permissionMode: PermissionMode = PermissionMode.DEFAULT,
     val pendingPermission: PendingPermission? = null,
     val pendingQuestion: PendingQuestion? = null,
-    val authOutputLines: List<String> = emptyList(),
+    val authOutputLines: ImmutableList<String> = persistentListOf(),
 ) {
     // 後方互換のための convenience accessor
     val sessionState: SessionState get() = session.state
@@ -88,19 +92,22 @@ data class ChatUiState(
 sealed interface ChatMessage {
     val id: String
 
+    @Immutable
     data class User(
         override val id: String,
         val editGroupId: String = id,
         val text: String,
-        val attachedFiles: List<AttachedFile> = emptyList(),
+        val attachedFiles: ImmutableList<AttachedFile> = persistentListOf(),
     ) : ChatMessage
 
+    @Immutable
     data class Assistant(
         override val id: String,
-        val blocks: List<UiContentBlock> = emptyList(),
+        val blocks: ImmutableList<UiContentBlock> = persistentListOf(),
         val timestamp: Long = System.currentTimeMillis(),
     ) : ChatMessage
 
+    @Immutable
     data class Interrupted(
         override val id: String,
         val timestamp: Long = System.currentTimeMillis(),
@@ -109,12 +116,12 @@ sealed interface ChatMessage {
 
 @Immutable
 data class SubAgentTask(
-    val id: String,                                    // = parentToolUseId
-    val timelineSessionId: String? = null,             // どのブランチのタスクか
-    val spawnedByToolName: String? = null,             // 呼び出し元ツール名
-    val messages: List<ChatMessage> = emptyList(),     // サブエージェントのメッセージ列
-    val startedAt: Long? = null,                       // 開始時刻 (epochMillis)
-    val completedAt: Long? = null,                     // 終了時刻 (epochMillis)
+    val id: String,                                                // = parentToolUseId
+    val timelineSessionId: String? = null,                         // どのブランチのタスクか
+    val spawnedByToolName: String? = null,                         // 呼び出し元ツール名
+    val messages: ImmutableList<ChatMessage> = persistentListOf(), // サブエージェントのメッセージ列
+    val startedAt: Long? = null,                                   // 開始時刻 (epochMillis)
+    val completedAt: Long? = null,                                 // 終了時刻 (epochMillis)
 )
 
 @Immutable
@@ -125,8 +132,11 @@ data class EditDiffInfo(
 )
 
 sealed interface UiContentBlock {
+    @Immutable
     data class Text(val text: String) : UiContentBlock
+    @Immutable
     data class Thinking(val text: String, val isExpanded: Boolean = false) : UiContentBlock
+    @Immutable
     data class ToolUse(
         val toolName: String,
         val inputJson: JsonObject,

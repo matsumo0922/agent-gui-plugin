@@ -1,5 +1,7 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import me.matsumo.agentguiplugin.model.AttachedFile
@@ -24,7 +26,7 @@ class BuildContextSystemPromptTest {
         id = "u-${text.hashCode()}",
         editGroupId = "eg-${text.hashCode()}",
         text = text,
-        attachedFiles = attachedFiles,
+        attachedFiles = attachedFiles.toImmutableList(),
     )
 
     private fun assistantMsg(
@@ -32,8 +34,8 @@ class BuildContextSystemPromptTest {
         toolUses: List<UiContentBlock.ToolUse> = emptyList(),
     ) = ChatMessage.Assistant(
         id = "a-${text.hashCode()}",
-        blocks = if (toolUses.isEmpty()) listOf(UiContentBlock.Text(text))
-                 else listOf(UiContentBlock.Text(text)) + toolUses,
+        blocks = if (toolUses.isEmpty()) persistentListOf(UiContentBlock.Text(text))
+                 else (listOf(UiContentBlock.Text(text)) + toolUses).toImmutableList(),
         timestamp = 0L,
     )
 

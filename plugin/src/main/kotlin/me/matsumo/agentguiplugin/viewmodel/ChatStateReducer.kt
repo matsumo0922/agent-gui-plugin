@@ -1,5 +1,8 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.claude.agent.types.Model
 import me.matsumo.claude.agent.types.PermissionMode
@@ -99,7 +102,7 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
     )
     StateAction.SessionDisconnected -> state.copy(
         session = state.session.transitionTo(SessionState.Disconnected),
-        authOutputLines = emptyList(),
+        authOutputLines = persistentListOf(),
     )
     is StateAction.SessionIdUpdated -> state.copy(
         session = state.session.copy(sessionId = action.sessionId),
@@ -109,7 +112,7 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
     is StateAction.TurnStarted -> state.copy(
         conversationTree = action.newTree,
         conversationCursor = ConversationCursor(activeLeafPath = action.newPath),
-        attachedFiles = emptyList(),
+        attachedFiles = persistentListOf(),
         session = state.session.transitionTo(SessionState.Processing),
     )
     is StateAction.AssistantMessageReceived -> {
@@ -171,10 +174,10 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
     // --- File management ---
     is StateAction.FileAttached -> {
         if (state.attachedFiles.any { it.id == action.file.id }) state
-        else state.copy(attachedFiles = state.attachedFiles + action.file)
+        else state.copy(attachedFiles = (state.attachedFiles + action.file).toImmutableList())
     }
     is StateAction.FileDetached -> state.copy(
-        attachedFiles = state.attachedFiles.filter { it.id != action.file.id },
+        attachedFiles = state.attachedFiles.filter { it.id != action.file.id }.toImmutableList(),
     )
 
     // --- Config ---
@@ -182,9 +185,9 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
     is StateAction.PermissionModeChanged -> state.copy(permissionMode = action.mode)
 
     // --- External sync ---
-    is StateAction.SubAgentTasksUpdated -> state.copy(subAgentTasks = action.tasks)
+    is StateAction.SubAgentTasksUpdated -> state.copy(subAgentTasks = action.tasks.toImmutableMap())
     is StateAction.UsageUpdated -> state.copy(usage = action.usage)
-    is StateAction.AuthOutputUpdated -> state.copy(authOutputLines = action.lines)
+    is StateAction.AuthOutputUpdated -> state.copy(authOutputLines = action.lines.toImmutableList())
 
     // --- History ---
     is StateAction.HistoryImported -> state.copy(

@@ -1,5 +1,6 @@
 package me.matsumo.agentguiplugin.model
 
+import androidx.compose.runtime.Stable
 import com.intellij.openapi.vfs.VirtualFile
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -8,6 +9,7 @@ import java.io.File
 import java.util.*
 import javax.swing.Icon
 
+@Stable
 data class AttachedFile(
     val id: String,
     val name: String,
