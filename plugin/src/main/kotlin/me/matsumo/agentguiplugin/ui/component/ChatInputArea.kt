@@ -22,9 +22,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +49,9 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.ui.component.interaction.FileAttachPopup
+import me.matsumo.agentguiplugin.ui.component.mention.MentionAutocompletePopup
+import me.matsumo.agentguiplugin.ui.component.mention.MentionState
+import me.matsumo.agentguiplugin.ui.component.mention.MentionVisualTransformation
 import me.matsumo.agentguiplugin.util.PluginIcons
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import me.matsumo.claude.agent.types.Model
@@ -77,10 +82,17 @@ fun ChatInputArea(
     modifier: Modifier = Modifier,
 ) {
     var value by remember { mutableStateOf(TextFieldValue()) }
+    val scope = rememberCoroutineScope()
+    val mentionState = remember { MentionState(project, scope) }
+
+    LaunchedEffect(Unit) {
+        mentionState.loadFilenames()
+    }
 
     fun send() {
         onSend(value.text.trim())
         value = TextFieldValue()
+        mentionState.clearMentions()
     }
 
     Column(
@@ -105,7 +117,13 @@ fun ChatInputArea(
         InputSection(
             modifier = Modifier.fillMaxWidth(),
             value = value,
-            onValueChanged = { newValue -> value = newValue },
+            mentionState = mentionState,
+            project = project,
+            onValueChanged = { newValue ->
+                value = newValue
+                mentionState.onTextChanged(newValue, onAttach)
+            },
+            onAttach = onAttach,
             onSend = ::send,
         )
 
@@ -234,38 +252,103 @@ private fun ContextUsageIndicator(usage: Float, modifier: Modifier = Modifier) {
 @Composable
 private fun InputSection(
     value: TextFieldValue,
+    mentionState: MentionState,
+    project: Project,
     onValueChanged: (TextFieldValue) -> Unit,
+    onAttach: (AttachedFile) -> Unit,
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BasicTextField(
-        modifier = modifier
-            .background(JewelTheme.globalColors.panelBackground)
-            .padding(8.dp)
-            .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && event.isShiftPressed) {
-                    onSend.invoke()
-                    true
-                } else {
-                    false
-                }
-            },
-        value = value,
-        onValueChange = onValueChanged,
-        textStyle = JewelTheme.typography.medium,
-        cursorBrush = SolidColor(JewelTheme.typography.medium.color),
-        minLines = 2,
-        decorationBox = { innerTextField ->
-            if (value.text.isEmpty()) {
-                Text(
-                    text = "Send a message (Shift+Enter)",
-                    color = JewelTheme.globalColors.text.info,
-                )
-            }
+    val mentionColor = JewelTheme.colorPalette.blue(7)
+    val showPopup = mentionState.activeQuery != null && mentionState.suggestions.isNotEmpty()
 
-            innerTextField.invoke()
+    Box(modifier = modifier) {
+        BasicTextField(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(JewelTheme.globalColors.panelBackground)
+                .padding(8.dp)
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+                    if (showPopup) {
+                        when (event.key) {
+                            Key.DirectionUp -> {
+                                mentionState.selectPrevious()
+                                return@onPreviewKeyEvent true
+                            }
+                            Key.DirectionDown -> {
+                                mentionState.selectNext()
+                                return@onPreviewKeyEvent true
+                            }
+                            Key.Enter -> {
+                                if (!event.isShiftPressed) {
+                                    mentionState.confirmSelection(value)?.let { (newValue, file) ->
+                                        onValueChanged(newValue)
+                                        onAttach(file)
+                                    }
+                                    return@onPreviewKeyEvent true
+                                }
+                            }
+                            Key.Escape -> {
+                                mentionState.dismiss()
+                                return@onPreviewKeyEvent true
+                            }
+                            Key.Tab -> {
+                                mentionState.confirmSelection(value)?.let { (newValue, file) ->
+                                    onValueChanged(newValue)
+                                    onAttach(file)
+                                }
+                                return@onPreviewKeyEvent true
+                            }
+                        }
+                    }
+
+                    if (event.key == Key.Enter && event.isShiftPressed) {
+                        onSend.invoke()
+                        true
+                    } else {
+                        false
+                    }
+                },
+            value = value,
+            onValueChange = onValueChanged,
+            textStyle = JewelTheme.typography.medium,
+            cursorBrush = SolidColor(JewelTheme.typography.medium.color),
+            visualTransformation = MentionVisualTransformation(
+                confirmedMentions = mentionState.confirmedMentions,
+                activeMentionRange = mentionState.activeMentionRange,
+                mentionColor = mentionColor,
+            ),
+            minLines = 2,
+            decorationBox = { innerTextField ->
+                if (value.text.isEmpty()) {
+                    Text(
+                        text = "Send a message (Shift+Enter)",
+                        color = JewelTheme.globalColors.text.info,
+                    )
+                }
+
+                innerTextField.invoke()
+            }
+        )
+
+        if (showPopup) {
+            MentionAutocompletePopup(
+                suggestions = mentionState.suggestions,
+                selectedIndex = mentionState.selectedIndex,
+                query = mentionState.activeQuery.orEmpty(),
+                projectBasePath = project.basePath,
+                onSelect = { index ->
+                    mentionState.confirmSelection(value, index)?.let { (newValue, file) ->
+                        onValueChanged(newValue)
+                        onAttach(file)
+                    }
+                },
+                onDismiss = { mentionState.dismiss() },
+            )
         }
-    )
+    }
 }
 
 @Composable
