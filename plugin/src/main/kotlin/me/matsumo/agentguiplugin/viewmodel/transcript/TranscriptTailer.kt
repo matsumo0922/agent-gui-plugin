@@ -71,12 +71,22 @@ internal class TranscriptTailer(
                 val buffer = ByteArray((size - fromPosition).toInt())
                 raf.readFully(buffer)
 
-                buffer.toString(Charsets.UTF_8).split('\n').forEach { line ->
+                val raw = buffer.toString(Charsets.UTF_8)
+                val lines = raw.split('\n')
+                // 末尾が改行で終わっていない場合、最後の行は不完全（書込中）なので消費しない
+                val endsWithNewline = raw.endsWith('\n')
+                val completeLines = if (endsWithNewline) lines else lines.dropLast(1)
+
+                completeLines.forEach { line ->
                     TranscriptParser.parseLine(line)?.let(onMessage)
                 }
+
+                // 完全行分のバイト数だけ pos を進める
+                val bytesConsumed = completeLines.sumOf { it.toByteArray(Charsets.UTF_8).size + 1 }
+                fromPosition + bytesConsumed
             }
         }.fold(
-            onSuccess = { size },
+            onSuccess = { it },
             onFailure = { fromPosition }
         )
     }

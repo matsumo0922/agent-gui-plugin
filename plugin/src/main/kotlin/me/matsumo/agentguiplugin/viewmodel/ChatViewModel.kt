@@ -2,7 +2,6 @@ package me.matsumo.agentguiplugin.viewmodel
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -15,19 +14,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
-import kotlinx.serialization.json.put
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import me.matsumo.agentguiplugin.viewmodel.preflight.PreflightChecker
 import me.matsumo.agentguiplugin.viewmodel.preflight.PreflightResult
-import me.matsumo.agentguiplugin.viewmodel.transcript.TranscriptTailer
 import me.matsumo.claude.agent.ClaudeSDKClient
 import me.matsumo.claude.agent.createSession
 import me.matsumo.claude.agent.resumeSession
@@ -38,17 +29,10 @@ import me.matsumo.claude.agent.types.Model
 import me.matsumo.claude.agent.types.PermissionMode
 import me.matsumo.claude.agent.types.ResultMessage
 import me.matsumo.claude.agent.types.SessionOptionsBuilder
-import me.matsumo.claude.agent.types.StreamEvent
 import me.matsumo.claude.agent.types.SubagentStartHookInput
 import me.matsumo.claude.agent.types.SubagentStopHookInput
 import me.matsumo.claude.agent.types.SystemMessage
-import me.matsumo.claude.agent.types.UserMessage
-import java.io.BufferedReader
-import java.io.IOException
-import java.io.OutputStreamWriter
 import java.util.*
-import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
 
 class ChatViewModel(
     private val projectBasePath: String,
@@ -67,11 +51,12 @@ class ChatViewModel(
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    // --- Delegates ---
     private val preflightChecker = PreflightChecker()
-    private var authProcess: Process? = null
-    private var authStdout: BufferedReader? = null
-    private var authStdin: OutputStreamWriter? = null
-    private var authReaderJob: Job? = null
+    private val usageTracker = UsageTracker()
+    private val authFlowHandler = AuthFlowHandler(vmScope)
+    private val subAgentCoordinator = SubAgentCoordinator(vmScope)
+    private val turnEngine = TurnEngine(vmScope)
 
     private val permissionHandler = PermissionHandler(
         currentState = { _uiState.value },
@@ -90,31 +75,55 @@ class ChatViewModel(
 
     @Volatile
     private var client: ClaudeSDKClient? = null
-    private var activeTurnJob: Job? = null
-    private val activeTurnId = AtomicLong(0L)
     private var branchSwitchJob: Job? = null
 
-    // Last per-turn context token count from message_start stream event (not cumulative)
-    private var lastTurnInputTokens = 0L
+    init {
+        // AuthFlowHandler の認証完了コールバック
+        authFlowHandler.onAuthComplete = {
+            vmScope.launch {
+                _uiState.update {
+                    it.copy(
+                        sessionState = SessionState.Disconnected,
+                        authOutputLines = emptyList(),
+                    )
+                }
+                start()
+            }
+        }
 
-    // Sub-agent transcript tailing: agentId -> tailer
-    private val activeTailers = mutableMapOf<String, TranscriptTailer>()
+        // SubAgentCoordinator の tasks を ChatUiState に同期
+        vmScope.launch {
+            subAgentCoordinator.tasks.collect { tasks ->
+                _uiState.update { it.copy(subAgentTasks = tasks) }
+            }
+        }
 
-    // Hook toolUseId (CLI internal UUID) → mutable key reference for tailer callback.
-    // Initially points to hookToolUseId, updated to real parentToolUseId (toolu_...) when resolved.
-    private val tailerKeyRefs = mutableMapOf<String, AtomicReference<String>>()
+        // UsageTracker の usage を ChatUiState に同期（onResult 時のみ更新されるので頻度は低い）
+        vmScope.launch {
+            usageTracker.usage.collect { usage ->
+                _uiState.update {
+                    it.copy(
+                        contextUsage = usage.contextUsage,
+                        totalInputTokens = usage.totalInputTokens,
+                        totalCostUsd = usage.totalCostUsd,
+                    )
+                }
+            }
+        }
 
-    // agentId → keyRef for resolving SubAgentTask key on stopTailing
-    private val agentKeyRefs = mutableMapOf<String, AtomicReference<String>>()
-
-    // Ordered list of hookToolUseIds not yet mapped to real parentToolUseId
-    private val unresolvedHookIds = mutableListOf<String>()
+        // AuthFlowHandler の state を ChatUiState に同期
+        vmScope.launch {
+            authFlowHandler.state.collect { authState ->
+                _uiState.update {
+                    it.copy(authOutputLines = authState.outputLines)
+                }
+            }
+        }
+    }
 
     /**
      * セッションを開始する。resumeSessionId が指定された場合はセッション再開。
      * Mutex により多重起動を防止。dispose 済みの場合は何もしない。
-     *
-     * Idempotent: Disconnected 以外の状態 or startJob がアクティブなら何もしない。
      */
     suspend fun start(resumeSessionId: String? = null) {
         startMutex.withLock {
@@ -122,7 +131,6 @@ class ChatViewModel(
             if (startJob?.isActive == true) return
             if (_uiState.value.sessionState != SessionState.Disconnected) return
 
-            // ロック内で先に Connecting に更新。これにより次の start() 呼び出しを確実にブロック。
             _uiState.update { it.copy(sessionState = SessionState.Connecting) }
 
             startJob = vmScope.launch {
@@ -130,16 +138,15 @@ class ChatViewModel(
                 when (result) {
                     is PreflightResult.Ready -> connectSession(resumeSessionId)
                     is PreflightResult.AuthRequired -> {
-                        authProcess = result.process
-                        authStdout = result.stdout
-                        authStdin = result.stdin
+                        authFlowHandler.startAuth(
+                            process = result.process,
+                            stdout = result.stdout,
+                            stdin = result.stdin,
+                            initialOutput = result.initialOutput,
+                        )
                         _uiState.update {
-                            it.copy(
-                                sessionState = SessionState.AuthRequired,
-                                authOutputLines = result.initialOutput,
-                            )
+                            it.copy(sessionState = SessionState.AuthRequired)
                         }
-                        startAuthOutputReader()
                     }
                     is PreflightResult.Error -> {
                         _uiState.update {
@@ -156,19 +163,17 @@ class ChatViewModel(
 
     /**
      * 現在のセッションをクリアし、初期状態に戻す。
-     * 進行中の turn、permission 待ち、sub-agent tailer も安全に中断する。
-     * dispose() とは異なり、VM 自体は再利用可能。
      */
     suspend fun clear() {
         startMutex.withLock {
             startJob?.cancel()
             startJob = null
-            activeTurnJob?.cancel()
-            activeTurnJob = null
+            turnEngine.cancel()
             branchSwitchJob?.cancel()
             branchSwitchJob = null
-            cleanupAuthProcess()
-            stopAllTailing()
+            authFlowHandler.cleanup()
+            subAgentCoordinator.reset()
+            usageTracker.reset()
             permissionHandler.cancelPending()
             branchSessionManager.closeAll()
             client?.close()
@@ -182,13 +187,11 @@ class ChatViewModel(
 
     /**
      * VM を完全に破棄する。再利用不可。
-     * 所有する CoroutineScope を cancel し、全リソースを解放する。
      */
     fun dispose() {
         disposed = true
-        vmScope.cancel() // startJob, activeTurnJob, tailer jobs もすべて cancel される
-        cleanupAuthProcess()
-        stopAllTailing()
+        vmScope.cancel()
+        authFlowHandler.cleanup()
         permissionHandler.cancelPending()
         branchSessionManager.closeAll()
         client?.close()
@@ -197,7 +200,6 @@ class ChatViewModel(
 
     /**
      * 履歴メッセージを UI に投入する（resume 時の過去メッセージ表示用）。
-     * start() の前に呼び出すこと。
      */
     fun importHistory(messages: List<ChatMessage>, branchSessionId: String? = null) {
         val tree = buildConversationTreeFromFlatList(messages, branchSessionId)
@@ -210,7 +212,6 @@ class ChatViewModel(
     }
 
     private suspend fun connectSession(resumeSessionId: String?) {
-        // 防御的チェック: dispose 済みなら何もしない
         if (disposed) return
 
         try {
@@ -218,7 +219,7 @@ class ChatViewModel(
             val localClient = if (resumeSessionId != null) {
                 resumeSession(resumeSessionId) {
                     applyCommonConfig(state.model, state.permissionMode)
-                    forkSession = true // 元セッション保全
+                    forkSession = true
                 }
             } else {
                 createSession {
@@ -226,7 +227,6 @@ class ChatViewModel(
                 }
             }
 
-            // SDK client 作成後、代入前に再チェック
             if (disposed || !currentCoroutineContext().isActive) {
                 localClient.close()
                 return
@@ -254,8 +254,7 @@ class ChatViewModel(
     }
 
     /**
-     * 全セッション（初期・ブランチ・再接続）で共通の設定を適用。
-     * セッション設定要件を一元化し、設定漏れによる回帰を防ぐ。
+     * 全セッションで共通の設定を適用。
      */
     private fun SessionOptionsBuilder.applyCommonConfig(
         model: Model,
@@ -278,12 +277,17 @@ class ChatViewModel(
         hooks {
             on(HookEvent.SUBAGENT_START) { input, toolUseId, _ ->
                 val si = input as SubagentStartHookInput
-                startTailing(si.agentId, si.transcriptPath, toolUseId)
+                subAgentCoordinator.onSubAgentStart(
+                    agentId = si.agentId,
+                    transcriptPath = si.transcriptPath,
+                    hookToolUseId = toolUseId,
+                    sessionId = _uiState.value.sessionId,
+                )
                 HookOutput.proceed()
             }
             on(HookEvent.SUBAGENT_STOP) { input, _, _ ->
                 val si = input as SubagentStopHookInput
-                stopTailing(si.agentId)
+                subAgentCoordinator.onSubAgentStop(si.agentId)
                 HookOutput.proceed()
             }
         }
@@ -339,280 +343,24 @@ class ChatViewModel(
             )
         }
 
-        activeTurnJob?.cancel()
-        activeTurnJob = vmScope.launch {
-            try {
-                val turnId = activeTurnId.incrementAndGet()
-
-                if (files.isEmpty()) {
-                    session.send(text)
-                } else {
-                    session.send(buildContentBlocks(text, files))
-                }
-
-                session.receiveResponse().collect { message ->
-                    if (turnId != activeTurnId.get()) return@collect
-
-                    when (message) {
-                        is SystemMessage -> handleSystemMessage(message)
-
-                        is StreamEvent -> handleStreamEvent(message)
-
-                        is AssistantMessage -> {
-                            handleAssistantMessage(message)
-                        }
-                        is ResultMessage -> handleResultMessage(message)
-                        is UserMessage -> {
-                            /* tool results - ignore */
-                        }
-                    }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+        turnEngine.dispatch(
+            client = session,
+            text = text,
+            files = files,
+            onEvent = { event -> handleTurnEvent(event) },
+            onError = { e ->
                 _uiState.update {
                     it.copy(
                         sessionState = SessionState.Error,
                         errorMessage = e.message,
                     )
                 }
-            }
-        }
-    }
-
-    private fun buildContentBlocks(text: String, files: List<AttachedFile>): List<JsonObject> {
-        val blocks = mutableListOf<JsonObject>()
-
-        blocks.add(
-            buildJsonObject {
-                put("type", "text")
-                put("text", text)
             },
         )
-
-        for (file in files) {
-            if (file.isImage) {
-                blocks.add(file.toImageBlock())
-            } else {
-                blocks.add(file.toDocumentBlock())
-            }
-        }
-
-        return blocks
-    }
-
-    private fun handleSystemMessage(message: SystemMessage) {
-        if (message.isInit) {
-            _uiState.update { it.copy(sessionId = message.sessionId) }
-        }
-    }
-
-    private fun handleAssistantMessage(message: AssistantMessage) {
-        val pid = message.parentToolUseId
-        if (pid != null) {
-            handleSubAgentAssistantMessage(message, pid)
-        } else {
-            val blocks = message.content.map { it.toUiBlock() }
-            val messageId = message.uuid ?: UUID.randomUUID().toString()
-            val assistantMsg = ChatMessage.Assistant(
-                id = messageId,
-                blocks = blocks,
-            )
-
-            _uiState.update { state ->
-                val cursor = state.conversationCursor
-                val targetPath = cursor.activeLeafPath
-                val isSameStreaming = cursor.activeStreamingMessageId == messageId
-
-                val newTree = if (isSameStreaming) {
-                    // 同一メッセージの partial update: 最後の応答を差し替え
-                    state.conversationTree.updateLastResponse(targetPath) { last ->
-                        if (last is ChatMessage.Assistant && last.id == messageId) assistantMsg else last
-                    }
-                } else {
-                    // 新しいメッセージ: 追加
-                    state.conversationTree.appendResponse(targetPath, assistantMsg)
-                }
-
-                state.copy(
-                    conversationTree = newTree,
-                    conversationCursor = cursor.copy(activeStreamingMessageId = messageId),
-                )
-            }
-        }
-    }
-
-    private fun handleSubAgentAssistantMessage(message: AssistantMessage, pid: String) {
-        // Sub-agent message from stream-json.
-        // Resolve hookToolUseId → real parentToolUseId (toolu_...) if needed.
-        if (!_uiState.value.subAgentTasks.containsKey(pid) && unresolvedHookIds.isNotEmpty()) {
-            val hookId = unresolvedHookIds.removeFirst()
-
-            // Update the tailer's key so new messages go to the correct key
-            tailerKeyRefs[hookId]?.set(pid)
-
-            // Re-key the SubAgentTask from hookId to pid
-            _uiState.update { state ->
-                val task = state.subAgentTasks[hookId] ?: return@update state
-                val newTasks = state.subAgentTasks.toMutableMap()
-                newTasks.remove(hookId)
-                // Merge with any messages that may have arrived at pid during the race window
-                val existingAtPid = newTasks[pid]
-                val mergedMessages = task.messages + (existingAtPid?.messages ?: emptyList())
-                newTasks[pid] = task.copy(id = pid, messages = mergedMessages)
-                state.copy(subAgentTasks = newTasks)
-            }
-        }
-
-        // Update spawnedByToolName from stream-json if not yet set
-        _uiState.update { state ->
-            val existing = state.subAgentTasks[pid]
-            if (existing == null || existing.spawnedByToolName != null) state
-            else {
-                val toolName = message.parentToolName
-                if (toolName != null) {
-                    state.copy(
-                        subAgentTasks = state.subAgentTasks + (
-                            pid to existing.copy(spawnedByToolName = toolName)
-                        ),
-                    )
-                } else {
-                    state
-                }
-            }
-        }
-    }
-
-    private fun handleStreamEvent(event: StreamEvent) {
-        if (event.parentToolUseId != null) return // サブエージェントのイベントは無視
-        val type = event.event["type"]?.jsonPrimitive?.contentOrNull ?: return
-        if (type != "message_start") return
-
-        val usage = event.event["message"]?.jsonObject?.get("usage")?.jsonObject ?: return
-        val inputTokens = usage["input_tokens"]?.jsonPrimitive?.longOrNull ?: 0L
-        val cacheCreation = usage["cache_creation_input_tokens"]?.jsonPrimitive?.longOrNull ?: 0L
-        val cacheRead = usage["cache_read_input_tokens"]?.jsonPrimitive?.longOrNull ?: 0L
-        lastTurnInputTokens = inputTokens + cacheCreation + cacheRead
-    }
-
-    private fun handleResultMessage(message: ResultMessage) {
-        // lastTurnInputTokens は最後の message_start イベントの値 (単一API呼び出し分)
-        // ResultMessage.usage は全API呼び出しの累積値なので使わない
-        val contextWindow = 200_000L
-        val usage = (lastTurnInputTokens.toFloat() / contextWindow).coerceIn(0f, 1f)
-
-        _uiState.update {
-            it.copy(
-                sessionState = SessionState.WaitingForInput,
-                conversationCursor = it.conversationCursor.copy(activeStreamingMessageId = null),
-                totalCostUsd = message.totalCostUsd ?: it.totalCostUsd,
-                contextUsage = usage,
-                totalInputTokens = lastTurnInputTokens,
-                errorMessage = if (message.isError) "Turn ended with error: ${message.subtype}" else null,
-            )
-        }
-    }
-
-    // --- Sub-agent transcript tailing ---
-
-    private fun startTailing(agentId: String, transcriptPath: String, hookToolUseId: String?) {
-        if (hookToolUseId == null) return
-
-        val jsonlPath = "${transcriptPath.removeSuffix(".jsonl")}/subagents/agent-$agentId.jsonl"
-
-        // Mutable key: starts as hookToolUseId (CLI UUID), updated to real parentToolUseId (toolu_...)
-        // when handleAssistantMessage resolves it.
-        val keyRef = AtomicReference(hookToolUseId)
-        tailerKeyRefs[hookToolUseId] = keyRef
-        unresolvedHookIds.add(hookToolUseId)
-
-        // Create initial SubAgentTask under hookToolUseId with current branch sessionId
-        _uiState.update { state ->
-            if (state.subAgentTasks.containsKey(hookToolUseId)) state
-            else state.copy(
-                subAgentTasks = state.subAgentTasks + (
-                    hookToolUseId to SubAgentTask(
-                        id = hookToolUseId,
-                        timelineSessionId = state.sessionId,
-                        startedAt = System.currentTimeMillis(),
-                    )
-                ),
-            )
-        }
-
-        agentKeyRefs[agentId] = keyRef
-
-        val tailer = TranscriptTailer(vmScope)
-        activeTailers[agentId] = tailer
-
-        tailer.start(jsonlPath) { message ->
-            val currentKey = keyRef.get()
-            _uiState.update { state ->
-                val existing = state.subAgentTasks[currentKey]
-                val oldMessages = existing?.messages ?: emptyList()
-
-                // Same id → replace (partial update); new id → append
-                val existingIndex = oldMessages.indexOfFirst { it.id == message.id }
-                val newMessages = if (existingIndex >= 0) {
-                    oldMessages.toMutableList().apply { set(existingIndex, message) }
-                } else {
-                    oldMessages + message
-                }
-
-                val task = (existing ?: SubAgentTask(id = currentKey, timelineSessionId = state.sessionId))
-                    .copy(messages = newMessages)
-                state.copy(subAgentTasks = state.subAgentTasks + (currentKey to task))
-            }
-        }
-    }
-
-    private fun stopTailing(agentId: String) {
-        activeTailers.remove(agentId)?.stop()
-
-        val keyRef = agentKeyRefs.remove(agentId) ?: return
-        val taskKey = keyRef.get()
-        val now = System.currentTimeMillis()
-
-        _uiState.update { state ->
-            val task = state.subAgentTasks[taskKey] ?: return@update state
-            state.copy(
-                subAgentTasks = state.subAgentTasks + (taskKey to task.copy(completedAt = now)),
-            )
-        }
-    }
-
-    private fun stopAllTailing() {
-        activeTailers.values.forEach { it.stop() }
-        activeTailers.clear()
-        tailerKeyRefs.clear()
-        agentKeyRefs.clear()
-        unresolvedHookIds.clear()
-    }
-
-    // --- Public API ---
-
-    fun changeModel(model: Model) {
-        vmScope.launch { client?.setModel(model.modelId) }
-        _uiState.update { it.copy(model = model) }
-    }
-
-    fun changePermissionMode(mode: PermissionMode) {
-        vmScope.launch { client?.setPermissionMode(mode) }
-        _uiState.update { it.copy(permissionMode = mode) }
-    }
-
-    fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
-        permissionHandler.respondPermission(allow, denyMessage)
-    }
-
-    fun respondQuestion(answers: Map<String, String>) {
-        permissionHandler.respondQuestion(answers)
     }
 
     /**
      * ユーザーメッセージを編集し、新しいブランチで応答を取得する。
-     * 同じ editGroupId のスロットに新しいタイムラインを追加し、
-     * BranchSessionManager 経由で新セッションを作成して応答を収集する。
      */
     fun editMessage(editGroupId: String, newText: String) {
         if (newText.isBlank()) return
@@ -622,26 +370,25 @@ class ChatViewModel(
 
         val tree = state.conversationTree
 
-        // 編集内容が元と同一の場合は no-op
         val currentSlot = tree.findSlot(editGroupId) ?: return
         val currentTimeline = currentSlot.timelines[currentSlot.activeTimelineIndex]
         if (currentTimeline.userMessage.text == newText) return
 
-        activeTurnJob?.cancel()
-        stopAllTailing() // 旧セッションの sub-agent tailer を停止
-        val turnId = activeTurnId.incrementAndGet()
+        turnEngine.cancel()
 
-        // 先に Processing に遷移し、createEditBranchSession() の suspend 中に
-        // 他の操作 (edit/navigate/send) が入るのを canEditOrNavigate() でブロック
+        // 旧セッションの sub-agent tailer を停止
+        vmScope.launch { subAgentCoordinator.stopAll() }
+
         _uiState.update { it.copy(sessionState = SessionState.Processing, errorMessage = null) }
 
-        activeTurnJob = vmScope.launch {
+        vmScope.launch {
             try {
-                // 1. 編集対象より前のメッセージを取得
                 val messagesBeforeEdit = tree.getMessagesBeforeSlot(editGroupId)
                 val originalAttachedFiles = currentTimeline.userMessage.attachedFiles
 
-                // 2. 新しいブランチセッションを作成
+                // 旧 client を保持して後で close する (§3.2 client lifecycle leak fix)
+                val oldClient = client
+
                 val newClient = branchSessionManager.createEditBranchSession(
                     messagesBeforeEdit = messagesBeforeEdit,
                     originalAttachedFiles = originalAttachedFiles,
@@ -649,15 +396,13 @@ class ChatViewModel(
                     permissionMode = state.permissionMode,
                 )
 
-                // 3. 新しいユーザーメッセージを作成 (添付ファイルも引き継ぐ)
                 val newUserMessage = ChatMessage.User(
                     id = UUID.randomUUID().toString(),
-                    editGroupId = editGroupId, // 同じ editGroupId を維持
+                    editGroupId = editGroupId,
                     text = newText,
                     attachedFiles = originalAttachedFiles,
                 )
 
-                // 4. ConversationTree を更新 (新タイムライン追加)
                 val newTree = tree.editMessage(
                     editGroupId = editGroupId,
                     newUserMessage = newUserMessage,
@@ -672,29 +417,33 @@ class ChatViewModel(
                     )
                 }
 
-                // 5. activeClient を新ブランチに切り替え + UI sessionId 同期
+                // activeClient を新ブランチに切り替え
                 client = newClient
                 _uiState.update { it.copy(sessionId = newClient.sessionId) }
 
-                // 6. 編集メッセージを送信
-                if (originalAttachedFiles.isEmpty()) {
-                    newClient.send(newText)
-                } else {
-                    newClient.send(buildContentBlocks(newText, originalAttachedFiles))
-                }
-
-                // 7. 応答を収集
-                newClient.receiveResponse().collect { message ->
-                    if (turnId != activeTurnId.get()) return@collect
-
-                    when (message) {
-                        is SystemMessage -> handleSystemMessage(message)
-                        is StreamEvent -> handleStreamEvent(message)
-                        is AssistantMessage -> handleAssistantMessage(message)
-                        is ResultMessage -> handleResultMessage(message)
-                        is UserMessage -> { /* tool results - ignore */ }
+                // 初期セッション client が BranchSessionManager 管理外の場合は close (§3.2)
+                if (oldClient != null && oldClient !== newClient) {
+                    val oldSessionId = oldClient.sessionId
+                    if (oldSessionId == null || !branchSessionManager.hasSession(oldSessionId)) {
+                        oldClient.close()
                     }
                 }
+
+                // TurnEngine で応答収集
+                turnEngine.dispatch(
+                    client = newClient,
+                    text = newText,
+                    files = originalAttachedFiles,
+                    onEvent = { event -> handleTurnEvent(event) },
+                    onError = { e ->
+                        _uiState.update {
+                            it.copy(
+                                sessionState = SessionState.WaitingForInput,
+                                errorMessage = "Failed to edit message: ${e.message}",
+                            )
+                        }
+                    },
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -709,8 +458,73 @@ class ChatViewModel(
     }
 
     /**
-     * Phase 1 安全制約: 編集/ナビゲーションが可能な状態かチェック。
-     * Processing / Connecting 中、または permission/question 待ち中は不可。
+     * TurnEngine からのイベントを処理する統一ハンドラー。
+     */
+    private fun handleTurnEvent(event: TurnEngine.TurnEvent) {
+        when (event) {
+            is TurnEngine.TurnEvent.System -> handleSystemMessage(event.message)
+            is TurnEngine.TurnEvent.Stream -> usageTracker.processStreamEvent(event.event)
+            is TurnEngine.TurnEvent.Assistant -> handleAssistantMessage(event.message)
+            is TurnEngine.TurnEvent.Result -> handleResultMessage(event.message)
+        }
+    }
+
+    private fun handleSystemMessage(message: SystemMessage) {
+        if (message.isInit) {
+            _uiState.update { it.copy(sessionId = message.sessionId) }
+        }
+    }
+
+    private fun handleAssistantMessage(message: AssistantMessage) {
+        val pid = message.parentToolUseId
+        if (pid != null) {
+            // Sub-agent message: delegate to coordinator
+            vmScope.launch { subAgentCoordinator.resolveParentToolUseId(pid) }
+            message.parentToolName?.let { toolName ->
+                subAgentCoordinator.updateSpawnedByToolName(pid, toolName)
+            }
+        } else {
+            val blocks = message.content.map { it.toUiBlock() }
+            val messageId = message.uuid ?: UUID.randomUUID().toString()
+            val assistantMsg = ChatMessage.Assistant(
+                id = messageId,
+                blocks = blocks,
+            )
+
+            _uiState.update { state ->
+                val cursor = state.conversationCursor
+                val targetPath = cursor.activeLeafPath
+                val isSameStreaming = cursor.activeStreamingMessageId == messageId
+
+                val newTree = if (isSameStreaming) {
+                    state.conversationTree.updateLastResponse(targetPath) { last ->
+                        if (last is ChatMessage.Assistant && last.id == messageId) assistantMsg else last
+                    }
+                } else {
+                    state.conversationTree.appendResponse(targetPath, assistantMsg)
+                }
+
+                state.copy(
+                    conversationTree = newTree,
+                    conversationCursor = cursor.copy(activeStreamingMessageId = messageId),
+                )
+            }
+        }
+    }
+
+    private fun handleResultMessage(message: ResultMessage) {
+        usageTracker.onResult(message.totalCostUsd)
+        _uiState.update {
+            it.copy(
+                sessionState = SessionState.WaitingForInput,
+                conversationCursor = it.conversationCursor.copy(activeStreamingMessageId = null),
+                errorMessage = if (message.isError) "Turn ended with error: ${message.subtype}" else null,
+            )
+        }
+    }
+
+    /**
+     * 編集/ナビゲーションが可能な状態かチェック。
      */
     private fun canEditOrNavigate(state: ChatUiState): Boolean {
         return state.sessionState != SessionState.Processing &&
@@ -721,11 +535,6 @@ class ChatViewModel(
 
     /**
      * 編集バージョンをナビゲーションする（左右矢印）。
-     * direction: -1 = 前のバージョン, +1 = 次のバージョン
-     *
-     * ブランチ切替時は非同期でセッションを再接続する。
-     * null session ブランチへの移動時は activeClient をクリアする。
-     * 送信時に client == null であればエラーを表示する。
      */
     fun navigateEditVersion(editGroupId: String, direction: Int) {
         if (disposed) return
@@ -750,15 +559,13 @@ class ChatViewModel(
             )
         }
 
-        // null session ブランチへの移動: activeClient をクリア
         if (isNullSession) {
             client = null
             return
         }
 
-        // アクティブセッションの非同期切り替え
         if (needsSessionSwitch) {
-            client = null // reconnect 中に旧セッションへ誤送信されるのを防止
+            client = null
             branchSwitchJob?.cancel()
             branchSwitchJob = vmScope.launch {
                 try {
@@ -767,8 +574,6 @@ class ChatViewModel(
                         model = state.model,
                         permissionMode = state.permissionMode,
                     )
-                    // clear() や別の navigateEditVersion() で既にキャンセル/上書きされた場合は
-                    // 生成したクライアントを閉じて何もしない
                     if (_uiState.value.sessionId != newSessionId) {
                         newClient.close()
                         return@launch
@@ -796,12 +601,8 @@ class ChatViewModel(
     }
 
     fun abortSession() {
-        // activeTurnId をインクリメントして現在のターンのメッセージ処理を無効化する。
-        // activeTurnJob はキャンセルしない。interrupt 後に CLI が送る ResultMessage を
-        // 既存の receiveResponse() Flow に消費させ、messageChannel に残留させないため。
-        // 残留すると次の receiveResponse() が古い ResultMessage を拾って即終了してしまう。
-        activeTurnId.incrementAndGet()
-        stopAllTailing()
+        turnEngine.invalidateCurrentTurn()
+        vmScope.launch { subAgentCoordinator.stopAll() }
         vmScope.launch { client?.interrupt() }
 
         val interruptedMsg = ChatMessage.Interrupted(
@@ -821,61 +622,37 @@ class ChatViewModel(
         vmScope.launch { clear(); start() }
     }
 
-    // --- Auth process management ---
+    // --- Public API ---
+
+    fun changeModel(model: Model) {
+        vmScope.launch { client?.setModel(model.modelId) }
+        _uiState.update { it.copy(model = model) }
+    }
+
+    fun changePermissionMode(mode: PermissionMode) {
+        vmScope.launch { client?.setPermissionMode(mode) }
+        _uiState.update { it.copy(permissionMode = mode) }
+    }
+
+    fun respondPermission(allow: Boolean, denyMessage: String = "Denied by user") {
+        permissionHandler.respondPermission(allow, denyMessage)
+    }
+
+    fun respondQuestion(answers: Map<String, String>) {
+        permissionHandler.respondQuestion(answers)
+    }
+
+    fun cancelActiveRequest() {
+        permissionHandler.cancelActiveRequest()
+    }
+
+    // --- Auth delegation ---
 
     fun sendAuthInput(text: String) {
-        val writer = authStdin ?: return
-        vmScope.launch(Dispatchers.IO) {
-            try {
-                writer.write(text + "\n")
-                writer.flush()
-            } catch (_: IOException) {
-                // Process may have exited
-            }
-        }
+        authFlowHandler.sendInput(text)
     }
 
     fun confirmAuthComplete() {
-        vmScope.launch {
-            cleanupAuthProcess()
-            _uiState.update {
-                it.copy(
-                    sessionState = SessionState.Disconnected,
-                    authOutputLines = emptyList(),
-                )
-            }
-            start()
-        }
-    }
-
-    private fun startAuthOutputReader() {
-        val reader = authStdout ?: return
-        authReaderJob = vmScope.launch(Dispatchers.IO) {
-            try {
-                while (isActive) {
-                    val line = reader.readLine() ?: break
-                    _uiState.update {
-                        it.copy(authOutputLines = it.authOutputLines + line)
-                    }
-                }
-            } catch (_: IOException) {
-                // Stream closed
-            }
-            // Process exited — auto-proceed to re-preflight
-            confirmAuthComplete()
-        }
-    }
-
-    private fun cleanupAuthProcess() {
-        // プロセス破棄 → ストリーム close を先に行い、readLine() のブロッキングを解除してから
-        // ジョブを cancel する。逆順だと readLine() が永久に suspend する。
-        authProcess?.destroyForcibly()
-        authProcess = null
-        runCatching { authStdin?.close() }
-        runCatching { authStdout?.close() }
-        authStdin = null
-        authStdout = null
-        authReaderJob?.cancel()
-        authReaderJob = null
+        authFlowHandler.confirmComplete()
     }
 }

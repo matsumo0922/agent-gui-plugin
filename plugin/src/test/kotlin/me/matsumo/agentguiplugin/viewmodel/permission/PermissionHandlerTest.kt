@@ -13,6 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Phase A: 現行 PermissionHandler API のテスト。
@@ -202,13 +203,12 @@ class PermissionHandlerTest {
     }
 
     // ────────────────────────────────────────
-    // A8: Question 中に respondPermission(false)
-    //     現行動作: Deny として完了する（UI の質問キャンセル動作）
+    // B1: respondPermission で Question 型ガード
     // ────────────────────────────────────────
 
     @Test
-    fun `respondPermission during question acts as cancel in current implementation`() = runTest {
-        val result = async {
+    fun `respondPermission ignores when active type is Question`() = runTest {
+        val job = launch {
             handler.request(
                 ToolNames.ASK_USER_QUESTION,
                 mapOf("questions" to listOf(mapOf("question" to "Pick", "options" to listOf("A")))),
@@ -216,19 +216,76 @@ class PermissionHandlerTest {
         }
         advanceUntilIdle()
 
-        // 質問待ち状態
         assertNotNull(state.pendingQuestion)
 
-        // 現行動作: respondPermission(false) で質問をキャンセルできる
-        handler.respondPermission(allow = false, denyMessage = "Cancelled by user")
+        // Permission として応答を試みる → 型ガードで無視される
+        handler.respondPermission(allow = true, denyMessage = "")
         advanceUntilIdle()
 
-        val deny = result.await()
-        assertIs<PermissionResultDeny>(deny)
-        assertEquals("Cancelled by user", deny.message)
+        // deferred はまだ未完了
+        assertTrue(job.isActive)
 
-        // UI 状態クリア
-        assertNull(state.pendingQuestion)
-        assertNull(state.pendingPermission)
+        // cancelActiveRequest で正しくキャンセルできる
+        handler.cancelActiveRequest()
+        advanceUntilIdle()
+        assertTrue(job.isCompleted)
+    }
+
+    // ────────────────────────────────────────
+    // B2: respondQuestion で Permission 型ガード
+    // ────────────────────────────────────────
+
+    @Test
+    fun `respondQuestion ignores when active type is Permission`() = runTest {
+        val job = launch {
+            handler.request("Write", mapOf("file_path" to "/tmp/test.txt"))
+        }
+        advanceUntilIdle()
+
+        assertNotNull(state.pendingPermission)
+
+        // Question として応答を試みる → 型ガードで無視される
+        handler.respondQuestion(mapOf("q" to "a"))
+        advanceUntilIdle()
+
+        // deferred はまだ未完了
+        assertTrue(job.isActive)
+
+        // respondPermission で正しく完了できる
+        handler.respondPermission(allow = true, denyMessage = "")
+        advanceUntilIdle()
+        assertTrue(job.isCompleted)
+    }
+
+    // ────────────────────────────────────────
+    // B3: cancelActiveRequest で型を問わず Deny
+    // ────────────────────────────────────────
+
+    @Test
+    fun `cancelActiveRequest cancels any active request type`() = runTest {
+        // Permission リクエスト
+        val result1 = async {
+            handler.request("Write", mapOf("file_path" to "/tmp/test.txt"))
+        }
+        advanceUntilIdle()
+        handler.cancelActiveRequest()
+        advanceUntilIdle()
+        val deny1 = result1.await()
+        assertIs<PermissionResultDeny>(deny1)
+        assertEquals("Cancelled by user", deny1.message)
+
+        // Question リクエスト
+        val result2 = async {
+            handler.request(
+                ToolNames.ASK_USER_QUESTION,
+                mapOf("questions" to listOf(mapOf("question" to "Pick", "options" to listOf("A")))),
+            )
+        }
+        advanceUntilIdle()
+        handler.cancelActiveRequest("User cancelled question")
+        advanceUntilIdle()
+        val deny2 = result2.await()
+        assertIs<PermissionResultDeny>(deny2)
+        assertEquals("User cancelled question", deny2.message)
     }
 }

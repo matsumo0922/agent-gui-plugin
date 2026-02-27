@@ -63,13 +63,24 @@ internal class PermissionHandler(
 
     fun respondPermission(allow: Boolean, denyMessage: String) {
         val req = active ?: return
+        if (req.type != RequestType.Permission) return // 型ガード: Question 中は無視
         val message = denyMessage.ifBlank { "Denied by user" }
         val result: PermissionResult = if (allow) PermissionResultAllow() else PermissionResultDeny(message = message)
         req.deferred.complete(result)
     }
 
+    /**
+     * 型を問わず現在のアクティブリクエストをキャンセルする。
+     * UI の質問カード/パーミッションカードの「キャンセル」ボタン用。
+     */
+    fun cancelActiveRequest(denyMessage: String = "Cancelled by user") {
+        val req = active ?: return
+        req.deferred.complete(PermissionResultDeny(message = denyMessage))
+    }
+
     fun respondQuestion(answers: Map<String, String>) {
         val req = active ?: return
+        if (req.type != RequestType.Question) return // 型ガード: Permission 中は無視
         val pendingQ = currentState().pendingQuestion ?: return
 
         val originalQuestionsJson = pendingQ.toolInput.toJsonElement()

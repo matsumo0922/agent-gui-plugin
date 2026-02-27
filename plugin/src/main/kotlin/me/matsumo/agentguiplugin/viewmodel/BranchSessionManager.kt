@@ -32,7 +32,7 @@ class BranchSessionManager(
         originalAttachedFiles: List<AttachedFile>,
         model: Model,
         permissionMode: PermissionMode,
-    ): ClaudeSDKClient {
+    ): ClaudeSDKClient = sessionMutex.withLock {
         val contextPrompt = buildContextSystemPrompt(messagesBeforeEdit, originalAttachedFiles)
         val client = createSession {
             applyCommonConfig(model, permissionMode)
@@ -43,7 +43,7 @@ class BranchSessionManager(
         if (sessionId != null) {
             activeSessions[sessionId] = client
         }
-        return client
+        client
     }
 
     /**
@@ -64,6 +64,8 @@ class BranchSessionManager(
         activeSessions[branchSessionId] = client
         client
     }
+
+    fun hasSession(sessionId: String): Boolean = activeSessions.containsKey(sessionId)
 
     fun removeSession(sessionId: String) {
         activeSessions.remove(sessionId)?.close()

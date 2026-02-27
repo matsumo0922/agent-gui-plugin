@@ -231,7 +231,7 @@ fun ChatPanel(
                             modifier = Modifier.padding(bottom = 12.dp),
                             question = it,
                             onSubmit = { answers -> viewModel.respondQuestion(answers) },
-                            onCancel = { viewModel.respondPermission(allow = false) },
+                            onCancel = { viewModel.cancelActiveRequest() },
                         )
                     }
 
