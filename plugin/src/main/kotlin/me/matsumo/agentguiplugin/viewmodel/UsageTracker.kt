@@ -3,11 +3,9 @@ package me.matsumo.agentguiplugin.viewmodel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
+import me.matsumo.claude.agent.types.ApiStreamEvent
 import me.matsumo.claude.agent.types.StreamEvent
+import me.matsumo.claude.agent.types.parsed
 
 /**
  * トークン使用量・コスト追跡。
@@ -43,14 +41,10 @@ class UsageTracker(
      */
     fun processStreamEvent(event: StreamEvent): Boolean {
         if (event.parentToolUseId != null) return false
-        val type = event.event["type"]?.jsonPrimitive?.contentOrNull ?: return false
-        if (type != "message_start") return false
-
-        val usage = event.event["message"]?.jsonObject?.get("usage")?.jsonObject ?: return false
-        val inputTokens = usage["input_tokens"]?.jsonPrimitive?.longOrNull ?: 0L
-        val cacheCreation = usage["cache_creation_input_tokens"]?.jsonPrimitive?.longOrNull ?: 0L
-        val cacheRead = usage["cache_read_input_tokens"]?.jsonPrimitive?.longOrNull ?: 0L
-        onMessageStart(inputTokens, cacheCreation, cacheRead)
+        val parsed = event.parsed()
+        if (parsed !is ApiStreamEvent.MessageStart) return false
+        val usage = parsed.usage ?: return false
+        onMessageStart(usage.inputTokens, usage.cacheCreationInputTokens, usage.cacheReadInputTokens)
         return true
     }
 

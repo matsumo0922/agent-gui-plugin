@@ -10,7 +10,8 @@ import kotlinx.coroutines.sync.withLock
 import me.matsumo.agentguiplugin.viewmodel.transcript.DefaultFileLineReader
 import me.matsumo.agentguiplugin.viewmodel.transcript.FileLineReader
 import me.matsumo.agentguiplugin.viewmodel.transcript.TranscriptTailer
-import java.util.concurrent.atomic.AtomicReference
+import me.matsumo.claude.agent.types.SubAgentIdResolver
+import me.matsumo.claude.agent.types.SubAgentPaths
 
 /**
  * サブエージェントのライフサイクル・テイリング・hookId解決を一元管理。
@@ -29,14 +30,11 @@ class SubAgentCoordinator(
     // agentId -> tailer
     private val activeTailers = mutableMapOf<String, TranscriptTailer>()
 
-    // hookToolUseId -> mutable key reference
-    private val tailerKeyRefs = mutableMapOf<String, AtomicReference<String>>()
+    // hookToolUseId <-> parentToolUseId resolution (FIFO)
+    private val idResolver = SubAgentIdResolver()
 
     // agentId -> keyRef
-    private val agentKeyRefs = mutableMapOf<String, AtomicReference<String>>()
-
-    // Ordered list of hookToolUseIds not yet mapped to real parentToolUseId
-    private val unresolvedHookIds = mutableListOf<String>()
+    private val agentKeyRefs = mutableMapOf<String, SubAgentIdResolver.KeyRef>()
 
     /**
      * サブエージェント開始時に呼ばれる。
@@ -51,11 +49,9 @@ class SubAgentCoordinator(
         if (hookToolUseId == null) return
 
         mutex.withLock {
-            val jsonlPath = "${transcriptPath.removeSuffix(".jsonl")}/subagents/agent-$agentId.jsonl"
+            val jsonlPath = SubAgentPaths.subAgentTranscriptPath(transcriptPath, agentId)
 
-            val keyRef = AtomicReference(hookToolUseId)
-            tailerKeyRefs[hookToolUseId] = keyRef
-            unresolvedHookIds.add(hookToolUseId)
+            val keyRef = idResolver.register(hookToolUseId)
 
             // Create initial SubAgentTask under hookToolUseId
             _tasks.update { tasks ->
@@ -73,7 +69,7 @@ class SubAgentCoordinator(
             activeTailers[agentId] = tailer
 
             tailer.start(jsonlPath) { message ->
-                val currentKey = keyRef.get()
+                val currentKey = keyRef.currentKey
                 _tasks.update { tasks ->
                     val existing = tasks[currentKey]
                     val oldMessages = existing?.messages ?: emptyList()
@@ -102,7 +98,7 @@ class SubAgentCoordinator(
             activeTailers.remove(agentId)?.stop()
 
             val keyRef = agentKeyRefs.remove(agentId) ?: return
-            val taskKey = keyRef.get()
+            val taskKey = keyRef.currentKey
             val now = clock.currentTimeMillis()
 
             _tasks.update { tasks ->
@@ -119,22 +115,16 @@ class SubAgentCoordinator(
      */
     suspend fun resolveParentToolUseId(realParentToolUseId: String) {
         mutex.withLock {
-            if (_tasks.value.containsKey(realParentToolUseId)) return
-            if (unresolvedHookIds.isEmpty()) return
-
-            val hookId = unresolvedHookIds.removeFirst()
-
-            // Update the tailer's key so new messages go to the correct key
-            tailerKeyRefs[hookId]?.set(realParentToolUseId)
+            val result = idResolver.resolve(realParentToolUseId) ?: return
 
             // Re-key the SubAgentTask from hookId to realParentToolUseId
             _tasks.update { tasks ->
-                val task = tasks[hookId] ?: return@update tasks
+                val task = tasks[result.hookToolUseId] ?: return@update tasks
                 val newTasks = tasks.toMutableMap()
-                newTasks.remove(hookId)
-                val existingAtPid = newTasks[realParentToolUseId]
+                newTasks.remove(result.hookToolUseId)
+                val existingAtPid = newTasks[result.parentToolUseId]
                 val mergedMessages = task.messages + (existingAtPid?.messages ?: emptyList())
-                newTasks[realParentToolUseId] = task.copy(id = realParentToolUseId, messages = mergedMessages)
+                newTasks[result.parentToolUseId] = task.copy(id = result.parentToolUseId, messages = mergedMessages)
                 newTasks
             }
         }
@@ -159,9 +149,8 @@ class SubAgentCoordinator(
         mutex.withLock {
             activeTailers.values.forEach { it.stop() }
             activeTailers.clear()
-            tailerKeyRefs.clear()
             agentKeyRefs.clear()
-            unresolvedHookIds.clear()
+            idResolver.clear()
         }
     }
 

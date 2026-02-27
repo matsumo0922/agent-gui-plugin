@@ -5,8 +5,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.claude.agent.ClaudeSDKClient
 import me.matsumo.claude.agent.types.AssistantMessage
@@ -14,6 +12,7 @@ import me.matsumo.claude.agent.types.ResultMessage
 import me.matsumo.claude.agent.types.StreamEvent
 import me.matsumo.claude.agent.types.SystemMessage
 import me.matsumo.claude.agent.types.UserMessage
+import me.matsumo.claude.agent.types.contentBlocks
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -90,22 +89,11 @@ class TurnEngine(private val scope: CoroutineScope) {
     }
 
     companion object {
-        fun buildContentBlocks(text: String, files: List<AttachedFile>): List<JsonObject> {
-            val blocks = mutableListOf<JsonObject>()
-            blocks.add(
-                buildJsonObject {
-                    put("type", "text")
-                    put("text", text)
-                },
-            )
+        fun buildContentBlocks(text: String, files: List<AttachedFile>): List<JsonObject> = contentBlocks {
+            text(text)
             for (file in files) {
-                if (file.isImage) {
-                    blocks.add(file.toImageBlock())
-                } else {
-                    blocks.add(file.toDocumentBlock())
-                }
+                raw(if (file.isImage) file.toImageBlock() else file.toDocumentBlock())
             }
-            return blocks
         }
     }
 }
