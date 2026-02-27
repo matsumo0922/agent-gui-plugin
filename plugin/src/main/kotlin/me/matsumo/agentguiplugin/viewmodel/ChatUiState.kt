@@ -14,7 +14,18 @@ enum class SessionState {
     Ready,
     Processing,
     WaitingForInput,
-    Error,
+    Error;
+
+    /** 許可された遷移先を定義 */
+    fun canTransitionTo(next: SessionState): Boolean = when (this) {
+        Disconnected -> next in setOf(Connecting)
+        Connecting -> next in setOf(Ready, AuthRequired, Error)
+        AuthRequired -> next in setOf(Disconnected)
+        Ready -> next in setOf(Processing, Disconnected, Error)
+        Processing -> next in setOf(WaitingForInput, Error)
+        WaitingForInput -> next in setOf(Processing, Connecting, Disconnected, Error)
+        Error -> next in setOf(Disconnected)
+    }
 }
 
 @Immutable
