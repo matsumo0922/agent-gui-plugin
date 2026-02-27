@@ -19,6 +19,8 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+    testImplementation("io.mockk:mockk:1.13.16")
+    testImplementation("app.cash.turbine:turbine:1.2.0")
     testRuntimeOnly(libs.kotlinx.serialization.json)
 
     implementation("me.matsumo.claude.agent:agent:local") {

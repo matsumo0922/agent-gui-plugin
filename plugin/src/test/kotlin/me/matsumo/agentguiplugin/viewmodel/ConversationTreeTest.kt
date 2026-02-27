@@ -1069,4 +1069,92 @@ class ConversationTreeTest {
         val prompt = buildContextSystemPrompt(messages, files)
         assertTrue(prompt.contains("Previously attached files: screenshot.png"))
     }
+
+    // ──────────────────────────────────────────────────────────
+    // §3.11 Additional Cases (test-architecture.md)
+    // ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `getMessagesBeforeSlot returns messages before target slot`() {
+        val u1 = userMsg("Q1", editGroupId = "eg-1")
+        val a1 = assistantMsg("A1")
+        val u2 = userMsg("Q2", editGroupId = "eg-2")
+        val a2 = assistantMsg("A2")
+
+        var tree = ConversationTree()
+        val (tree1, _) = tree.appendUserMessage(u1, branchSessionId = null)
+        tree = tree1.appendResponse(tree1.getActiveLeafPath(), a1)
+        val (tree2, _) = tree.appendUserMessage(u2, branchSessionId = null)
+        tree = tree2.appendResponse(tree2.getActiveLeafPath(), a2)
+
+        val before = tree.getMessagesBeforeSlot("eg-2")
+        assertEquals(2, before.size)
+        assertEquals("Q1", (before[0] as ChatMessage.User).text)
+        assertEquals("A1", (before[1] as ChatMessage.Assistant).blocks.filterIsInstance<UiContentBlock.Text>().first().text)
+    }
+
+    @Test
+    fun `getActiveLeafSessionId returns deepest branch session id`() {
+        val u1 = userMsg("Q1", editGroupId = "eg-1")
+
+        val (tree1, _) = ConversationTree().appendUserMessage(u1, branchSessionId = "session-main")
+        // activeLeafSessionId は最深の branchSessionId
+        assertEquals("session-main", tree1.getActiveLeafSessionId())
+    }
+
+    @Test
+    fun `editMessage with same text still creates new timeline`() {
+        val u1 = userMsg("Q1", editGroupId = "eg-1")
+        val a1 = assistantMsg("A1")
+
+        val (tree1, _) = ConversationTree().appendUserMessage(u1, branchSessionId = null)
+        val tree2 = tree1.appendResponse(tree1.getActiveLeafPath(), a1)
+
+        // editMessage は新しいタイムラインを追加する（同じテキストでも呼び出し側が弾く前提）
+        val newUser = userMsg("Q1-edited", editGroupId = "eg-1")
+        val tree3 = tree2.editMessage("eg-1", newUser, branchSessionId = "branch-1")
+
+        val slot = tree3.findSlot("eg-1")
+        assertNotNull(slot)
+        assertEquals(2, slot.timelines.size)
+        assertEquals(1, slot.activeTimelineIndex) // 新しいタイムラインがアクティブ
+    }
+
+    @Test
+    fun `navigate between multiple branches`() {
+        val u1 = userMsg("Q1", editGroupId = "eg-1")
+        val a1 = assistantMsg("A1")
+
+        val (tree1, _) = ConversationTree().appendUserMessage(u1, branchSessionId = null)
+        val tree2 = tree1.appendResponse(tree1.getActiveLeafPath(), a1)
+
+        // 2つのブランチを作成
+        val newUser1 = userMsg("Q1-v2", editGroupId = "eg-1")
+        val tree3 = tree2.editMessage("eg-1", newUser1, branchSessionId = "branch-1")
+
+        val newUser2 = userMsg("Q1-v3", editGroupId = "eg-1")
+        val tree4 = tree3.editMessage("eg-1", newUser2, branchSessionId = "branch-2")
+
+        // 3つのタイムラインがある
+        val slot = tree4.findSlot("eg-1")
+        assertNotNull(slot)
+        assertEquals(3, slot.timelines.size)
+        assertEquals(2, slot.activeTimelineIndex) // 最新がアクティブ
+
+        // 左にナビゲート
+        val tree5 = tree4.navigateVersion("eg-1", -1)
+        assertEquals(1, tree5.findSlot("eg-1")!!.activeTimelineIndex)
+
+        // さらに左にナビゲート
+        val tree6 = tree5.navigateVersion("eg-1", -1)
+        assertEquals(0, tree6.findSlot("eg-1")!!.activeTimelineIndex)
+
+        // 境界: さらに左でも0のまま
+        val tree7 = tree6.navigateVersion("eg-1", -1)
+        assertEquals(0, tree7.findSlot("eg-1")!!.activeTimelineIndex)
+
+        // 右にナビゲート
+        val tree8 = tree7.navigateVersion("eg-1", 1)
+        assertEquals(1, tree8.findSlot("eg-1")!!.activeTimelineIndex)
+    }
 }
