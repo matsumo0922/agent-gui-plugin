@@ -68,6 +68,7 @@ data class ChatUiState(
     val attachedFiles: ImmutableList<AttachedFile> = persistentListOf(),
     val model: Model = Model.SONNET,
     val permissionMode: PermissionMode = PermissionMode.DEFAULT,
+    val permissionModeBeforePlan: PermissionMode? = null,
     val pendingPermission: PendingPermission? = null,
     val pendingQuestion: PendingQuestion? = null,
     val authOutputLines: ImmutableList<String> = persistentListOf(),

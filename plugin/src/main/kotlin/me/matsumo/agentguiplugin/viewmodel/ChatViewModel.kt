@@ -18,6 +18,7 @@ import kotlinx.coroutines.sync.withLock
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
+import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
 import me.matsumo.agentguiplugin.viewmodel.preflight.PreflightChecker
 import me.matsumo.agentguiplugin.viewmodel.preflight.PreflightResult
 import me.matsumo.agentguiplugin.viewmodel.session.SessionCoordinator
@@ -31,6 +32,7 @@ import me.matsumo.claude.agent.types.SessionOptionsBuilder
 import me.matsumo.claude.agent.types.SubagentStartHookInput
 import me.matsumo.claude.agent.types.SubagentStopHookInput
 import me.matsumo.claude.agent.types.SystemMessage
+import me.matsumo.claude.agent.types.ToolUseBlock
 import java.util.*
 
 class ChatViewModel(
@@ -421,7 +423,27 @@ class ChatViewModel(
                 blocks = blocks,
             )
 
+            detectPlanModeChange(message)
             dispatch(StateAction.AssistantMessageReceived(assistantMsg))
+        }
+    }
+
+    /**
+     * アシスタントメッセージ内の EnterPlanMode / ExitPlanMode ツール使用を検知し、
+     * UI のパーミッションモード表示を同期する。
+     */
+    private fun detectPlanModeChange(message: AssistantMessage) {
+        for (block in message.content) {
+            if (block !is ToolUseBlock) continue
+            when (block.name) {
+                ToolNames.ENTER_PLAN_MODE -> {
+                    dispatch(StateAction.PermissionModeChanged(PermissionMode.PLAN))
+                }
+                ToolNames.EXIT_PLAN_MODE -> {
+                    val previous = _uiState.value.permissionModeBeforePlan ?: PermissionMode.DEFAULT
+                    dispatch(StateAction.PermissionModeChanged(previous))
+                }
+            }
         }
     }
 

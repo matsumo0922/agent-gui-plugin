@@ -182,7 +182,19 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
 
     // --- Config ---
     is StateAction.ModelChanged -> state.copy(model = action.model)
-    is StateAction.PermissionModeChanged -> state.copy(permissionMode = action.mode)
+    is StateAction.PermissionModeChanged -> {
+        val newBeforePlan = when {
+            // Plan Mode に入る場合、現在のモードが Plan でなければ保存
+            action.mode == PermissionMode.PLAN && state.permissionMode != PermissionMode.PLAN ->
+                state.permissionMode
+            // Plan Mode から出る場合、クリア
+            action.mode != PermissionMode.PLAN && state.permissionMode == PermissionMode.PLAN ->
+                null
+            // それ以外はそのまま
+            else -> state.permissionModeBeforePlan
+        }
+        state.copy(permissionMode = action.mode, permissionModeBeforePlan = newBeforePlan)
+    }
 
     // --- External sync ---
     is StateAction.SubAgentTasksUpdated -> state.copy(subAgentTasks = action.tasks.toImmutableMap())
