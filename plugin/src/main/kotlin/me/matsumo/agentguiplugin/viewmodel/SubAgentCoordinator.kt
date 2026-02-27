@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import me.matsumo.agentguiplugin.viewmodel.transcript.DefaultFileLineReader
+import me.matsumo.agentguiplugin.viewmodel.transcript.FileLineReader
 import me.matsumo.agentguiplugin.viewmodel.transcript.TranscriptTailer
 import java.util.concurrent.atomic.AtomicReference
 
@@ -17,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference
 class SubAgentCoordinator(
     private val scope: CoroutineScope,
     private val clock: Clock = Clock.System,
+    private val fileLineReader: FileLineReader = DefaultFileLineReader(),
 ) {
     private val mutex = Mutex()
 
@@ -66,7 +69,7 @@ class SubAgentCoordinator(
 
             agentKeyRefs[agentId] = keyRef
 
-            val tailer = TranscriptTailer(scope)
+            val tailer = TranscriptTailer(scope, fileLineReader)
             activeTailers[agentId] = tailer
 
             tailer.start(jsonlPath) { message ->

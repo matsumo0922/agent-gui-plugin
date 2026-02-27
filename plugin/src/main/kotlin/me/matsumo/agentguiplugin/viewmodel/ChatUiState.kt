@@ -29,24 +29,42 @@ data class PendingQuestion(
     val toolInput: Map<String, Any?>,
 )
 
+@Immutable
+data class SessionStatus(
+    val state: SessionState = SessionState.Disconnected,
+    val sessionId: String? = null,
+    val errorMessage: String? = null,
+)
+
+@Immutable
+data class UsageInfo(
+    val contextUsage: Float = 0f,
+    val totalInputTokens: Long = 0L,
+    val totalCostUsd: Double = 0.0,
+)
+
 @Stable
 data class ChatUiState(
     val conversationTree: ConversationTree = ConversationTree(),
     val conversationCursor: ConversationCursor = ConversationCursor(),
+    val session: SessionStatus = SessionStatus(),
+    val usage: UsageInfo = UsageInfo(),
     val subAgentTasks: Map<String, SubAgentTask> = emptyMap(),
     val attachedFiles: List<AttachedFile> = emptyList(),
-    val sessionState: SessionState = SessionState.Disconnected,
-    val sessionId: String? = null,
     val model: Model = Model.SONNET,
     val permissionMode: PermissionMode = PermissionMode.DEFAULT,
-    val contextUsage: Float = 0f,
-    val totalInputTokens: Long = 0L,
-    val totalCostUsd: Double = 0.0,
     val pendingPermission: PendingPermission? = null,
     val pendingQuestion: PendingQuestion? = null,
-    val errorMessage: String? = null,
     val authOutputLines: List<String> = emptyList(),
 ) {
+    // 後方互換のための convenience accessor
+    val sessionState: SessionState get() = session.state
+    val sessionId: String? get() = session.sessionId
+    val errorMessage: String? get() = session.errorMessage
+    val contextUsage: Float get() = usage.contextUsage
+    val totalInputTokens: Long get() = usage.totalInputTokens
+    val totalCostUsd: Double get() = usage.totalCostUsd
+
     /** アクティブパスのフラットメッセージリスト（UI 互換用） */
     val activeMessages: List<ChatMessage>
         get() = conversationTree.getActiveMessages()

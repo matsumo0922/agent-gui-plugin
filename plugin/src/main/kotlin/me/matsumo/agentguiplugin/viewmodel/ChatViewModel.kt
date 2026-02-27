@@ -5,12 +5,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -19,9 +17,7 @@ import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import me.matsumo.agentguiplugin.viewmodel.preflight.PreflightChecker
 import me.matsumo.agentguiplugin.viewmodel.preflight.PreflightResult
-import me.matsumo.claude.agent.ClaudeSDKClient
-import me.matsumo.claude.agent.createSession
-import me.matsumo.claude.agent.resumeSession
+import me.matsumo.agentguiplugin.viewmodel.session.SessionCoordinator
 import me.matsumo.claude.agent.types.AssistantMessage
 import me.matsumo.claude.agent.types.HookEvent
 import me.matsumo.claude.agent.types.HookOutput
@@ -63,9 +59,11 @@ class ChatViewModel(
         updateState = { transform -> _uiState.update(transform) },
     )
 
-    val branchSessionManager = BranchSessionManager(
+    private val sessionCoordinator = SessionCoordinator(
         applyCommonConfig = { model, permissionMode -> applyCommonConfig(model, permissionMode) },
     )
+
+    val branchSessionManager get() = sessionCoordinator.branchSessionManager
 
     private val startMutex = Mutex()
     private var startJob: Job? = null
@@ -73,8 +71,6 @@ class ChatViewModel(
     @Volatile
     private var disposed = false
 
-    @Volatile
-    private var client: ClaudeSDKClient? = null
     private var branchSwitchJob: Job? = null
 
     init {
@@ -83,7 +79,7 @@ class ChatViewModel(
             vmScope.launch {
                 _uiState.update {
                     it.copy(
-                        sessionState = SessionState.Disconnected,
+                        session = SessionStatus(state = SessionState.Disconnected),
                         authOutputLines = emptyList(),
                     )
                 }
@@ -103,9 +99,11 @@ class ChatViewModel(
             usageTracker.usage.collect { usage ->
                 _uiState.update {
                     it.copy(
-                        contextUsage = usage.contextUsage,
-                        totalInputTokens = usage.totalInputTokens,
-                        totalCostUsd = usage.totalCostUsd,
+                        usage = UsageInfo(
+                            contextUsage = usage.contextUsage,
+                            totalInputTokens = usage.totalInputTokens,
+                            totalCostUsd = usage.totalCostUsd,
+                        ),
                     )
                 }
             }
@@ -131,7 +129,7 @@ class ChatViewModel(
             if (startJob?.isActive == true) return
             if (_uiState.value.sessionState != SessionState.Disconnected) return
 
-            _uiState.update { it.copy(sessionState = SessionState.Connecting) }
+            _uiState.update { it.copy(session = it.session.copy(state = SessionState.Connecting)) }
 
             startJob = vmScope.launch {
                 val result = preflightChecker.check(claudeCodePath)
@@ -145,14 +143,16 @@ class ChatViewModel(
                             initialOutput = result.initialOutput,
                         )
                         _uiState.update {
-                            it.copy(sessionState = SessionState.AuthRequired)
+                            it.copy(session = it.session.copy(state = SessionState.AuthRequired))
                         }
                     }
                     is PreflightResult.Error -> {
                         _uiState.update {
                             it.copy(
-                                sessionState = SessionState.Error,
-                                errorMessage = result.message,
+                                session = SessionStatus(
+                                    state = SessionState.Error,
+                                    errorMessage = result.message,
+                                ),
                             )
                         }
                     }
@@ -175,9 +175,7 @@ class ChatViewModel(
             subAgentCoordinator.reset()
             usageTracker.reset()
             permissionHandler.cancelPending()
-            branchSessionManager.closeAll()
-            client?.close()
-            client = null
+            sessionCoordinator.closeAll()
             _uiState.value = ChatUiState(
                 model = _uiState.value.model,
                 permissionMode = _uiState.value.permissionMode,
@@ -193,9 +191,7 @@ class ChatViewModel(
         vmScope.cancel()
         authFlowHandler.cleanup()
         permissionHandler.cancelPending()
-        branchSessionManager.closeAll()
-        client?.close()
-        client = null
+        sessionCoordinator.closeAll()
     }
 
     /**
@@ -216,29 +212,23 @@ class ChatViewModel(
 
         try {
             val state = _uiState.value
-            val localClient = if (resumeSessionId != null) {
-                resumeSession(resumeSessionId) {
-                    applyCommonConfig(state.model, state.permissionMode)
-                    forkSession = true
-                }
-            } else {
-                createSession {
-                    applyCommonConfig(state.model, state.permissionMode)
-                }
-            }
+            val localClient = sessionCoordinator.connect(
+                model = state.model,
+                permissionMode = state.permissionMode,
+                resumeSessionId = resumeSessionId,
+            )
 
-            if (disposed || !currentCoroutineContext().isActive) {
+            if (disposed) {
                 localClient.close()
                 return
             }
 
-            localClient.connect()
-            client = localClient
-
             _uiState.update {
                 it.copy(
-                    sessionState = SessionState.Ready,
-                    sessionId = localClient.sessionId,
+                    session = SessionStatus(
+                        state = SessionState.Ready,
+                        sessionId = localClient.sessionId,
+                    ),
                 )
             }
         } catch (e: CancellationException) {
@@ -246,8 +236,10 @@ class ChatViewModel(
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
-                    sessionState = SessionState.Error,
-                    errorMessage = e.message,
+                    session = SessionStatus(
+                        state = SessionState.Error,
+                        errorMessage = e.message,
+                    ),
                 )
             }
         }
@@ -310,11 +302,13 @@ class ChatViewModel(
         if (text.isBlank()) return
         if (disposed) return
 
-        val session = client ?: run {
+        val session = sessionCoordinator.activeClient ?: run {
             _uiState.update {
                 it.copy(
-                    sessionState = SessionState.Error,
-                    errorMessage = "No active session for this branch. Please start a new conversation.",
+                    session = SessionStatus(
+                        state = SessionState.Error,
+                        errorMessage = "No active session for this branch. Please start a new conversation.",
+                    ),
                 )
             }
             return
@@ -338,8 +332,10 @@ class ChatViewModel(
                 conversationTree = newTree,
                 conversationCursor = ConversationCursor(activeLeafPath = newPath),
                 attachedFiles = emptyList(),
-                sessionState = SessionState.Processing,
-                errorMessage = null,
+                session = SessionStatus(
+                    state = SessionState.Processing,
+                    sessionId = state.sessionId,
+                ),
             )
         }
 
@@ -351,8 +347,11 @@ class ChatViewModel(
             onError = { e ->
                 _uiState.update {
                     it.copy(
-                        sessionState = SessionState.Error,
-                        errorMessage = e.message,
+                        session = SessionStatus(
+                            state = SessionState.Error,
+                            sessionId = it.sessionId,
+                            errorMessage = e.message,
+                        ),
                     )
                 }
             },
@@ -379,15 +378,14 @@ class ChatViewModel(
         // 旧セッションの sub-agent tailer を停止
         vmScope.launch { subAgentCoordinator.stopAll() }
 
-        _uiState.update { it.copy(sessionState = SessionState.Processing, errorMessage = null) }
+        _uiState.update {
+            it.copy(session = SessionStatus(state = SessionState.Processing, sessionId = it.sessionId))
+        }
 
         vmScope.launch {
             try {
                 val messagesBeforeEdit = tree.getMessagesBeforeSlot(editGroupId)
                 val originalAttachedFiles = currentTimeline.userMessage.attachedFiles
-
-                // 旧 client を保持して後で close する (§3.2 client lifecycle leak fix)
-                val oldClient = client
 
                 val newClient = branchSessionManager.createEditBranchSession(
                     messagesBeforeEdit = messagesBeforeEdit,
@@ -417,16 +415,10 @@ class ChatViewModel(
                     )
                 }
 
-                // activeClient を新ブランチに切り替え
-                client = newClient
-                _uiState.update { it.copy(sessionId = newClient.sessionId) }
-
-                // 初期セッション client が BranchSessionManager 管理外の場合は close (§3.2)
-                if (oldClient != null && oldClient !== newClient) {
-                    val oldSessionId = oldClient.sessionId
-                    if (oldSessionId == null || !branchSessionManager.hasSession(oldSessionId)) {
-                        oldClient.close()
-                    }
+                // activeClient を新ブランチに切り替え（旧 client の安全な close を含む）
+                sessionCoordinator.switchClient(newClient)
+                _uiState.update {
+                    it.copy(session = it.session.copy(sessionId = newClient.sessionId))
                 }
 
                 // TurnEngine で応答収集
@@ -438,8 +430,11 @@ class ChatViewModel(
                     onError = { e ->
                         _uiState.update {
                             it.copy(
-                                sessionState = SessionState.WaitingForInput,
-                                errorMessage = "Failed to edit message: ${e.message}",
+                                session = SessionStatus(
+                                    state = SessionState.WaitingForInput,
+                                    sessionId = it.sessionId,
+                                    errorMessage = "Failed to edit message: ${e.message}",
+                                ),
                             )
                         }
                     },
@@ -449,8 +444,11 @@ class ChatViewModel(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
-                        sessionState = SessionState.WaitingForInput,
-                        errorMessage = "Failed to edit message: ${e.message}",
+                        session = SessionStatus(
+                            state = SessionState.WaitingForInput,
+                            sessionId = it.sessionId,
+                            errorMessage = "Failed to edit message: ${e.message}",
+                        ),
                     )
                 }
             }
@@ -471,7 +469,7 @@ class ChatViewModel(
 
     private fun handleSystemMessage(message: SystemMessage) {
         if (message.isInit) {
-            _uiState.update { it.copy(sessionId = message.sessionId) }
+            _uiState.update { it.copy(session = it.session.copy(sessionId = message.sessionId)) }
         }
     }
 
@@ -516,9 +514,12 @@ class ChatViewModel(
         usageTracker.onResult(message.totalCostUsd)
         _uiState.update {
             it.copy(
-                sessionState = SessionState.WaitingForInput,
+                session = SessionStatus(
+                    state = SessionState.WaitingForInput,
+                    sessionId = it.sessionId,
+                    errorMessage = if (message.isError) "Turn ended with error: ${message.subtype}" else null,
+                ),
                 conversationCursor = it.conversationCursor.copy(activeStreamingMessageId = null),
-                errorMessage = if (message.isError) "Turn ended with error: ${message.subtype}" else null,
             )
         }
     }
@@ -552,20 +553,20 @@ class ChatViewModel(
             it.copy(
                 conversationTree = newTree,
                 conversationCursor = ConversationCursor(activeLeafPath = newPath),
-                sessionState = if (needsSessionSwitch) SessionState.Connecting
-                    else it.sessionState,
-                sessionId = newSessionId,
-                errorMessage = null,
+                session = SessionStatus(
+                    state = if (needsSessionSwitch) SessionState.Connecting else it.sessionState,
+                    sessionId = newSessionId,
+                ),
             )
         }
 
         if (isNullSession) {
-            client = null
+            sessionCoordinator.clearActiveClient()
             return
         }
 
         if (needsSessionSwitch) {
-            client = null
+            sessionCoordinator.clearActiveClient()
             branchSwitchJob?.cancel()
             branchSwitchJob = vmScope.launch {
                 try {
@@ -578,21 +579,25 @@ class ChatViewModel(
                         newClient.close()
                         return@launch
                     }
-                    client = newClient
+                    sessionCoordinator.switchClient(newClient)
                     _uiState.update {
                         it.copy(
-                            sessionId = newSessionId,
-                            sessionState = SessionState.WaitingForInput,
+                            session = SessionStatus(
+                                state = SessionState.WaitingForInput,
+                                sessionId = newSessionId,
+                            ),
                         )
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    client = null
+                    sessionCoordinator.clearActiveClient()
                     _uiState.update {
                         it.copy(
-                            sessionState = SessionState.Error,
-                            errorMessage = "Failed to switch branch session: ${e.message}",
+                            session = SessionStatus(
+                                state = SessionState.Error,
+                                errorMessage = "Failed to switch branch session: ${e.message}",
+                            ),
                         )
                     }
                 }
@@ -603,7 +608,7 @@ class ChatViewModel(
     fun abortSession() {
         turnEngine.invalidateCurrentTurn()
         vmScope.launch { subAgentCoordinator.stopAll() }
-        vmScope.launch { client?.interrupt() }
+        vmScope.launch { sessionCoordinator.activeClient?.interrupt() }
 
         val interruptedMsg = ChatMessage.Interrupted(
             id = UUID.randomUUID().toString(),
@@ -611,7 +616,7 @@ class ChatViewModel(
         _uiState.update { state ->
             val path = state.conversationCursor.activeLeafPath
             state.copy(
-                sessionState = SessionState.WaitingForInput,
+                session = state.session.copy(state = SessionState.WaitingForInput),
                 conversationTree = state.conversationTree.appendResponse(path, interruptedMsg),
                 conversationCursor = state.conversationCursor.copy(activeStreamingMessageId = null),
             )
@@ -625,12 +630,12 @@ class ChatViewModel(
     // --- Public API ---
 
     fun changeModel(model: Model) {
-        vmScope.launch { client?.setModel(model.modelId) }
+        vmScope.launch { sessionCoordinator.activeClient?.setModel(model.modelId) }
         _uiState.update { it.copy(model = model) }
     }
 
     fun changePermissionMode(mode: PermissionMode) {
-        vmScope.launch { client?.setPermissionMode(mode) }
+        vmScope.launch { sessionCoordinator.activeClient?.setPermissionMode(mode) }
         _uiState.update { it.copy(permissionMode = mode) }
     }
 

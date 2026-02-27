@@ -3,9 +3,9 @@ package me.matsumo.agentguiplugin.viewmodel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.matsumo.agentguiplugin.model.AttachedFile
+import me.matsumo.agentguiplugin.viewmodel.session.DefaultSessionFactory
+import me.matsumo.agentguiplugin.viewmodel.session.SessionFactory
 import me.matsumo.claude.agent.ClaudeSDKClient
-import me.matsumo.claude.agent.createSession
-import me.matsumo.claude.agent.resumeSession
 import me.matsumo.claude.agent.types.Model
 import me.matsumo.claude.agent.types.PermissionMode
 import me.matsumo.claude.agent.types.SessionOptionsBuilder
@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
  * 編集によるブランチセッション作成・既存セッションの再接続・全セッションの一括クリーンアップを担当。
  */
 class BranchSessionManager(
+    private val sessionFactory: SessionFactory = DefaultSessionFactory(),
     private val applyCommonConfig: SessionOptionsBuilder.(Model, PermissionMode) -> Unit,
 ) {
     // branchSessionId -> ClaudeSDKClient
@@ -34,7 +35,7 @@ class BranchSessionManager(
         permissionMode: PermissionMode,
     ): ClaudeSDKClient = sessionMutex.withLock {
         val contextPrompt = buildContextSystemPrompt(messagesBeforeEdit, originalAttachedFiles)
-        val client = createSession {
+        val client = sessionFactory.create {
             applyCommonConfig(model, permissionMode)
             systemPrompt = contextPrompt
         }
@@ -56,7 +57,7 @@ class BranchSessionManager(
         permissionMode: PermissionMode,
     ): ClaudeSDKClient = sessionMutex.withLock {
         activeSessions[branchSessionId]?.let { return it }
-        val client = resumeSession(branchSessionId) {
+        val client = sessionFactory.resume(branchSessionId) {
             applyCommonConfig(model, permissionMode)
             forkSession = false // 同じセッションを継続
         }

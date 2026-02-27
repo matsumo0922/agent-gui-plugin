@@ -1,16 +1,6 @@
 package me.matsumo.agentguiplugin.testutil
 
-/**
- * ファイルから指定位置以降のバイトを読み取る抽象インターフェース。
- * TranscriptTailer のファイル I/O を抽象化し、テスト時にインメモリ実装で差し替え可能にする。
- *
- * NOTE: Phase B（リファクタリング後）で TranscriptTailer に注入される。
- */
-interface FileLineReader {
-    fun exists(filePath: String): Boolean
-    fun size(filePath: String): Long
-    fun readBytes(filePath: String, fromPosition: Long): ByteArray
-}
+import me.matsumo.agentguiplugin.viewmodel.transcript.FileLineReader
 
 /**
  * テスト用 Fake: インメモリでファイル内容を保持し、追記シミュレーションが可能。

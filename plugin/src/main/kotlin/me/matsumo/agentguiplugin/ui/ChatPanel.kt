@@ -186,11 +186,15 @@ fun ChatPanel(
                     }
                 }
 
+                val activeMessages = remember(uiState.conversationTree) {
+                    uiState.activeMessages
+                }
+
                 ChatMessageList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    messages = uiState.activeMessages,
+                    messages = activeMessages,
                     subAgentTasks = filteredSubAgentTasks,
                     editInfoMap = editInfoMap,
                     canInteract = canInteract,
