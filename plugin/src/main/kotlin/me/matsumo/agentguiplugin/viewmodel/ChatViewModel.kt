@@ -247,7 +247,11 @@ class ChatViewModel(
         this.includePartialMessages = true
 
         if (claudeCodePath != null) {
-            env { put("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1") }
+            env {
+                put("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1")
+                // ラッパー CLI が内部コマンドを解決できるようシェルの PATH を注入
+                resolvedShellEnv?.get("PATH")?.let { put("PATH", it) }
+            }
         }
 
         canUseTool { toolName, input, _ ->
