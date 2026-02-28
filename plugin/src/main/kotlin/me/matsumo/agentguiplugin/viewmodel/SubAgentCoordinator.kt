@@ -2,6 +2,7 @@ package me.matsumo.agentguiplugin.viewmodel
 
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,6 +12,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.matsumo.agentguiplugin.viewmodel.transcript.DefaultFileLineReader
 import me.matsumo.agentguiplugin.viewmodel.transcript.FileLineReader
+import me.matsumo.agentguiplugin.viewmodel.transcript.TranscriptParser
 import me.matsumo.agentguiplugin.viewmodel.transcript.TranscriptTailer
 import me.matsumo.claude.agent.types.SubAgentIdResolver
 import me.matsumo.claude.agent.types.SubAgentPaths
@@ -70,22 +72,34 @@ class SubAgentCoordinator(
             val tailer = TranscriptTailer(scope, fileLineReader)
             activeTailers[agentId] = tailer
 
-            tailer.start(jsonlPath) { message ->
+            tailer.start(jsonlPath) { parsed ->
                 val currentKey = keyRef.currentKey
-                _tasks.update { tasks ->
-                    val existing = tasks[currentKey]
-                    val oldMessages = existing?.messages ?: persistentListOf()
+                when (parsed) {
+                    is TranscriptParser.ParsedLine.Msg -> {
+                        val message = parsed.message
+                        _tasks.update { tasks ->
+                            val existing = tasks[currentKey]
+                            val oldMessages = existing?.messages ?: persistentListOf()
 
-                    val existingIndex = oldMessages.indexOfFirst { it.id == message.id }
-                    val newMessages = if (existingIndex >= 0) {
-                        oldMessages.toMutableList().apply { set(existingIndex, message) }.toImmutableList()
-                    } else {
-                        (oldMessages + message).toImmutableList()
+                            val existingIndex = oldMessages.indexOfFirst { it.id == message.id }
+                            val newMessages = if (existingIndex >= 0) {
+                                oldMessages.toMutableList().apply { set(existingIndex, message) }.toImmutableList()
+                            } else {
+                                (oldMessages + message).toImmutableList()
+                            }
+
+                            val task = (existing ?: SubAgentTask(id = currentKey, timelineSessionId = sessionId))
+                                .copy(messages = newMessages)
+                            tasks + (currentKey to task)
+                        }
                     }
-
-                    val task = (existing ?: SubAgentTask(id = currentKey, timelineSessionId = sessionId))
-                        .copy(messages = newMessages)
-                    tasks + (currentKey to task)
+                    is TranscriptParser.ParsedLine.ToolResults -> {
+                        _tasks.update { tasks ->
+                            val existing = tasks[currentKey] ?: SubAgentTask(id = currentKey, timelineSessionId = sessionId)
+                            val merged = (existing.toolResults + parsed.results).toImmutableMap()
+                            tasks + (currentKey to existing.copy(toolResults = merged))
+                        }
+                    }
                 }
             }
         }

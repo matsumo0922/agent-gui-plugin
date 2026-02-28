@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.matsumo.agentguiplugin.model.AttachedFile
+import me.matsumo.agentguiplugin.viewmodel.mapper.extractToolResults
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.PermissionHandler
 import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
@@ -34,7 +35,6 @@ import me.matsumo.claude.agent.types.SubagentStopHookInput
 import me.matsumo.claude.agent.types.SystemMessage
 import me.matsumo.claude.agent.types.ToolUseBlock
 import me.matsumo.claude.agent.types.UserMessage
-import me.matsumo.agentguiplugin.viewmodel.mapper.extractToolResults
 import java.util.*
 
 class ChatViewModel(
@@ -201,12 +201,17 @@ class ChatViewModel(
     /**
      * 履歴メッセージを UI に投入する（resume 時の過去メッセージ表示用）。
      */
-    fun importHistory(messages: List<ChatMessage>, branchSessionId: String? = null) {
+    fun importHistory(
+        messages: List<ChatMessage>,
+        branchSessionId: String? = null,
+        toolResults: Map<String, ToolResultInfo> = emptyMap(),
+    ) {
         val tree = buildConversationTreeFromFlatList(messages, branchSessionId)
         dispatch(
             StateAction.HistoryImported(
                 tree = tree,
                 cursor = ConversationCursor(activeLeafPath = tree.getActiveLeafPath()),
+                toolResults = toolResults,
             ),
         )
     }

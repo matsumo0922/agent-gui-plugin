@@ -10,11 +10,14 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import me.matsumo.agentguiplugin.model.RawContentBlock
 import me.matsumo.agentguiplugin.model.RawConversationEntry
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
+import me.matsumo.agentguiplugin.viewmodel.ToolResultInfo
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
+import me.matsumo.agentguiplugin.viewmodel.mapper.TOOL_RESULT_MAX_LENGTH
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
@@ -24,6 +27,12 @@ import kotlin.io.path.extension
 
 @Service(Service.Level.PROJECT)
 class SessionHistoryService(private val project: Project) {
+
+    @Immutable
+    data class SessionHistory(
+        val messages: List<ChatMessage>,
+        val toolResults: Map<String, ToolResultInfo>,
+    )
 
     @Immutable
     data class SessionSummary(
@@ -70,14 +79,14 @@ class SessionHistoryService(private val project: Project) {
         }
     }
 
-    suspend fun readSessionMessages(sessionId: String): List<ChatMessage> = withContext(Dispatchers.IO) {
-        val projectPath = project.basePath ?: return@withContext emptyList()
+    suspend fun readSessionHistory(sessionId: String): SessionHistory = withContext(Dispatchers.IO) {
+        val projectPath = project.basePath ?: return@withContext SessionHistory(emptyList(), emptyMap())
         val normalizedPath = normalizeProjectPath(projectPath)
         val encodedPath = encodeClaudeProjectPath(normalizedPath)
         val sessionFile = claudeDir.resolve("projects").resolve(encodedPath).resolve("$sessionId.jsonl")
-        if (!Files.isReadable(sessionFile)) return@withContext emptyList()
+        if (!Files.isReadable(sessionFile)) return@withContext SessionHistory(emptyList(), emptyMap())
 
-        parseSessionMessages(sessionFile)
+        parseSessionHistory(sessionFile)
     }
 
     // --- Private parsing methods ---
@@ -182,8 +191,9 @@ class SessionHistoryService(private val project: Project) {
         }
     }
 
-    private fun parseSessionMessages(sessionFile: Path): List<ChatMessage> {
+    private fun parseSessionHistory(sessionFile: Path): SessionHistory {
         val messages = mutableListOf<ChatMessage>()
+        val toolResults = mutableMapOf<String, ToolResultInfo>()
 
         try {
             Files.readAllLines(sessionFile).forEach { line ->
@@ -193,7 +203,10 @@ class SessionHistoryService(private val project: Project) {
                     if (entry.isSidechain) return@forEach
 
                     when (entry.type) {
-                        "human", "user" -> parseUserMessage(entry)?.let(messages::add)
+                        "human", "user" -> {
+                            parseUserMessage(entry)?.let(messages::add)
+                            extractHistoryToolResults(entry, toolResults)
+                        }
                         "assistant" -> parseAssistantMessage(entry)?.let(messages::add)
                     }
                 } catch (e: Exception) {
@@ -204,7 +217,7 @@ class SessionHistoryService(private val project: Project) {
             println("Failed to read session file: $sessionFile, ${e.message}")
         }
 
-        return messages
+        return SessionHistory(messages, toolResults)
     }
 
     private fun parseUserMessage(entry: RawConversationEntry): ChatMessage.User? {
@@ -233,6 +246,7 @@ class SessionHistoryService(private val project: Project) {
                     "tool_use" -> UiContentBlock.ToolUse(
                         toolName = block.name ?: "unknown",
                         inputJson = block.input ?: JsonObject(emptyMap()),
+                        toolUseId = block.id,
                     )
                     else -> null
                 }
@@ -244,5 +258,56 @@ class SessionHistoryService(private val project: Project) {
             id = UUID.randomUUID().toString(),
             blocks = blocks.toImmutableList(),
         )
+    }
+
+    /**
+     * user エントリの content 配列から tool_result ブロックを抽出し、
+     * toolUseId → ToolResultInfo のマップに追加する。
+     */
+    private fun extractHistoryToolResults(
+        entry: RawConversationEntry,
+        results: MutableMap<String, ToolResultInfo>,
+    ) {
+        val contentArray = runCatching {
+            entry.message?.content?.jsonArray
+        }.getOrNull() ?: return
+
+        for (element in contentArray) {
+            val block = try {
+                json.decodeFromString<RawContentBlock>(element.toString())
+            } catch (_: Exception) {
+                continue
+            }
+            if (block.type != "tool_result") continue
+
+            val toolUseId = block.toolUseId ?: continue
+            if (toolUseId in results) continue
+
+            val text = extractToolResultText(block.content) ?: continue
+            results[toolUseId] = ToolResultInfo(
+                content = text.take(TOOL_RESULT_MAX_LENGTH),
+                isError = block.isError ?: false,
+            )
+        }
+    }
+
+    /**
+     * tool_result ブロックの content フィールドからテキストを抽出。
+     * String | Array<{type:"text",text:...}> の両方に対応。
+     */
+    private fun extractToolResultText(content: kotlinx.serialization.json.JsonElement?): String? {
+        if (content == null) return null
+        return when (content) {
+            is kotlinx.serialization.json.JsonPrimitive -> content.contentOrNull?.takeIf { it.isNotBlank() }
+            is kotlinx.serialization.json.JsonArray -> content.mapNotNull { part ->
+                runCatching {
+                    val obj = part.jsonObject
+                    if (obj["type"]?.jsonPrimitive?.contentOrNull == "text") {
+                        obj["text"]?.jsonPrimitive?.contentOrNull
+                    } else null
+                }.getOrNull()
+            }.joinToString("\n").takeIf { it.isNotBlank() }
+            else -> content.toString().takeIf { it.isNotBlank() }
+        }
     }
 }

@@ -6,7 +6,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardWatchEventKinds.ENTRY_CREATE
@@ -19,7 +18,7 @@ internal class TranscriptTailer(
 ) {
     private var job: Job? = null
 
-    fun start(filePath: String, onMessage: (ChatMessage) -> Unit) {
+    fun start(filePath: String, onMessage: (TranscriptParser.ParsedLine) -> Unit) {
         stop()
 
         val path = Path.of(filePath)
@@ -60,7 +59,7 @@ internal class TranscriptTailer(
     private fun readNewLines(
         filePath: String,
         fromPosition: Long,
-        onMessage: (ChatMessage) -> Unit,
+        onMessage: (TranscriptParser.ParsedLine) -> Unit,
     ): Long {
         val size = fileReader.size(filePath)
         if (size <= fromPosition) return fromPosition

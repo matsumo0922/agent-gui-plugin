@@ -122,6 +122,7 @@ data class SubAgentTask(
     val timelineSessionId: String? = null,                         // どのブランチのタスクか
     val spawnedByToolName: String? = null,                         // 呼び出し元ツール名
     val messages: ImmutableList<ChatMessage> = persistentListOf(), // サブエージェントのメッセージ列
+    val toolResults: ImmutableMap<String, ToolResultInfo> = persistentMapOf(), // サブエージェント内のツール結果
     val startedAt: Long? = null,                                   // 開始時刻 (epochMillis)
     val completedAt: Long? = null,                                 // 終了時刻 (epochMillis)
 )

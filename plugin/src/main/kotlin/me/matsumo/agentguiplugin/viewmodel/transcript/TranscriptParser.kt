@@ -8,6 +8,8 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
+import me.matsumo.agentguiplugin.viewmodel.ToolResultInfo
+import me.matsumo.agentguiplugin.viewmodel.mapper.extractToolResults
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlockOrNull
 import me.matsumo.claude.agent.internal.parseTranscriptLine
 import me.matsumo.claude.agent.types.AssistantMessage
@@ -22,14 +24,26 @@ import java.util.*
  */
 internal object TranscriptParser {
 
+    /** parseLine の結果。メッセージまたはツール結果を返す。 */
+    sealed interface ParsedLine {
+        data class Msg(val message: ChatMessage) : ParsedLine
+        data class ToolResults(val results: Map<String, ToolResultInfo>) : ParsedLine
+    }
+
     /**
-     * Parse a single JSONL line into a [ChatMessage], or `null` if unparseable.
+     * Parse a single JSONL line into a [ParsedLine], or `null` if unparseable.
      */
-    fun parseLine(line: String): ChatMessage? {
+    fun parseLine(line: String): ParsedLine? {
         val message = parseTranscriptLine(line) ?: return null
         return when (message) {
-            is AssistantMessage -> parseAssistant(message)
-            is UserMessage -> parseUser(message)
+            is AssistantMessage -> parseAssistant(message)?.let(ParsedLine::Msg)
+            is UserMessage -> {
+                // まず tool results を抽出
+                val results = extractToolResults(message)
+                if (results.isNotEmpty()) return ParsedLine.ToolResults(results)
+                // tool results がなければ通常のユーザーメッセージ
+                parseUser(message)?.let(ParsedLine::Msg)
+            }
             else -> null
         }
     }

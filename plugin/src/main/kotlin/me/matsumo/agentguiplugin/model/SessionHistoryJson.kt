@@ -40,4 +40,10 @@ data class RawContentBlock(
     val thinking: String? = null,
     val name: String? = null,
     val input: JsonObject? = null,
+    val id: String? = null,
+    @kotlinx.serialization.SerialName("tool_use_id")
+    val toolUseId: String? = null,
+    val content: JsonElement? = null,
+    @kotlinx.serialization.SerialName("is_error")
+    val isError: Boolean? = null,
 )

@@ -79,6 +79,7 @@ sealed interface StateAction {
     data class HistoryImported(
         val tree: ConversationTree,
         val cursor: ConversationCursor,
+        val toolResults: Map<String, ToolResultInfo> = emptyMap(),
     ) : StateAction
 
     // --- Full reset (bypasses transition validation) ---
@@ -213,6 +214,7 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
     is StateAction.HistoryImported -> state.copy(
         conversationTree = action.tree,
         conversationCursor = action.cursor,
+        toolResults = (state.toolResults + action.toolResults).toImmutableMap(),
     )
 
     // --- Reset ---

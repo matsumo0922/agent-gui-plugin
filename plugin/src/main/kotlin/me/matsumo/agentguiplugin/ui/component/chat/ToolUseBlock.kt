@@ -147,7 +147,7 @@ fun ToolUseBlock(
                                         },
                                     ).toSpanStyle()
                                 ) {
-                                    append(resultContent.take(1000))
+                                    append(resultContent)
                                 }
                             },
                             style = JewelTheme.typography.medium,

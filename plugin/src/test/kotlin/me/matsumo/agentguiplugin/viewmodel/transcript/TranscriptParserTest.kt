@@ -26,9 +26,11 @@ class TranscriptParserTest {
     @Test
     fun `parses assistant message with text content`() {
         val line = """{"type":"assistant","session_id":"s1","message":{"content":[{"type":"text","text":"Hello world"}],"model":"sonnet"},"uuid":"msg-1"}"""
-        val result = TranscriptParser.parseLine(line)
+        val parsed = TranscriptParser.parseLine(line)
 
-        assertNotNull(result)
+        assertNotNull(parsed)
+        assertIs<TranscriptParser.ParsedLine.Msg>(parsed)
+        val result = parsed.message
         assertIs<ChatMessage.Assistant>(result)
         assertEquals("msg-1", result.id)
         assertEquals(1, result.blocks.size)
@@ -43,9 +45,11 @@ class TranscriptParserTest {
     @Test
     fun `parses user message with string content`() {
         val line = """{"type":"user","session_id":"s1","message":{"content":"How are you?"},"uuid":"usr-1"}"""
-        val result = TranscriptParser.parseLine(line)
+        val parsed = TranscriptParser.parseLine(line)
 
-        assertNotNull(result)
+        assertNotNull(parsed)
+        assertIs<TranscriptParser.ParsedLine.Msg>(parsed)
+        val result = parsed.message
         assertIs<ChatMessage.User>(result)
         assertEquals("How are you?", result.text)
     }
@@ -78,9 +82,11 @@ class TranscriptParserTest {
     @Test
     fun `parses assistant message with tool use block`() {
         val line = """{"type":"assistant","session_id":"s1","message":{"content":[{"type":"tool_use","id":"toolu_1","name":"Write","input":{"file_path":"/tmp/test.txt","content":"hello"}}],"model":"sonnet"},"uuid":"msg-2"}"""
-        val result = TranscriptParser.parseLine(line)
+        val parsed = TranscriptParser.parseLine(line)
 
-        assertNotNull(result)
+        assertNotNull(parsed)
+        assertIs<TranscriptParser.ParsedLine.Msg>(parsed)
+        val result = parsed.message
         assertIs<ChatMessage.Assistant>(result)
         assertEquals(1, result.blocks.size)
         assertIs<UiContentBlock.ToolUse>(result.blocks[0])

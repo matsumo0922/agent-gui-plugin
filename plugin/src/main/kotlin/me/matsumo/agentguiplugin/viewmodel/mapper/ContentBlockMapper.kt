@@ -15,6 +15,9 @@ import me.matsumo.claude.agent.types.ToolResultBlock
 import me.matsumo.claude.agent.types.ToolUseBlock
 import me.matsumo.claude.agent.types.UserMessage
 
+/** ToolResult のテキストを保存時にこの長さで切り詰める。表示側では再 truncate しない。 */
+internal const val TOOL_RESULT_MAX_LENGTH = 1000
+
 private fun ToolUseBlock.toEditDiffInfoOrNull(): EditDiffInfo? {
     val filePath = input["file_path"]?.jsonPrimitive?.content ?: return null
     return when (name) {
@@ -79,7 +82,7 @@ internal fun extractToolResults(message: UserMessage): Map<String, ToolResultInf
             val resultContent = obj["content"] ?: continue
             val text = extractResultText(resultContent)
             if (text != null) {
-                results[toolUseId] = ToolResultInfo(content = text, isError = isError)
+                results[toolUseId] = ToolResultInfo(content = text.take(TOOL_RESULT_MAX_LENGTH), isError = isError)
             }
         }
     }
@@ -93,7 +96,7 @@ internal fun extractToolResults(message: UserMessage): Map<String, ToolResultInf
             val resultContent = toolUseResult["content"]
             val text = if (resultContent != null) extractResultText(resultContent) else null
             if (text != null) {
-                results[toolUseId] = ToolResultInfo(content = text, isError = isError)
+                results[toolUseId] = ToolResultInfo(content = text.take(TOOL_RESULT_MAX_LENGTH), isError = isError)
             }
         }
     }

@@ -103,10 +103,10 @@ class TabManager(
     /**
      * セッション履歴からタブを作成して resume する。
      */
-    fun resumeSession(summary: SessionHistoryService.SessionSummary, historyMessages: List<ChatMessage>) {
+    fun resumeSession(summary: SessionHistoryService.SessionSummary, history: SessionHistoryService.SessionHistory) {
         val title = summary.firstPrompt?.take(40) ?: "Resumed session"
         val vm = createViewModel()
-        vm.importHistory(historyMessages)
+        vm.importHistory(history.messages, toolResults = history.toolResults)
 
         val content = createContent(title = title, vm = vm, resumeSessionId = summary.sessionId)
         toolWindow.contentManager.addContent(content)

@@ -44,9 +44,9 @@ object SessionHistoryAction {
                 if (dialog.showAndGet()) {
                     val selected = dialog.selectedSession ?: return@invokeLater
                     scope.launch {
-                        val messages = historyService.readSessionMessages(selected.sessionId)
+                        val history = historyService.readSessionHistory(selected.sessionId)
                         invokeLater {
-                            tabManager.resumeSession(selected, messages)
+                            tabManager.resumeSession(selected, history)
                         }
                     }
                 }
