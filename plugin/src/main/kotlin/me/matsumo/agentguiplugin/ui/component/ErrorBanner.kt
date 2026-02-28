@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,12 +34,16 @@ fun ErrorBanner(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
+        SelectionContainer(
             modifier = Modifier.weight(1f),
-            text = message,
-            style = JewelTheme.typography.regular,
-            color = errorColor,
-        )
+        ) {
+            Text(
+                modifier = Modifier.fillMaxWidth(),
+                text = message,
+                style = JewelTheme.typography.regular,
+                color = errorColor,
+            )
+        }
 
         Spacer(modifier = Modifier.width(8.dp))
 
