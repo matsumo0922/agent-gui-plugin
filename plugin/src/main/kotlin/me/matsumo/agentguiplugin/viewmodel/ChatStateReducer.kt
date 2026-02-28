@@ -67,6 +67,9 @@ sealed interface StateAction {
     data class ModelChanged(val model: Model) : StateAction
     data class PermissionModeChanged(val mode: PermissionMode) : StateAction
 
+    // --- Tool results ---
+    data class ToolResultReceived(val results: Map<String, ToolResultInfo>) : StateAction
+
     // --- External sync (from delegates) ---
     data class SubAgentTasksUpdated(val tasks: Map<String, SubAgentTask>) : StateAction
     data class UsageUpdated(val usage: UsageInfo) : StateAction
@@ -195,6 +198,11 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
         }
         state.copy(permissionMode = action.mode, permissionModeBeforePlan = newBeforePlan)
     }
+
+    // --- Tool results ---
+    is StateAction.ToolResultReceived -> state.copy(
+        toolResults = (state.toolResults + action.results).toImmutableMap(),
+    )
 
     // --- External sync ---
     is StateAction.SubAgentTasksUpdated -> state.copy(subAgentTasks = action.tasks.toImmutableMap())

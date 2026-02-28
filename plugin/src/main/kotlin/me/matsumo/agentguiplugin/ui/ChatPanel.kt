@@ -198,6 +198,7 @@ fun ChatPanel(
                         .weight(1f),
                     messages = activeMessages,
                     subAgentTasks = filteredSubAgentTasks,
+                    toolResults = uiState.toolResults,
                     editInfoMap = editInfoMap,
                     canInteract = canInteract,
                     project = project,

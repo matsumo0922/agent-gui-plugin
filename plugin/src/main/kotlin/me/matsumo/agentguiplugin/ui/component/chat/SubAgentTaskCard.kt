@@ -136,6 +136,7 @@ fun SubAgentTaskCard(
                         },
                     messages = task.messages,
                     subAgentTasks = subAgentTasks,
+                    toolResults = emptyMap(),
                     editInfoMap = emptyMap(),
                     canInteract = false,
                     project = project,

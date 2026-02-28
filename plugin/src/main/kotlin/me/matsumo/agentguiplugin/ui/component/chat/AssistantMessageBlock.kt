@@ -30,7 +30,9 @@ import me.matsumo.agentguiplugin.ui.component.computeDiffLines
 import me.matsumo.agentguiplugin.ui.theme.ChatTheme
 import me.matsumo.agentguiplugin.viewmodel.EditDiffInfo
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
+import me.matsumo.agentguiplugin.viewmodel.ToolResultInfo
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
+import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
@@ -49,6 +51,7 @@ private sealed interface DiffPreviewState {
 fun AssistantMessageBlock(
     blocks: List<UiContentBlock>,
     subAgentTasks: Map<String, SubAgentTask>,
+    toolResults: Map<String, ToolResultInfo>,
     project: Project,
     modifier: Modifier = Modifier,
     timestamp: Long = 0L,
@@ -79,10 +82,18 @@ fun AssistantMessageBlock(
                     )
                 }
                 is UiContentBlock.ToolUse -> {
+                    val toolResult = if (block.toolName in ToolNames.RESULT_IGNORED_TOOL_NAMES) {
+                        null
+                    } else {
+                        block.toolUseId?.let { toolResults[it] }
+                    }
+
                     ToolUseBlock(
                         modifier = Modifier.fillMaxWidth(),
                         name = block.toolName,
                         inputJson = block.inputJson,
+                        resultContent = toolResult?.content,
+                        isResultError = toolResult?.isError ?: false,
                     )
 
                     val task = block.toolUseId?.let { subAgentTasks[it] }

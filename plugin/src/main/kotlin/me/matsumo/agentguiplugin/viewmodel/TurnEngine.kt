@@ -25,6 +25,7 @@ class TurnEngine(private val scope: CoroutineScope) {
         data class System(val message: SystemMessage) : TurnEvent
         data class Stream(val event: StreamEvent) : TurnEvent
         data class Assistant(val message: AssistantMessage) : TurnEvent
+        data class User(val message: UserMessage) : TurnEvent
         data class Result(val message: ResultMessage) : TurnEvent
     }
 
@@ -61,7 +62,7 @@ class TurnEngine(private val scope: CoroutineScope) {
                         is StreamEvent -> onEvent(TurnEvent.Stream(message))
                         is AssistantMessage -> onEvent(TurnEvent.Assistant(message))
                         is ResultMessage -> onEvent(TurnEvent.Result(message))
-                        is UserMessage -> { /* tool results - ignore */ }
+                        is UserMessage -> onEvent(TurnEvent.User(message))
                     }
                 }
             } catch (e: CancellationException) {

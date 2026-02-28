@@ -71,6 +71,7 @@ data class ChatUiState(
     val permissionModeBeforePlan: PermissionMode? = null,
     val pendingPermission: PendingPermission? = null,
     val pendingQuestion: PendingQuestion? = null,
+    val toolResults: ImmutableMap<String, ToolResultInfo> = persistentMapOf(),
     val authOutputLines: ImmutableList<String> = persistentListOf(),
 ) {
     // 後方互換のための convenience accessor
@@ -123,6 +124,12 @@ data class SubAgentTask(
     val messages: ImmutableList<ChatMessage> = persistentListOf(), // サブエージェントのメッセージ列
     val startedAt: Long? = null,                                   // 開始時刻 (epochMillis)
     val completedAt: Long? = null,                                 // 終了時刻 (epochMillis)
+)
+
+@Immutable
+data class ToolResultInfo(
+    val content: String,
+    val isError: Boolean = false,
 )
 
 @Immutable

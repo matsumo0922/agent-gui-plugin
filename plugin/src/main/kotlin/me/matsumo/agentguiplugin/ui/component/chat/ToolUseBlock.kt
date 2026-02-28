@@ -30,6 +30,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.JsonObject
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.Orientation
+import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -41,6 +43,8 @@ fun ToolUseBlock(
     name: String,
     inputJson: JsonObject,
     modifier: Modifier = Modifier,
+    resultContent: String? = null,
+    isResultError: Boolean = false,
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     val inputMap = remember(inputJson) { inputJson.mapValues { it.value.toString() } }
@@ -116,6 +120,34 @@ fun ToolUseBlock(
                                     ).toSpanStyle()
                                 ) {
                                     append(value.take(300))
+                                }
+                            },
+                            style = JewelTheme.typography.medium,
+                            color = JewelTheme.globalColors.text.info,
+                        )
+                    }
+
+                    if (resultContent != null) {
+                        Divider(
+                            modifier = Modifier.fillMaxWidth(),
+                            orientation = Orientation.Horizontal,
+                            color = JewelTheme.colorPalette.gray(4),
+                        )
+
+                        Text(
+                            text = buildAnnotatedString {
+                                append("Result: ")
+
+                                withStyle(
+                                    JewelTheme.typography.medium.copy(
+                                        color = if (isResultError) {
+                                            JewelTheme.globalColors.text.error
+                                        } else {
+                                            JewelTheme.globalColors.text.normal
+                                        },
+                                    ).toSpanStyle()
+                                ) {
+                                    append(resultContent.take(1000))
                                 }
                             },
                             style = JewelTheme.typography.medium,

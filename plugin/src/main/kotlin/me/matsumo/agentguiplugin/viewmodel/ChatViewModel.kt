@@ -33,6 +33,8 @@ import me.matsumo.claude.agent.types.SubagentStartHookInput
 import me.matsumo.claude.agent.types.SubagentStopHookInput
 import me.matsumo.claude.agent.types.SystemMessage
 import me.matsumo.claude.agent.types.ToolUseBlock
+import me.matsumo.claude.agent.types.UserMessage
+import me.matsumo.agentguiplugin.viewmodel.mapper.extractToolResults
 import java.util.*
 
 class ChatViewModel(
@@ -416,6 +418,7 @@ class ChatViewModel(
             is TurnEngine.TurnEvent.System -> handleSystemMessage(event.message)
             is TurnEngine.TurnEvent.Stream -> usageTracker.processStreamEvent(event.event)
             is TurnEngine.TurnEvent.Assistant -> handleAssistantMessage(event.message)
+            is TurnEngine.TurnEvent.User -> handleUserMessage(event.message)
             is TurnEngine.TurnEvent.Result -> handleResultMessage(event.message)
         }
     }
@@ -444,6 +447,14 @@ class ChatViewModel(
 
             detectPlanModeChange(message)
             dispatch(StateAction.AssistantMessageReceived(assistantMsg))
+        }
+    }
+
+    private fun handleUserMessage(message: UserMessage) {
+        if (message.parentToolUseId != null) return // sub-agent の tool result は無視
+        val results = extractToolResults(message)
+        if (results.isNotEmpty()) {
+            dispatch(StateAction.ToolResultReceived(results))
         }
     }
 

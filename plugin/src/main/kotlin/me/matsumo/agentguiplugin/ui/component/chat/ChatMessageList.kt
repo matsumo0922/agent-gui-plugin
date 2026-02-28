@@ -26,6 +26,7 @@ import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.EditInfo
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
+import me.matsumo.agentguiplugin.viewmodel.ToolResultInfo
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.theme.colorPalette
@@ -35,6 +36,7 @@ import org.jetbrains.jewel.ui.typography
 fun ChatMessageList(
     messages: List<ChatMessage>,
     subAgentTasks: Map<String, SubAgentTask>,
+    toolResults: Map<String, ToolResultInfo>,
     editInfoMap: Map<String, EditInfo>,
     canInteract: Boolean,
     project: Project,
@@ -96,6 +98,7 @@ fun ChatMessageList(
                                 modifier = Modifier.fillMaxWidth(),
                                 blocks = message.blocks,
                                 subAgentTasks = subAgentTasks,
+                                toolResults = toolResults,
                                 project = project,
                                 timestamp = message.timestamp,
                             )
