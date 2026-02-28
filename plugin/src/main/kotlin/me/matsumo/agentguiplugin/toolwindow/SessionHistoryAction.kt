@@ -36,6 +36,7 @@ object SessionHistoryAction {
             val historyService = project.service<SessionHistoryService>()
             val sessions = historyService.listSessions()
 
+            println("Hello, ${sessions.size}")
             println(sessions.joinToString("\n") { it.toString() })
 
             invokeLater {
@@ -112,7 +113,6 @@ object SessionHistoryAction {
                     append("$totalMessages msgs")
                     summary.model?.let { append(" · $it") }
                     summary.durationMinutes?.let { append(" · ${it}min") }
-                    summary.totalCostUsd?.let { append(" · $${String.format("%.2f", it)}") }
                 }
 
                 text = "<html><b>$dateStr</b><br>$promptStr<br><font color='gray'>$metaStr</font></html>"

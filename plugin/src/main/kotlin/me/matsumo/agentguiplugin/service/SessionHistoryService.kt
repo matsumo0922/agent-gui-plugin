@@ -11,14 +11,13 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import me.matsumo.agentguiplugin.model.RawContentBlock
 import me.matsumo.agentguiplugin.model.RawConversationEntry
-import me.matsumo.agentguiplugin.model.RawSessionMeta
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 import java.time.Instant
 import java.util.*
 import kotlin.io.path.extension
@@ -36,7 +35,6 @@ class SessionHistoryService(private val project: Project) {
         val startTime: Instant?,
         val durationMinutes: Int?,
         val model: String?,
-        val totalCostUsd: Double?,
     )
 
     companion object {
@@ -57,16 +55,17 @@ class SessionHistoryService(private val project: Project) {
     }
 
     suspend fun listSessions(): List<SessionSummary> = withContext(Dispatchers.IO) {
-        val metaDir = claudeDir.resolve("usage-data").resolve("session-meta")
-        if (!Files.isDirectory(metaDir)) return@withContext emptyList()
-
         val projectPath = project.basePath ?: return@withContext emptyList()
-        val normalizedProjectPath = normalizeProjectPath(projectPath)
+        val normalizedPath = normalizeProjectPath(projectPath)
+        val encodedPath = encodeClaudeProjectPath(normalizedPath)
+        val projectDir = claudeDir.resolve("projects").resolve(encodedPath)
 
-        Files.list(metaDir).use { stream ->
-            stream.filter { it.extension == "json" }
+        if (!Files.isDirectory(projectDir)) return@withContext emptyList()
+
+        Files.list(projectDir).use { stream ->
+            stream.filter { it.extension == "jsonl" }
                 .toList()
-                .mapNotNull { file -> parseSummary(file, normalizedProjectPath) }
+                .mapNotNull { file -> parseSummaryFromJsonl(file, normalizedPath) }
                 .sortedByDescending { it.startTime }
         }
     }
@@ -83,52 +82,104 @@ class SessionHistoryService(private val project: Project) {
 
     // --- Private parsing methods ---
 
-    private fun parseSummary(file: Path, normalizedProjectPath: String): SessionSummary? {
+    private fun parseSummaryFromJsonl(file: Path, normalizedProjectPath: String): SessionSummary? {
         return try {
-            val text = Files.readString(file)
-            val meta = json.decodeFromString<RawSessionMeta>(text)
+            val sessionId = file.fileName.toString().removeSuffix(".jsonl")
+            val lines = Files.readAllLines(file)
 
-            val sessionProjectPath = meta.projectPath ?: return null
-            val normalizedProjectPath = normalizeProjectPath(normalizedProjectPath)
+            var firstPrompt: String? = null
+            var startTime: Instant? = null
+            var endTime: Instant? = null
+            var model: String? = null
+            var userCount = 0
+            var assistantCount = 0
 
-            if (normalizedProjectPath != normalizeProjectPath(sessionProjectPath)) return null
+            for (line in lines) {
+                if (line.isBlank()) continue
 
-            val sessionId = meta.sessionId ?: file.fileName.toString().removeSuffix(".json")
+                val entry = try {
+                    json.decodeFromString<RawConversationEntry>(line)
+                } catch (_: Exception) {
+                    continue
+                }
+
+                val ts = entry.timestamp?.let { parseInstant(it) }
+
+                when (entry.type) {
+                    "user" -> {
+                        if (entry.isSidechain) continue
+                        if (!entry.isMeta) {
+                            userCount++
+                            if (firstPrompt == null) {
+                                firstPrompt = extractTextFromContent(entry)
+                            }
+                        }
+                        if (startTime == null && ts != null) startTime = ts
+                    }
+                    "assistant" -> {
+                        if (entry.isSidechain) continue
+                        assistantCount++
+                        if (model == null) {
+                            model = entry.message?.model
+                        }
+                    }
+                }
+
+                if (ts != null) endTime = ts
+            }
+
+            // メッセージが1件もなければスキップ
+            if (userCount == 0 && assistantCount == 0) return null
+
+            val durationMinutes = if (startTime != null && endTime != null) {
+                Duration.between(startTime, endTime).toMinutes().toInt()
+            } else {
+                null
+            }
 
             SessionSummary(
                 sessionId = sessionId,
                 projectPath = normalizedProjectPath,
-                firstPrompt = meta.firstPrompt,
-                userMessageCount = meta.userMessageCount,
-                assistantMessageCount = meta.assistantMessageCount,
-                startTime = parseStartTime(meta.startTime),
-                durationMinutes = meta.durationMinutes,
-                model = meta.model,
-                totalCostUsd = meta.totalCostUsd,
+                firstPrompt = firstPrompt,
+                userMessageCount = userCount,
+                assistantMessageCount = assistantCount,
+                startTime = startTime,
+                durationMinutes = durationMinutes,
+                model = model,
             )
         } catch (e: Exception) {
-            println("Failed to parse session meta: $file, ${e.message}")
+            println("Failed to parse session JSONL: $file, ${e.message}")
             null
         }
     }
 
-    private fun parseStartTime(element: kotlinx.serialization.json.JsonElement?): Instant? {
-        if (element == null) return null
-        val primitive = element.jsonPrimitive
+    private fun extractTextFromContent(entry: RawConversationEntry): String? {
+        val content = entry.message?.content ?: return null
 
-        // Long (epochMillis) → Instant
-        primitive.longOrNull?.let { return Instant.ofEpochMilli(it) }
+        return when {
+            // String 形式
+            runCatching { content.jsonPrimitive }.isSuccess ->
+                content.jsonPrimitive.contentOrNull
 
-        // ISO 8601 string → Instant
-        primitive.contentOrNull?.let {
-            return try {
-                Instant.parse(it)
-            } catch (_: Exception) {
-                null
-            }
+            // Array 形式: text ブロックを結合
+            runCatching { content.jsonArray }.isSuccess ->
+                content.jsonArray
+                    .map { json.decodeFromString<RawContentBlock>(it.toString()) }
+                    .filter { it.type == "text" }
+                    .joinToString("\n") { it.text.orEmpty() }
+                    .ifBlank { null }
+
+            else -> null
         }
+    }
 
-        return null
+    private fun parseInstant(value: String): Instant? {
+        return try {
+            Instant.parse(value)
+        } catch (_: Exception) {
+            // epoch millis as string
+            value.toLongOrNull()?.let { Instant.ofEpochMilli(it) }
+        }
     }
 
     private fun parseSessionMessages(sessionFile: Path): List<ChatMessage> {
@@ -157,23 +208,9 @@ class SessionHistoryService(private val project: Project) {
     }
 
     private fun parseUserMessage(entry: RawConversationEntry): ChatMessage.User? {
-        val content = entry.message?.content ?: return null
+        if (entry.isMeta) return null
 
-        val text = when {
-            // String 形式
-            runCatching { content.jsonPrimitive }.isSuccess ->
-                content.jsonPrimitive.contentOrNull
-
-            // Array 形式: text ブロックを結合
-            runCatching { content.jsonArray }.isSuccess ->
-                content.jsonArray
-                    .map { json.decodeFromString<RawContentBlock>(it.toString()) }
-                    .filter { it.type == "text" }
-                    .joinToString("\n") { it.text.orEmpty() }
-
-            else -> null
-        }
-
+        val text = extractTextFromContent(entry)
         if (text.isNullOrBlank()) return null
 
         return ChatMessage.User(
