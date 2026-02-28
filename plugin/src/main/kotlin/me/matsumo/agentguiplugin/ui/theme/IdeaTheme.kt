@@ -5,10 +5,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.theme.colorPalette
+import org.jetbrains.jewel.ui.typography
 
 /**
  * Material3 ColorScheme-style interface for IDE theme colors.
@@ -68,6 +70,65 @@ interface IdeaColorScheme {
     // TODO: Diff colors (addedBackground, removedBackground, addedLabel, removedLabel)
     // TODO: Gradient colors for input decoration
 }
+
+// ─────────────────────────────────────────────────
+// Typography
+// ─────────────────────────────────────────────────
+
+/**
+ * Material3 Typography-style interface for IDE text styles.
+ *
+ * Role-based tokens following M3 type scale conventions.
+ * Backed by [JewelTheme.typography] to respect IDE font settings.
+ */
+interface IdeaTypography {
+
+    // ── Title ───────────────────────────────────────
+    /** Large title — section headers, dialog titles. */
+    val titleLarge: TextStyle
+
+    /** Medium title — card titles, toolbar labels. */
+    val titleMedium: TextStyle
+
+    /** Small title — sub-section headers. */
+    val titleSmall: TextStyle
+
+    // ── Body ────────────────────────────────────────
+    /** Large body — primary content text. */
+    val bodyLarge: TextStyle
+
+    /** Medium body — standard UI text (default). */
+    val bodyMedium: TextStyle
+
+    /** Small body — secondary / auxiliary text. */
+    val bodySmall: TextStyle
+
+    // ── Label ───────────────────────────────────────
+    /** Large label — prominent labels, button text. */
+    val labelLarge: TextStyle
+
+    /** Medium label — form labels, menu items. */
+    val labelMedium: TextStyle
+
+    /** Small label — captions, badges, timestamps. */
+    val labelSmall: TextStyle
+}
+
+/**
+ * Default implementation that delegates to [JewelTheme.typography]
+ * and applies Material3-style weight / size differentiation.
+ */
+internal data class DefaultIdeaTypography(
+    override val titleLarge: TextStyle,
+    override val titleMedium: TextStyle,
+    override val titleSmall: TextStyle,
+    override val bodyLarge: TextStyle,
+    override val bodyMedium: TextStyle,
+    override val bodySmall: TextStyle,
+    override val labelLarge: TextStyle,
+    override val labelMedium: TextStyle,
+    override val labelSmall: TextStyle,
+) : IdeaTypography
 
 // ─────────────────────────────────────────────────
 // Light implementation
@@ -133,26 +194,18 @@ private val LocalIdeaColorScheme = staticCompositionLocalOf<IdeaColorScheme> {
     error("IdeaTheme not provided. Wrap your content with IdeaTheme { ... }")
 }
 
-object IdeaTheme {
+private val LocalIdeaTypography = staticCompositionLocalOf<IdeaTypography> {
+    error("IdeaTheme not provided. Wrap your content with IdeaTheme { ... }")
+}
 
+object IdeaTheme {
     val colorScheme: IdeaColorScheme
         @Composable @ReadOnlyComposable
         get() = LocalIdeaColorScheme.current
 
-    object spacing {
-        val xs: Dp = 4.dp
-        val sm: Dp = 8.dp
-        val md: Dp = 12.dp
-        val lg: Dp = 16.dp
-        val xl: Dp = 20.dp
-    }
-
-    object shapes {
-        val small: Dp = 4.dp
-        val medium: Dp = 8.dp
-        val large: Dp = 12.dp
-        val full: Dp = 9999.dp
-    }
+    val typography: IdeaTypography
+        @Composable @ReadOnlyComposable
+        get() = LocalIdeaTypography.current
 }
 
 /**
@@ -206,8 +259,26 @@ fun IdeaTheme(content: @Composable () -> Unit) {
         )
     }
 
+    // Jewel typography base styles: regular (≈ 13sp), medium (≈ 12sp), small (≈ 11sp)
+    val regular = JewelTheme.typography.regular
+    val medium = JewelTheme.typography.medium
+    val small = JewelTheme.typography.small
+
+    val typo = DefaultIdeaTypography(
+        titleLarge = regular.copy(fontWeight = FontWeight.SemiBold, fontSize = 16.sp),
+        titleMedium = regular.copy(fontWeight = FontWeight.SemiBold),
+        titleSmall = medium.copy(fontWeight = FontWeight.SemiBold),
+        bodyLarge = regular,
+        bodyMedium = medium,
+        bodySmall = small,
+        labelLarge = medium.copy(fontWeight = FontWeight.Medium),
+        labelMedium = small,
+        labelSmall = small.copy(fontSize = 10.sp),
+    )
+
     CompositionLocalProvider(
         LocalIdeaColorScheme provides scheme,
+        LocalIdeaTypography provides typo,
         content = content,
     )
 }
