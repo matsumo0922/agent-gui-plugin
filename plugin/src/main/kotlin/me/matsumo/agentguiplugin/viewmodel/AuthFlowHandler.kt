@@ -35,6 +35,9 @@ class AuthFlowHandler(private val scope: CoroutineScope) {
     /** 認証完了時のコールバック */
     var onAuthComplete: (() -> Unit)? = null
 
+    /** プロセスが異常終了した場合のコールバック */
+    var onAuthError: ((String) -> Unit)? = null
+
     fun startAuth(
         process: Process,
         stdout: BufferedReader,
@@ -97,8 +100,20 @@ class AuthFlowHandler(private val scope: CoroutineScope) {
             } catch (_: IOException) {
                 // Stream closed
             }
-            // Process exited — auto-proceed to re-preflight
-            confirmComplete()
+            // Process exited — check exit code before proceeding
+            val exitCode = runCatching { process?.waitFor() }.getOrNull()
+            if (exitCode != null && exitCode != 0) {
+                // 異常終了: エラーとして報告し、再試行ループを防ぐ
+                val output = _state.value.outputLines
+                cleanup()
+                _state.update { AuthState() }
+                onAuthError?.invoke(
+                    "CLI exited with code $exitCode:\n${output.joinToString("\n")}",
+                )
+            } else {
+                // 正常終了: 認証完了として再 preflight
+                confirmComplete()
+            }
         }
     }
 }

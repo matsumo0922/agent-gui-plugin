@@ -7,6 +7,7 @@ import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
+import java.util.concurrent.TimeUnit
 
 sealed interface PreflightResult {
     data class Ready(val version: String) : PreflightResult
@@ -26,7 +27,7 @@ class PreflightChecker {
         private const val TIMEOUT_MS = 10_000L
     }
 
-    suspend fun check(cliPath: String?): PreflightResult = withContext(Dispatchers.IO) {
+    suspend fun check(cliPath: String?, environment: Map<String, String> = emptyMap()): PreflightResult = withContext(Dispatchers.IO) {
         if (cliPath == null) {
             return@withContext PreflightResult.Ready("auto-discovery")
         }
@@ -35,6 +36,11 @@ class PreflightChecker {
         try {
             process = ProcessBuilder(cliPath, "-v")
                 .redirectErrorStream(true)
+                .also { pb ->
+                    if (environment.isNotEmpty()) {
+                        pb.environment().putAll(environment)
+                    }
+                }
                 .start()
         } catch (e: IOException) {
             return@withContext PreflightResult.Error("Failed to start CLI: ${e.message}")
@@ -52,6 +58,14 @@ class PreflightChecker {
 
         if (firstLine == null) {
             // Timeout — process is likely waiting for input (auth wrapper)
+            // ただしプロセスが既に終了していたらエラーとして扱う
+            if (!process.isAlive) {
+                val exitCode = process.exitValue()
+                process.destroyForcibly()
+                return@withContext PreflightResult.Error(
+                    "CLI exited unexpectedly (code $exitCode) with no output",
+                )
+            }
             return@withContext PreflightResult.AuthRequired(
                 process = process,
                 stdout = stdout,
@@ -76,11 +90,40 @@ class PreflightChecker {
             initialOutput.add(line)
         }
 
+        // プロセスが既に終了している場合はエラーとして扱う（認証プロンプトではない）
+        if (!process.isAlive) {
+            val exitCode = process.exitValue()
+            val output = initialOutput.joinToString("\n")
+            return@withContext PreflightResult.Error(
+                "CLI exited with code $exitCode:\n$output",
+            )
+        }
+
         return@withContext PreflightResult.AuthRequired(
             process = process,
             stdout = stdout,
             stdin = stdin,
             initialOutput = initialOutput,
         )
+    }
+
+    /**
+     * ユーザーのログインシェルから PATH を取得する。
+     * IntelliJ を Dock から起動した場合、プロセスの PATH が不十分なことがあるため、
+     * ラッパー CLI が内部で呼び出すコマンドを解決できるようにする。
+     */
+    suspend fun resolveShellPath(): Map<String, String> = withContext(Dispatchers.IO) {
+        try {
+            val shell = System.getenv("SHELL") ?: "/bin/sh"
+            val p = ProcessBuilder(shell, "-lc", "echo \$PATH")
+                .redirectErrorStream(true)
+                .start()
+            val path = p.inputStream.bufferedReader().readLine()
+            p.waitFor(5, TimeUnit.SECONDS)
+            p.destroyForcibly()
+            if (!path.isNullOrBlank()) mapOf("PATH" to path) else emptyMap()
+        } catch (_: Exception) {
+            emptyMap()
+        }
     }
 }

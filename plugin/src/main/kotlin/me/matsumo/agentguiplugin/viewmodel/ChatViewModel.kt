@@ -81,12 +81,22 @@ class ChatViewModel(
         _uiState.update { reduce(it, action) }
     }
 
+    /** ラッパー CLI のために解決したシェル環境（遅延初期化） */
+    private var resolvedShellEnv: Map<String, String>? = null
+
     init {
         // AuthFlowHandler の認証完了コールバック
         authFlowHandler.onAuthComplete = {
             vmScope.launch {
                 dispatch(StateAction.SessionDisconnected)
                 start()
+            }
+        }
+
+        // AuthFlowHandler の認証エラーコールバック（プロセス異常終了時）
+        authFlowHandler.onAuthError = { errorMessage ->
+            vmScope.launch {
+                dispatch(StateAction.SessionError(errorMessage))
             }
         }
 
@@ -133,7 +143,12 @@ class ChatViewModel(
             dispatch(StateAction.StartConnecting)
 
             startJob = vmScope.launch {
-                when (val result = preflightChecker.check(claudeCodePath)) {
+                // ラッパー CLI が内部コマンドを解決できるようシェル環境を取得
+                if (claudeCodePath != null && resolvedShellEnv == null) {
+                    resolvedShellEnv = preflightChecker.resolveShellPath()
+                }
+
+                when (val result = preflightChecker.check(claudeCodePath, resolvedShellEnv ?: emptyMap())) {
                     is PreflightResult.Ready -> connectSession(resumeSessionId)
                     is PreflightResult.AuthRequired -> {
                         authFlowHandler.startAuth(
