@@ -1,5 +1,6 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import com.intellij.openapi.diagnostic.Logger
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +48,8 @@ class ChatViewModel(
     private val initialModel: Model,
     private val initialPermissionMode: PermissionMode,
 ) {
+    private val log = Logger.getInstance(ChatViewModel::class.java)
+
     /** VM が所有する CoroutineScope。dispose() で cancel される。 */
     private val vmScope = CoroutineScope(SupervisorJob())
 
@@ -80,6 +83,9 @@ class ChatViewModel(
     private var startJob: Job? = null
 
     private var branchSwitchJob: Job? = null
+
+    /** compact_boundary 受信後、次の UserMessage からサマリーを取得するためのフラグ */
+    private var awaitingCompactSummary = false
 
     // --- Reducer dispatch ---
 
@@ -426,13 +432,24 @@ class ChatViewModel(
         when (event) {
             is TurnEngine.TurnEvent.System -> handleSystemMessage(event.message)
             is TurnEngine.TurnEvent.Stream -> usageTracker.processStreamEvent(event.event)
-            is TurnEngine.TurnEvent.Assistant -> handleAssistantMessage(event.message)
-            is TurnEngine.TurnEvent.User -> handleUserMessage(event.message)
-            is TurnEngine.TurnEvent.Result -> handleResultMessage(event.message)
+            is TurnEngine.TurnEvent.Assistant -> {
+                log.warn("[CompactDebug] AssistantMessage: content=${event.message.content.map { it::class.simpleName }}")
+                handleAssistantMessage(event.message)
+            }
+            is TurnEngine.TurnEvent.User -> {
+                log.warn("[CompactDebug] UserMessage: content=${event.message.content}, toolUseResult=${event.message.toolUseResult}")
+                handleUserMessage(event.message)
+            }
+            is TurnEngine.TurnEvent.Result -> {
+                log.warn("[CompactDebug] ResultMessage: subtype=${event.message.subtype}, result=${event.message.result}")
+                handleResultMessage(event.message)
+            }
         }
     }
 
     private fun handleSystemMessage(message: SystemMessage) {
+        log.warn("[CompactDebug] SystemMessage: subtype=${message.subtype}, data=${message.data}")
+
         when {
             message.isInit -> dispatch(StateAction.SessionIdUpdated(message.sessionId))
             message.subtype == "compact_boundary" -> handleCompactBoundary(message)
@@ -449,6 +466,8 @@ class ChatViewModel(
             preTokens = preTokens,
             trigger = trigger,
         )
+
+        awaitingCompactSummary = true
 
         _uiState.update { state ->
             val path = state.conversationCursor.activeLeafPath
@@ -482,8 +501,37 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * 直前の CompactBoundary メッセージのサマリーを更新する。
+     */
+    private fun updateLastCompactBoundarySummary(summary: String) {
+        _uiState.update { state ->
+            val messages = state.activeMessages
+            val lastBoundary = messages.filterIsInstance<ChatMessage.CompactBoundary>().lastOrNull()
+                ?: return@update state
+
+            val updatedBoundary = lastBoundary.copy(summary = summary)
+            val newTree = state.conversationTree.replaceMessage(lastBoundary.id, updatedBoundary)
+                ?: return@update state
+
+            state.copy(conversationTree = newTree)
+        }
+    }
+
     private fun handleUserMessage(message: UserMessage) {
         if (message.parentToolUseId != null) return // sub-agent の tool result は無視
+
+        // compact 後の最初の UserMessage からサマリーを抽出
+        if (awaitingCompactSummary) {
+            awaitingCompactSummary = false
+            val summary = (message.content as? kotlinx.serialization.json.JsonPrimitive)
+                ?.contentOrNull
+            if (!summary.isNullOrBlank()) {
+                updateLastCompactBoundarySummary(summary)
+                return // サマリー UserMessage は UI に表示しない
+            }
+        }
+
         val results = extractToolResults(message)
         if (results.isNotEmpty()) {
             dispatch(StateAction.ToolResultReceived(results))

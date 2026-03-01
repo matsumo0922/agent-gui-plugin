@@ -136,6 +136,7 @@ fun ChatMessageList(
                         is ChatMessage.CompactBoundary -> {
                             CompactBoundaryBlock(
                                 modifier = Modifier.fillMaxWidth(),
+                                summary = message.summary,
                                 preTokens = message.preTokens,
                                 trigger = message.trigger,
                             )

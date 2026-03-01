@@ -332,6 +332,38 @@ fun ConversationTree.getActiveLeafSessionId(): String? {
     return traverse(slots)
 }
 
+/**
+ * メッセージ ID で応答を検索し、置換する。
+ * ID が見つからない場合は null を返す。
+ */
+fun ConversationTree.replaceMessage(messageId: String, newMessage: ChatMessage): ConversationTree? {
+    var found = false
+
+    fun updateSlots(slots: List<MessageSlot>): List<MessageSlot> {
+        return slots.map { slot ->
+            slot.copy(
+                timelines = slot.timelines.map { timeline ->
+                    val updatedResponses = timeline.responses.map { response ->
+                        if (response.id == messageId) {
+                            found = true
+                            newMessage
+                        } else {
+                            response
+                        }
+                    }
+                    timeline.copy(
+                        responses = updatedResponses,
+                        childSlots = updateSlots(timeline.childSlots),
+                    )
+                }
+            )
+        }
+    }
+
+    val newTree = copy(slots = updateSlots(slots))
+    return if (found) newTree else null
+}
+
 // ──────────────────────────────────────────────────────────
 // Factory
 // ──────────────────────────────────────────────────────────

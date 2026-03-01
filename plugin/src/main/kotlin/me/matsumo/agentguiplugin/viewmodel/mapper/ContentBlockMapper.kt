@@ -8,6 +8,7 @@ import me.matsumo.agentguiplugin.viewmodel.EditDiffInfo
 import me.matsumo.agentguiplugin.viewmodel.ToolResultInfo
 import me.matsumo.agentguiplugin.viewmodel.UiContentBlock
 import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
+import me.matsumo.claude.agent.types.CompactionBlock
 import me.matsumo.claude.agent.types.ContentBlock
 import me.matsumo.claude.agent.types.TextBlock
 import me.matsumo.claude.agent.types.ThinkingBlock
@@ -44,6 +45,7 @@ internal fun ContentBlock.toUiBlock(): UiContentBlock = when (this) {
         diffInfo = toEditDiffInfoOrNull(),
     )
     is ToolResultBlock -> UiContentBlock.Text("[Tool result]")
+    is CompactionBlock -> UiContentBlock.Text(content)
 }
 
 internal fun ContentBlock.toUiBlockOrNull(): UiContentBlock? = when (this) {
@@ -56,6 +58,7 @@ internal fun ContentBlock.toUiBlockOrNull(): UiContentBlock? = when (this) {
         diffInfo = toEditDiffInfoOrNull(),
     )
     is ToolResultBlock -> null
+    is CompactionBlock -> if (content.isBlank()) null else UiContentBlock.Text(content)
 }
 
 /**

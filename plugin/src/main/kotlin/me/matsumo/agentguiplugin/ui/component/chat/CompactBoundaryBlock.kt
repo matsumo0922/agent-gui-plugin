@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,11 +26,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
+import org.jetbrains.jewel.ui.Orientation
+import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.Text
 
 @Composable
 fun CompactBoundaryBlock(
     modifier: Modifier = Modifier,
+    summary: String = "",
     preTokens: Int = 0,
     trigger: String = "manual",
 ) {
@@ -76,27 +80,46 @@ fun CompactBoundaryBlock(
             enter = fadeIn(tween(delayMillis = 200)),
             exit = fadeOut(tween(100)),
         ) {
-            Column(
+            SelectionContainer(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(IdeaTheme.colorScheme.surfaceContainer)
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                    .padding(top = 8.dp),
             ) {
-                Text(
-                    text = "Trigger: $trigger",
-                    style = IdeaTheme.typography.bodyMedium,
-                    color = IdeaTheme.colorScheme.onSurfaceVariant,
-                )
-
-                if (preTokens > 0) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(IdeaTheme.colorScheme.surfaceContainer)
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Text(
-                        text = "Pre-compact tokens: %,d".format(preTokens),
+                        text = "Trigger: $trigger",
                         style = IdeaTheme.typography.bodyMedium,
                         color = IdeaTheme.colorScheme.onSurfaceVariant,
                     )
+
+                    if (preTokens > 0) {
+                        Text(
+                            text = "Pre-compact tokens: %,d".format(preTokens),
+                            style = IdeaTheme.typography.bodyMedium,
+                            color = IdeaTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    if (summary.isNotEmpty()) {
+                        Divider(
+                            modifier = Modifier.fillMaxWidth(),
+                            orientation = Orientation.Horizontal,
+                            color = IdeaTheme.colorScheme.outlineVariant,
+                        )
+
+                        Text(
+                            text = summary,
+                            style = IdeaTheme.typography.bodyMedium,
+                            color = IdeaTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
             }
         }
