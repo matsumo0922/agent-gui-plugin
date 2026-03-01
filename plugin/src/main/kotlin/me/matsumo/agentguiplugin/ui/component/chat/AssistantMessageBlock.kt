@@ -75,12 +75,14 @@ fun AssistantMessageBlock(
                         project = project,
                     )
                 }
+
                 is UiContentBlock.Thinking -> {
                     ThinkingBlock(
                         modifier = Modifier.fillMaxWidth(),
                         text = block.text,
                     )
                 }
+
                 is UiContentBlock.ToolUse -> {
                     val toolResult = if (block.toolName in ToolNames.RESULT_IGNORED_TOOL_NAMES) {
                         null
@@ -210,6 +212,7 @@ private fun EditDiffBlock(
         is DiffPreviewState.Loading -> {
             // ロード中は何も表示しない（ちらつき防止）
         }
+
         is DiffPreviewState.Error -> {
             CodeBlock(
                 content = "// ${state.message}",
@@ -217,6 +220,7 @@ private fun EditDiffBlock(
                 modifier = modifier,
             )
         }
+
         is DiffPreviewState.Ready -> {
             CodeBlock(
                 content = diffInfo.oldString,
@@ -225,14 +229,18 @@ private fun EditDiffBlock(
                 diffLines = state.lines,
                 showLineNumbers = true,
                 onOpenDiff = {
-                    openDiffInIde(project = project, diffInfo = diffInfo, fileName = fileName)
+                    openDiffInIde(
+                        project = project,
+                        diffInfo = diffInfo,
+                        fileName = fileName
+                    )
                 },
             )
         }
     }
 }
 
-private fun openDiffInIde(project: Project, diffInfo: EditDiffInfo, fileName: String) {
+fun openDiffInIde(project: Project, diffInfo: EditDiffInfo, fileName: String) {
     val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByPath(diffInfo.filePath)
     val currentText = virtualFile?.let {
         ApplicationManager.getApplication().runReadAction<String> { VfsUtil.loadText(it) }
@@ -246,15 +254,15 @@ private fun openDiffInIde(project: Project, diffInfo: EditDiffInfo, fileName: St
         // ファイルがまだ編集前 → 実ファイルと適用後の差分を表示
         val newText = currentText.replaceFirst(diffInfo.oldString, diffInfo.newString)
         left = if (virtualFile != null) factory.create(project, virtualFile)
-               else factory.create(currentText)
+        else factory.create(currentText)
         right = if (virtualFile != null) factory.create(project, newText, virtualFile.fileType)
-                else factory.create(newText)
+        else factory.create(newText)
     } else {
         // ファイルが既に編集済み or ファイルなし → oldString vs newString を直接比較
         left = if (virtualFile != null) factory.create(project, diffInfo.oldString, virtualFile.fileType)
-               else factory.create(diffInfo.oldString)
+        else factory.create(diffInfo.oldString)
         right = if (virtualFile != null) factory.create(project, diffInfo.newString, virtualFile.fileType)
-                else factory.create(diffInfo.newString)
+        else factory.create(diffInfo.newString)
     }
 
     val request = SimpleDiffRequest("Edit: $fileName", left, right, "変更前", "変更後")

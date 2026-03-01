@@ -8,12 +8,14 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -214,6 +216,7 @@ fun CodeBlock(
                     .padding(horizontal = 4.dp)
                     .weight(1f),
                 text = language.ifEmpty { "code" },
+                style = IdeaTheme.typography.bodySmall,
                 color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
 
@@ -284,7 +287,9 @@ private fun DiffContent(
 
     Column(
         modifier = modifier
+            .verticalScroll(rememberScrollState())
             .horizontalScroll(rememberScrollState())
+            .width(IntrinsicSize.Max)
             .padding(vertical = 8.dp),
     ) {
         diffLines.forEach { line ->
@@ -307,7 +312,7 @@ private fun DiffContent(
                         modifier = Modifier.width(24.dp),
                         text = (line.oldLineNumber ?: line.newLineNumber)?.toString().orEmpty(),
                         color = lineNumColor,
-                        fontFamily = FontFamily.Monospace,
+                        style = IdeaTheme.typography.bodyMedium,
                         textAlign = TextAlign.End,
                     )
                 }
@@ -315,11 +320,13 @@ private fun DiffContent(
                 Text(
                     text = prefix,
                     color = lineColor,
+                    style = IdeaTheme.typography.bodyMedium,
                     fontFamily = FontFamily.Monospace,
                 )
 
                 Text(
                     text = line.text,
+                    style = IdeaTheme.typography.bodyMedium,
                     fontFamily = FontFamily.Monospace,
                     color = lineColor,
                     softWrap = false,
@@ -354,6 +361,7 @@ internal fun HighlightedCodeBlockContent(
 
     Box(
         modifier = modifier
+            .verticalScroll(rememberScrollState())
             .horizontalScroll(rememberScrollState())
             .padding(styling.padding),
     ) {
