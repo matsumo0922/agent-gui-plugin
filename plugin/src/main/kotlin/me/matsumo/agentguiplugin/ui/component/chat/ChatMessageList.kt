@@ -41,6 +41,7 @@ fun ChatMessageList(
     onEdit: (editGroupId: String, newText: String) -> Unit,
     onNavigateVersion: (editGroupId: String, direction: Int) -> Unit,
     modifier: Modifier = Modifier,
+    activeStreamingMessageId: String? = null,
 ) {
     val listState = rememberLazyListState()
     var lastMessages by remember { mutableStateOf<List<ChatMessage>?>(null) }
@@ -99,6 +100,7 @@ fun ChatMessageList(
                                 toolResults = toolResults,
                                 project = project,
                                 timestamp = message.timestamp,
+                                isStreaming = message.id == activeStreamingMessageId,
                             )
                         }
 

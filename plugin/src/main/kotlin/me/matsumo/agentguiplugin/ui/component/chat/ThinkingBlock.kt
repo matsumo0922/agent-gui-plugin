@@ -28,6 +28,7 @@ import org.jetbrains.jewel.ui.component.Text
 fun ThinkingBlock(
     text: String,
     modifier: Modifier = Modifier,
+    elapsedText: String = "",
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
@@ -42,7 +43,7 @@ fun ThinkingBlock(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "Thinking",
+                text = if (elapsedText.isNotEmpty()) "Thinking ($elapsedText)" else "Thinking",
                 style = IdeaTheme.typography.bodyLarge,
                 color = IdeaTheme.colorScheme.onSurfaceVariant,
             )

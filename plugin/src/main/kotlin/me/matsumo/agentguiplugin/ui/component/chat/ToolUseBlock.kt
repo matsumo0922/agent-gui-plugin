@@ -43,6 +43,7 @@ fun ToolUseBlock(
     modifier: Modifier = Modifier,
     resultContent: String? = null,
     isResultError: Boolean = false,
+    elapsedText: String = "",
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     val inputMap = remember(inputJson) { inputJson.mapValues { it.value.toString() } }
@@ -79,6 +80,14 @@ fun ToolUseBlock(
                     color = IdeaTheme.colorScheme.onSurfaceDisabled,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            if (elapsedText.isNotEmpty()) {
+                Text(
+                    text = "($elapsedText)",
+                    style = IdeaTheme.typography.bodyMedium,
+                    color = IdeaTheme.colorScheme.onSurfaceVariant,
                 )
             }
 

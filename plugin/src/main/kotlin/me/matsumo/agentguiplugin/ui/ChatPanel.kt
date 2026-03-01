@@ -199,6 +199,7 @@ fun ChatPanel(
                     project = project,
                     onEdit = viewModel::editMessage,
                     onNavigateVersion = viewModel::navigateEditVersion,
+                    activeStreamingMessageId = uiState.conversationCursor.activeStreamingMessageId,
                 )
 
                 Divider(

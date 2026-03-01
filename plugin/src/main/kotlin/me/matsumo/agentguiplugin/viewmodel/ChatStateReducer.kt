@@ -1,5 +1,6 @@
 package me.matsumo.agentguiplugin.viewmodel
 
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
@@ -124,16 +125,29 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
         val targetPath = cursor.activeLeafPath
         val msg = action.assistantMsg
         val isSameStreaming = cursor.activeStreamingMessageId == msg.id
+
+        val finalMsg = if (isSameStreaming) {
+            // 旧メッセージから timing 情報を引き継ぐ
+            val oldMsg = state.conversationTree.getActiveMessages().lastOrNull() as? ChatMessage.Assistant
+            val mergedBlocks = mergeBlockTimings(oldMsg?.blocks, msg.blocks)
+            msg.copy(
+                timestamp = oldMsg?.timestamp ?: msg.timestamp,
+                blocks = mergedBlocks,
+            )
+        } else {
+            msg.copy(blocks = initBlockTimings(msg.blocks))
+        }
+
         val newTree = if (isSameStreaming) {
             state.conversationTree.updateLastResponse(targetPath) { last ->
-                if (last is ChatMessage.Assistant && last.id == msg.id) msg else last
+                if (last is ChatMessage.Assistant && last.id == finalMsg.id) finalMsg else last
             }
         } else {
-            state.conversationTree.appendResponse(targetPath, msg)
+            state.conversationTree.appendResponse(targetPath, finalMsg)
         }
         state.copy(
             conversationTree = newTree,
-            conversationCursor = cursor.copy(activeStreamingMessageId = msg.id),
+            conversationCursor = cursor.copy(activeStreamingMessageId = finalMsg.id),
         )
     }
     is StateAction.TurnCompleted -> state.copy(
@@ -219,4 +233,47 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
 
     // --- Reset ---
     is StateAction.Reset -> ChatUiState(model = action.model, permissionMode = action.permissionMode)
+}
+
+/**
+ * 新規メッセージの全ブロックに現在時刻を startedAt としてセットする。
+ */
+private fun initBlockTimings(blocks: ImmutableList<UiContentBlock>): ImmutableList<UiContentBlock> {
+    val now = System.currentTimeMillis()
+    return blocks.map { block ->
+        when (block) {
+            is UiContentBlock.Thinking -> block.copy(startedAt = now)
+            is UiContentBlock.ToolUse -> block.copy(startedAt = now)
+            is UiContentBlock.Text -> block
+        }
+    }.toImmutableList()
+}
+
+/**
+ * 同一ストリーミング中のブロック更新時、旧ブロックから startedAt を引き継ぐ。
+ * 新規ブロックには現在時刻をセットする。
+ */
+private fun mergeBlockTimings(
+    oldBlocks: ImmutableList<UiContentBlock>?,
+    newBlocks: ImmutableList<UiContentBlock>,
+): ImmutableList<UiContentBlock> {
+    if (oldBlocks == null) return initBlockTimings(newBlocks)
+
+    val now = System.currentTimeMillis()
+    // ToolUse は toolUseId でマッチ、Thinking は同型の最後のブロックでマッチ
+    val lastOldThinking = oldBlocks.filterIsInstance<UiContentBlock.Thinking>().lastOrNull()
+
+    return newBlocks.map { block ->
+        when (block) {
+            is UiContentBlock.ToolUse -> {
+                val oldBlock = oldBlocks.filterIsInstance<UiContentBlock.ToolUse>()
+                    .firstOrNull { it.toolUseId == block.toolUseId }
+                block.copy(startedAt = oldBlock?.startedAt ?: now)
+            }
+            is UiContentBlock.Thinking -> {
+                block.copy(startedAt = lastOldThinking?.startedAt ?: now)
+            }
+            is UiContentBlock.Text -> block
+        }
+    }.toImmutableList()
 }

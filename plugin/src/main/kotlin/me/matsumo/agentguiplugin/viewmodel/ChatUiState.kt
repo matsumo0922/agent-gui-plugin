@@ -144,12 +144,13 @@ sealed interface UiContentBlock {
     @Immutable
     data class Text(val text: String) : UiContentBlock
     @Immutable
-    data class Thinking(val text: String, val isExpanded: Boolean = false) : UiContentBlock
+    data class Thinking(val text: String, val isExpanded: Boolean = false, val startedAt: Long? = null) : UiContentBlock
     @Immutable
     data class ToolUse(
         val toolName: String,
         val inputJson: JsonObject,
         val toolUseId: String? = null,
         val diffInfo: EditDiffInfo? = null,
+        val startedAt: Long? = null,
     ) : UiContentBlock
 }
