@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import me.matsumo.agentguiplugin.ui.ChatPanel
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
@@ -74,12 +75,14 @@ class TabManager(
         enableNewSwingCompositing()
 
         val component = JewelComposePanel(focusOnClickInside = true) {
-            LaunchedEffect(vm) {
-                if (vm.uiState.value.sessionState == SessionState.Disconnected) {
-                    vm.start(resumeSessionId = resumeSessionId)
+            IdeaTheme {
+                LaunchedEffect(vm) {
+                    if (vm.uiState.value.sessionState == SessionState.Disconnected) {
+                        vm.start(resumeSessionId = resumeSessionId)
+                    }
                 }
+                ChatPanel(viewModel = vm, project = project)
             }
-            ChatPanel(viewModel = vm, project = project)
         }
 
         val content = ContentFactory.getInstance().createContent(component, title, false)

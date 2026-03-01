@@ -22,19 +22,18 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
-import org.jetbrains.jewel.foundation.theme.JewelTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun AgentGuiSettingsPanel(
     cliPath: String,
     onCliPathChange: (String) -> Unit,
 ) {
-    val borderColor = JewelTheme.globalColors.borders.normal
-    val textColor = JewelTheme.globalColors.text.normal
-    val placeholderColor = JewelTheme.globalColors.text.disabled
-    val bgColor = JewelTheme.globalColors.panelBackground
+    val borderColor = IdeaTheme.colorScheme.outline
+    val textColor = IdeaTheme.colorScheme.onSurface
+    val placeholderColor = IdeaTheme.colorScheme.onSurfaceDisabled
+    val bgColor = IdeaTheme.colorScheme.background
 
     Column(
         modifier = Modifier
@@ -44,7 +43,7 @@ fun AgentGuiSettingsPanel(
     ) {
         Text(
             text = "Claude CLI Path",
-            style = JewelTheme.typography.medium,
+            style = IdeaTheme.typography.bodyMedium,
             color = textColor,
         )
 
@@ -69,7 +68,7 @@ fun AgentGuiSettingsPanel(
                 if (cliPath.isEmpty()) {
                     Text(
                         text = "Auto detect (leave empty)",
-                        style = JewelTheme.typography.medium,
+                        style = IdeaTheme.typography.bodyMedium,
                         color = placeholderColor,
                     )
                 }
@@ -78,7 +77,7 @@ fun AgentGuiSettingsPanel(
                     value = cliPath,
                     onValueChange = onCliPathChange,
                     singleLine = true,
-                    textStyle = JewelTheme.typography.medium.copy(color = textColor),
+                    textStyle = IdeaTheme.typography.bodyMedium.copy(color = textColor),
                     cursorBrush = SolidColor(textColor),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -104,7 +103,7 @@ fun AgentGuiSettingsPanel(
         Text(
             text = "Path to the Claude CLI binary. Leave empty to auto-detect from: " +
                 "PATH, ~/.npm-global/bin/claude, /usr/local/bin/claude, ~/.local/bin/claude, etc.",
-            style = JewelTheme.typography.small,
+            style = IdeaTheme.typography.bodySmall,
             color = placeholderColor,
         )
     }
@@ -116,8 +115,8 @@ private fun SettingsButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val borderColor = JewelTheme.globalColors.borders.normal
-    val textColor = JewelTheme.globalColors.text.normal
+    val borderColor = IdeaTheme.colorScheme.outline
+    val textColor = IdeaTheme.colorScheme.onSurface
     val shape = RoundedCornerShape(4.dp)
 
     Box(
@@ -130,7 +129,7 @@ private fun SettingsButton(
     ) {
         Text(
             text = text,
-            style = JewelTheme.typography.medium,
+            style = IdeaTheme.typography.bodyMedium,
             color = textColor,
         )
     }

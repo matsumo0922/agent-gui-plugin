@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import com.intellij.openapi.components.service
 import com.intellij.openapi.options.Configurable
 import me.matsumo.agentguiplugin.service.SettingsService
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.bridge.JewelComposePanel
 import javax.swing.JComponent
 
@@ -17,10 +18,12 @@ class AgentGuiSettingsConfigurable : Configurable {
     override fun getDisplayName(): String = "Agent GUI"
 
     override fun createComponent(): JComponent = JewelComposePanel {
-        AgentGuiSettingsPanel(
-            cliPath = cliPathState.value,
-            onCliPathChange = { cliPathState.value = it },
-        )
+        IdeaTheme {
+            AgentGuiSettingsPanel(
+                cliPath = cliPathState.value,
+                onCliPathChange = { cliPathState.value = it },
+            )
+        }
     }
 
     override fun isModified(): Boolean =

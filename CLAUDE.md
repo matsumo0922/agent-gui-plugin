@@ -78,7 +78,9 @@ IntelliJ プラグイン本体。Compose for IDE (Jewel) で UI を描画。
 - IntelliJ Platform が `bundledPlugin("org.jetbrains.kotlin")` 経由でこれらを提供するため、`plugin/build.gradle.kts` で `exclude` を使って ClassLoader 衝突を回避
 - exclude 対象: `kotlinx-serialization-json`, `kotlinx-serialization-json-jvm`, `kotlinx-serialization-core`, `kotlinx-serialization-core-jvm`, `kotlinx-coroutines-core`, `kotlinx-coroutines-core-jvm`
 
-### Compose TextFieldValue
+### Compose
+- 全ての Composable の引数には `Modifier` を用意し、`fillMaxWidth` などの　Composable 自体の大きさやマージンは外から指定すること。
+- `Modifier` は呼び出し時には第一引数に記述する。引数の定義時には必ずデフォルト引数で `Modifier` を渡しデフォルト引数が指定されている引数の中で先頭に定義する。
 - `TextFieldValue(text)` を recomposition ごとに再生成するとカーソル位置がリセットされる
 - `mutableStateOf(TextFieldValue)` でローカル管理し、外部変更は `LaunchedEffect` で同期する
 
