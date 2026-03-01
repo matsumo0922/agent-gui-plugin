@@ -1,110 +1,91 @@
-# IntelliJ Platform Plugin Template
+# Agent GUI
 
-[![Twitter Follow](https://img.shields.io/badge/follow-%40JBPlatform-1DA1F2?logo=twitter)](https://twitter.com/JBPlatform)
-[![Developers Forum](https://img.shields.io/badge/JetBrains%20Platform-Join-blue)][jb:forum]
+[![Build](https://github.com/matsumo0922/agent-gui-plugin/workflows/Build/badge.svg)](https://github.com/matsumo0922/agent-gui-plugin/actions/workflows/build.yml)
+[![Version](https://img.shields.io/jetbrains/plugin/v/me.matsumo.agent-gui-plugin.svg)](https://plugins.jetbrains.com/plugin/XXXXX-agent-gui)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/me.matsumo.agent-gui-plugin.svg)](https://plugins.jetbrains.com/plugin/XXXXX-agent-gui)
 
-## Plugin template structure
+A unified GUI for AI coding agents inside your JetBrains IDE. Currently supports [Claude Code](https://docs.anthropic.com/en/docs/claude-code), with support for [OpenAI Codex](https://github.com/openai/codex) and other agents planned.
 
-A generated project contains the following content structure:
+No terminal switching — just open the panel and start chatting.
+
+## Supported Agents
+
+| Agent | Status |
+|---|---|
+| Claude Code | Fully supported |
+| OpenAI Codex | Planned |
+| More agents | Coming soon |
+
+## Features
+
+- **Interactive Chat UI** — Multi-turn conversations rendered with full Markdown support including code blocks, tables, and GFM alerts.
+- **Streaming Responses** — See responses as they arrive in real time, with thinking block visualization.
+- **Tool Use Visualization** — Watch agents read files, edit code, run commands, and more — each tool call is displayed with rich detail.
+- **Permission Management** — Approve or deny tool-use requests directly from the UI with a single click.
+- **Sub-agent Tasks** — Track background agent tasks with dedicated task cards.
+- **File Attachments** — Attach project files to your messages for context-aware assistance.
+- **Session History** — Resume previous conversations across IDE restarts.
+- **Native Look & Feel** — Built with Compose for IDE (Jewel), the UI adapts seamlessly to your IDE theme (light/dark).
+
+## Requirements
+
+- **JetBrains IDE** 2025.3 or later (IntelliJ IDEA, Android Studio, WebStorm, etc.)
+
+### Claude Code
+
+- **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** installed and available on your PATH
+- A valid **Anthropic API key** or **Claude Max subscription** configured in Claude Code
+
+## Installation
+
+### From JetBrains Marketplace
+
+1. Open your IDE and go to **Settings** → **Plugins** → **Marketplace**
+2. Search for **"Agent GUI"**
+3. Click **Install** and restart the IDE
+
+### Manual Installation
+
+1. Download the latest release from [GitHub Releases](https://github.com/matsumo0922/agent-gui-plugin/releases)
+2. Go to **Settings** → **Plugins** → **Install Plugin from Disk...**
+3. Select the downloaded `.zip` file
+
+## Getting Started
+
+1. Open the **Agent GUI** tool window from the right sidebar
+2. Start chatting!
+
+## Architecture
 
 ```
-.
-├── .run/                   Predefined Run/Debug Configurations
-├── build/                  Output build directory
-├── gradle
-│   ├── wrapper/            Gradle Wrapper
-├── src                     Plugin sources
-│   ├── main
-│   │   ├── kotlin/         Kotlin production sources
-│   │   └── resources/      Resources - plugin.xml, icons, messages
-├── .gitignore              Git ignoring rules
-├── build.gradle.kts        Gradle build configuration
-├── gradle.properties       Gradle configuration properties
-├── gradlew                 *nix Gradle Wrapper script
-├── gradlew.bat             Windows Gradle Wrapper script
-├── README.md               README
-└── settings.gradle.kts     Gradle project settings
+Plugin (Compose UI + ViewModel)
+    ↓
+claude-agent-sdk-kotlin (Pure JVM SDK)
+    ↓
+Claude Code CLI (subprocess: stdin/stdout stream-json)
 ```
 
-In addition to the configuration files, the most crucial part is the `src` directory, which contains our implementation and the manifest for our plugin – [plugin.xml][file:plugin.xml].
+The plugin communicates with AI coding agents through dedicated SDK layers. Currently, `claude-agent-sdk-kotlin` handles Claude Code CLI communication via subprocess and stream-JSON transport.
 
-> [!NOTE]
-> To use Java in your plugin, create the `/src/main/java` directory.
+## Building from Source
 
-## Plugin configuration file
+```bash
+# Build the plugin
+./gradlew :plugin:buildPlugin
 
-The plugin configuration file is a [plugin.xml][file:plugin.xml] file located in the `src/main/resources/META-INF` directory.
-It provides general information about the plugin, its dependencies, extensions, and listeners.
+# Run in a development IDE
+./gradlew :plugin:runIde
 
-You can read more about this file in the [Plugin Configuration File][docs:plugin.xml] section of our documentation.
+# Run tests
+./gradlew :plugin:check
+```
 
-If you're still not quite sure what this is all about, read our introduction: [What is the IntelliJ Platform?][docs:intro]
+## License
 
-$H$H Predefined Run/Debug configurations
+<!-- TODO: Add license -->
 
-Within the default project structure, there is a `.run` directory provided containing predefined *Run/Debug configurations* that expose corresponding Gradle tasks:
+## Links
 
-| Configuration name | Description                                                                                                                                                                         |
-|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Run Plugin         | Runs [`:runIde`][gh:intellij-platform-gradle-plugin-runIde] IntelliJ Platform Gradle Plugin task. Use the *Debug* icon for plugin debugging.                                        |
-| Run Tests          | Runs [`:test`][gradle:lifecycle-tasks] Gradle task.                                                                                                                                 |
-| Run Verifications  | Runs [`:verifyPlugin`][gh:intellij-platform-gradle-plugin-verifyPlugin] IntelliJ Platform Gradle Plugin task to check the plugin compatibility against the specified IntelliJ IDEs. |
-
-> [!NOTE]
-> You can find the logs from the running task in the `idea.log` tab.
-
-## Publishing the plugin
-
-> [!TIP]
-> Make sure to follow all guidelines listed in [Publishing a Plugin][docs:publishing] to follow all recommended and required steps.
-
-Releasing a plugin to [JetBrains Marketplace](https://plugins.jetbrains.com) is a straightforward operation that uses the `publishPlugin` Gradle task provided by
-the [intellij-platform-gradle-plugin][gh:intellij-platform-gradle-plugin-docs].
-
-You can also upload the plugin to the [JetBrains Plugin Repository](https://plugins.jetbrains.com/plugin/upload) manually via UI.
-
-## Useful links
-
-- [IntelliJ Platform SDK Plugin SDK][docs]
-- [IntelliJ Platform Gradle Plugin Documentation][gh:intellij-platform-gradle-plugin-docs]
-- [IntelliJ Platform Explorer][jb:ipe]
-- [JetBrains Marketplace Quality Guidelines][jb:quality-guidelines]
-- [IntelliJ Platform UI Guidelines][jb:ui-guidelines]
-- [JetBrains Marketplace Paid Plugins][jb:paid-plugins]
-- [IntelliJ SDK Code Samples][gh:code-samples]
-
-[docs]: https://plugins.jetbrains.com/docs/intellij
-
-[docs:intro]: https://plugins.jetbrains.com/docs/intellij/intellij-platform.html?from=IJPluginTemplate
-
-[docs:plugin.xml]: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html?from=IJPluginTemplate
-
-[docs:publishing]: https://plugins.jetbrains.com/docs/intellij/publishing-plugin.html?from=IJPluginTemplate
-
-[file:plugin.xml]: ./src/main/resources/META-INF/plugin.xml
-
-[gh:code-samples]: https://github.com/JetBrains/intellij-sdk-code-samples
-
-[gh:intellij-platform-gradle-plugin]: https://github.com/JetBrains/intellij-platform-gradle-plugin
-
-[gh:intellij-platform-gradle-plugin-docs]: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
-
-[gh:intellij-platform-gradle-plugin-runIde]: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-tasks.html#runIde
-
-[gh:intellij-platform-gradle-plugin-verifyPlugin]: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-tasks.html#verifyPlugin
-
-[gradle:lifecycle-tasks]: https://docs.gradle.org/current/userguide/java_plugin.html#lifecycle_tasks
-
-[jb:github]: https://github.com/JetBrains/.github/blob/main/profile/README.md
-
-[jb:forum]: https://platform.jetbrains.com/
-
-[jb:quality-guidelines]: https://plugins.jetbrains.com/docs/marketplace/quality-guidelines.html
-
-[jb:paid-plugins]: https://plugins.jetbrains.com/docs/marketplace/paid-plugins-marketplace.html
-
-[jb:quality-guidelines]: https://plugins.jetbrains.com/docs/marketplace/quality-guidelines.html
-
-[jb:ipe]: https://jb.gg/ipe
-
-[jb:ui-guidelines]: https://jetbrains.github.io/ui
+- [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code)
+- [JetBrains Marketplace](https://plugins.jetbrains.com)
+- [Issue Tracker](https://github.com/matsumo0922/agent-gui-plugin/issues)

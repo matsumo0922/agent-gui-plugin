@@ -1,31 +1,39 @@
 <!-- Plugin Configuration File: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>me.matsumo.agent-gui-plugin</id>
-    <name>Claude Code GUI</name>
+    <name>Agent GUI</name>
     <vendor url="https://plugins.jetbrains.com/vendor/matsumo0922">matsumo0922</vendor>
 
     <description><![CDATA[
-<h2>Claude Code GUI — Chat with Claude Code directly inside your IDE</h2>
+<h2>Agent GUI — A unified GUI for AI coding agents inside your IDE</h2>
 
 <p>
-    A native GUI for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code (CLI)</a> that brings
-    AI-powered coding assistance right into your JetBrains IDE as a tool window.
+    Agent GUI provides a native chat interface for AI coding agents directly within your JetBrains IDE.
+    Currently supports <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code (CLI)</a>,
+    with support for <a href="https://github.com/openai/codex">OpenAI Codex</a> and other agents planned.
     No terminal switching — just open the panel and start chatting.
 </p>
 
+<h3>Supported Agents</h3>
+<ul>
+    <li><b>Claude Code</b> — Fully supported</li>
+    <li><b>OpenAI Codex</b> — Planned</li>
+    <li><b>More agents</b> — Coming soon</li>
+</ul>
+
 <h3>Features</h3>
 <ul>
-    <li><b>Interactive Chat UI</b> — Multi-turn conversations with Claude, rendered with full Markdown support including code blocks, tables, and GFM alerts.</li>
-    <li><b>Streaming Responses</b> — See Claude's responses as they arrive in real time, with thinking block visualization.</li>
-    <li><b>Tool Use Visualization</b> — Watch Claude read files, edit code, run commands, and more — each tool call is displayed with rich detail.</li>
+    <li><b>Interactive Chat UI</b> — Multi-turn conversations rendered with full Markdown support including code blocks, tables, and GFM alerts.</li>
+    <li><b>Streaming Responses</b> — See responses as they arrive in real time, with thinking block visualization.</li>
+    <li><b>Tool Use Visualization</b> — Watch agents read files, edit code, run commands, and more — each tool call is displayed with rich detail.</li>
     <li><b>Permission Management</b> — Approve or deny tool-use requests directly from the UI with a single click.</li>
-    <li><b>Sub-agent Tasks</b> — Track background agent tasks spawned by Claude with dedicated task cards.</li>
+    <li><b>Sub-agent Tasks</b> — Track background agent tasks with dedicated task cards.</li>
     <li><b>File Attachments</b> — Attach project files to your messages for context-aware assistance.</li>
     <li><b>Session History</b> — Resume previous conversations across IDE restarts.</li>
     <li><b>Native Look &amp; Feel</b> — Built with Compose for IDE (Jewel), the UI adapts seamlessly to your IDE theme (light/dark).</li>
 </ul>
 
-<h3>Requirements</h3>
+<h3>Requirements (Claude Code)</h3>
 <ul>
     <li><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code CLI</a> must be installed and available on your PATH.</li>
     <li>A valid Anthropic API key or Claude Max subscription configured in Claude Code.</li>
@@ -35,7 +43,7 @@
 <ol>
     <li>Install the plugin from the JetBrains Marketplace.</li>
     <li>Open the <b>Agent GUI</b> tool window from the right sidebar.</li>
-    <li>Start chatting with Claude!</li>
+    <li>Start chatting!</li>
 </ol>
     ]]></description>
 
