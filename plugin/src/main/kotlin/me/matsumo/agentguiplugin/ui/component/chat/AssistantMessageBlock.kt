@@ -13,21 +13,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.intellij.diff.DiffContentFactory
-import com.intellij.diff.DiffManager
-import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.testFramework.LightVirtualFile
 import me.matsumo.agentguiplugin.ui.component.CodeBlock
 import me.matsumo.agentguiplugin.ui.component.DiffLine
 import me.matsumo.agentguiplugin.ui.component.MarkdownText
 import me.matsumo.agentguiplugin.ui.component.computeDiffLines
 import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
+import me.matsumo.agentguiplugin.ui.util.openDiffInIde
 import me.matsumo.agentguiplugin.viewmodel.EditDiffInfo
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import me.matsumo.agentguiplugin.viewmodel.ToolResultInfo
@@ -240,33 +236,3 @@ private fun EditDiffBlock(
     }
 }
 
-fun openDiffInIde(project: Project, diffInfo: EditDiffInfo, fileName: String) {
-    val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByPath(diffInfo.filePath)
-    val currentText = virtualFile?.let {
-        ApplicationManager.getApplication().runReadAction<String> { VfsUtil.loadText(it) }
-    } ?: ""
-
-    val factory = DiffContentFactory.getInstance()
-    val left: com.intellij.diff.contents.DiffContent
-    val right: com.intellij.diff.contents.DiffContent
-
-    if (diffInfo.oldString.isNotEmpty() && currentText.contains(diffInfo.oldString)) {
-        // ファイルがまだ編集前 → 実ファイルと適用後の差分を表示
-        val newText = currentText.replaceFirst(diffInfo.oldString, diffInfo.newString)
-        left = if (virtualFile != null) factory.create(project, virtualFile)
-        else factory.create(currentText)
-        right = if (virtualFile != null) factory.create(project, newText, virtualFile.fileType)
-        else factory.create(newText)
-    } else {
-        // ファイルが既に編集済み or ファイルなし → oldString vs newString を直接比較
-        left = if (virtualFile != null) factory.create(project, diffInfo.oldString, virtualFile.fileType)
-        else factory.create(diffInfo.oldString)
-        right = if (virtualFile != null) factory.create(project, diffInfo.newString, virtualFile.fileType)
-        else factory.create(diffInfo.newString)
-    }
-
-    val request = SimpleDiffRequest("Edit: $fileName", left, right, "変更前", "変更後")
-    ApplicationManager.getApplication().invokeLater {
-        DiffManager.getInstance().showDiff(project, request)
-    }
-}

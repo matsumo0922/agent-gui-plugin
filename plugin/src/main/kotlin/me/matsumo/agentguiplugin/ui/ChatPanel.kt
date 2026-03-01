@@ -230,6 +230,7 @@ fun ChatPanel(
                             PermissionCard(
                                 modifier = Modifier.padding(bottom = 12.dp),
                                 permission = permission,
+                                project = project,
                                 onAllow = { viewModel.respondPermission(true) },
                                 onDeny = { msg -> viewModel.respondPermission(false, msg) },
                             )

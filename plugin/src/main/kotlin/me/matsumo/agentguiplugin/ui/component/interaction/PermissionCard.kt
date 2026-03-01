@@ -13,9 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,13 +28,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import me.matsumo.agentguiplugin.ui.component.CodeBlock
-import me.matsumo.agentguiplugin.ui.component.DiffLine
-import me.matsumo.agentguiplugin.ui.component.computeDiffLines
+import com.intellij.openapi.project.Project
 import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
+import me.matsumo.agentguiplugin.ui.util.openDiffInIde
+import me.matsumo.agentguiplugin.ui.util.openFilePreviewInIde
+import me.matsumo.agentguiplugin.viewmodel.EditDiffInfo
 import me.matsumo.agentguiplugin.viewmodel.PendingPermission
 import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.ui.component.Text
 
 private val warningColor = Color(0xFFF59E0B)
@@ -44,6 +44,7 @@ private val denyColor = Color(0xFFEF4444)
 @Composable
 fun PermissionCard(
     permission: PendingPermission,
+    project: Project,
     onAllow: () -> Unit,
     onDeny: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -72,6 +73,7 @@ fun PermissionCard(
                 .padding(top = 12.dp)
                 .fillMaxWidth(),
             permission = permission,
+            project = project,
         )
 
         AnimatedVisibility(showMessageField) {
@@ -131,41 +133,44 @@ private fun HeaderSection(
     }
 }
 
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun InputOrDiffSection(
     permission: PendingPermission,
+    project: Project,
     modifier: Modifier = Modifier,
 ) {
     val filePath = permission.toolInput["file_path"]?.toString() ?: ""
-    val fileName = filePath.substringAfterLast('/')
 
     when (permission.toolName) {
         in ToolNames.EDIT_TOOL_NAMES -> {
             val oldString = permission.toolInput["old_string"]?.toString() ?: ""
             val newString = permission.toolInput["new_string"]?.toString() ?: ""
+            val fileName = filePath.substringAfterLast('/')
 
-            val diffLines by produceState<List<DiffLine>?>(initialValue = null, key1 = permission) {
-                value = runCatching { computeDiffLines(oldString, newString) }.getOrNull()
-            }
-
-            if (diffLines != null) {
-                CodeBlock(
-                    content = oldString,
-                    language = fileName,
-                    modifier = modifier,
-                    diffLines = diffLines,
-                    showLineNumbers = true,
+            LaunchedEffect(permission) {
+                val diffInfo = EditDiffInfo(
+                    filePath = filePath,
+                    oldString = oldString,
+                    newString = newString,
                 )
+                openDiffInIde(project, diffInfo, fileName)
             }
+
+            FilePathLabel(
+                modifier = modifier,
+                filePath = filePath,
+            )
         }
         in ToolNames.WRITE_TOOL_NAMES -> {
             val content = permission.toolInput["content"]?.toString() ?: ""
 
-            CodeBlock(
-                content = content,
-                language = fileName,
+            LaunchedEffect(permission) {
+                openFilePreviewInIde(project, filePath, content)
+            }
+
+            FilePathLabel(
                 modifier = modifier,
+                filePath = filePath,
             )
         }
         else -> {
@@ -174,6 +179,35 @@ private fun InputOrDiffSection(
                 permission = permission,
             )
         }
+    }
+}
+
+@Composable
+private fun FilePathLabel(
+    filePath: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(IdeaTheme.colorScheme.surfaceContainer)
+            .padding(8.dp),
+    ) {
+        Text(
+            text = buildAnnotatedString {
+                append("file_path: ")
+
+                withStyle(
+                    IdeaTheme.typography.bodyMedium.copy(
+                        color = IdeaTheme.colorScheme.onSurface,
+                    ).toSpanStyle()
+                ) {
+                    append(filePath)
+                }
+            },
+            style = IdeaTheme.typography.bodyMedium,
+            color = IdeaTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
