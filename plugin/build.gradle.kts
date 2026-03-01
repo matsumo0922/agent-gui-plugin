@@ -6,6 +6,8 @@ plugins {
     alias(libs.plugins.intellij.platform)
 }
 
+version = "0.0.1"
+
 repositories {
     mavenCentral()
     intellijPlatform {
@@ -57,6 +59,16 @@ intellijPlatform {
         changeNotes = """
             Initial version
         """.trimIndent()
+    }
+
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
     }
 }
 

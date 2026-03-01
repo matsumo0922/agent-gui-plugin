@@ -2,7 +2,7 @@
 <idea-plugin>
     <id>me.matsumo.agent-gui-plugin</id>
     <name>Claude Code GUI</name>
-    <vendor url="https://github.com/matsumo0922">matsumo</vendor>
+    <vendor url="https://plugins.jetbrains.com/vendor/matsumo0922">matsumo0922</vendor>
 
     <description><![CDATA[
 <h2>Claude Code GUI — Chat with Claude Code directly inside your IDE</h2>
