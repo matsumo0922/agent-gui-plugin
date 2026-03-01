@@ -114,6 +114,14 @@ sealed interface ChatMessage {
         override val id: String,
         val timestamp: Long = System.currentTimeMillis(),
     ) : ChatMessage
+
+    @Immutable
+    data class CompactBoundary(
+        override val id: String,
+        val preTokens: Int = 0,
+        val trigger: String = "manual",
+        val timestamp: Long = System.currentTimeMillis(),
+    ) : ChatMessage
 }
 
 @Immutable

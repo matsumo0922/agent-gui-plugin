@@ -90,6 +90,7 @@ fun ChatInputArea(
     onDetach: (AttachedFile) -> Unit,
     onSend: (String) -> Unit,
     onAbort: () -> Unit,
+    onCompact: () -> Unit,
     onModelChange: (Model) -> Unit,
     onModeChange: (PermissionMode) -> Unit,
     modifier: Modifier = Modifier,
@@ -148,6 +149,7 @@ fun ChatInputArea(
             currentPermissionMode = currentPermissionMode,
             onSend = ::send,
             onAbort = onAbort,
+            onCompact = onCompact,
             onModelChange = onModelChange,
             onModeChange = onModeChange,
         )
@@ -372,11 +374,13 @@ private fun BottomSection(
     currentPermissionMode: PermissionMode,
     onSend: () -> Unit,
     onAbort: () -> Unit,
+    onCompact: () -> Unit,
     onModelChange: (Model) -> Unit,
     onModeChange: (PermissionMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val canSend = (sessionState == SessionState.Ready || sessionState == SessionState.WaitingForInput) && !isInputEmpty
+    val canCompact = sessionState == SessionState.Ready || sessionState == SessionState.WaitingForInput
     val isProcessing = sessionState == SessionState.Processing
 
     Row(
@@ -413,6 +417,13 @@ private fun BottomSection(
 
         Spacer(
             modifier = Modifier.weight(1f)
+        )
+
+        IconActionButton(
+            key = AllIconsKeys.Actions.Collapseall,
+            onClick = onCompact,
+            contentDescription = "Compact conversation",
+            enabled = canCompact,
         )
 
         IconActionButton(

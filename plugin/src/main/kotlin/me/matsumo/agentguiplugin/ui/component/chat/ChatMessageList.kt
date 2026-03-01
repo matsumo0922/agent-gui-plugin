@@ -132,6 +132,14 @@ fun ChatMessageList(
                                 )
                             }
                         }
+
+                        is ChatMessage.CompactBoundary -> {
+                            CompactBoundaryBlock(
+                                modifier = Modifier.fillMaxWidth(),
+                                preTokens = message.preTokens,
+                                trigger = message.trigger,
+                            )
+                        }
                     }
                 }
             }

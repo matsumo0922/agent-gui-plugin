@@ -15,6 +15,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.viewmodel.mapper.extractToolResults
 import me.matsumo.agentguiplugin.viewmodel.mapper.toUiBlock
@@ -429,8 +433,31 @@ class ChatViewModel(
     }
 
     private fun handleSystemMessage(message: SystemMessage) {
-        if (message.isInit) {
-            dispatch(StateAction.SessionIdUpdated(message.sessionId))
+        when {
+            message.isInit -> dispatch(StateAction.SessionIdUpdated(message.sessionId))
+            message.subtype == "compact_boundary" -> handleCompactBoundary(message)
+        }
+    }
+
+    private fun handleCompactBoundary(message: SystemMessage) {
+        val metadata = message.data["compact_metadata"]?.jsonObject
+        val trigger = metadata?.get("trigger")?.jsonPrimitive?.contentOrNull ?: "manual"
+        val preTokens = metadata?.get("pre_tokens")?.jsonPrimitive?.intOrNull ?: 0
+
+        val boundaryMsg = ChatMessage.CompactBoundary(
+            id = UUID.randomUUID().toString(),
+            preTokens = preTokens,
+            trigger = trigger,
+        )
+
+        _uiState.update { state ->
+            val path = state.conversationCursor.activeLeafPath
+            reduce(
+                state,
+                StateAction.CompactBoundaryReceived(
+                    newTree = state.conversationTree.appendResponse(path, boundaryMsg),
+                ),
+            )
         }
     }
 
@@ -553,6 +580,10 @@ class ChatViewModel(
                 }
             }
         }
+    }
+
+    fun compactConversation() {
+        sendMessage("/compact")
     }
 
     fun abortSession() {

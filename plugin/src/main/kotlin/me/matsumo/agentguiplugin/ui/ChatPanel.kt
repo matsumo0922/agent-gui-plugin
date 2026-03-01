@@ -261,6 +261,7 @@ fun ChatPanel(
                         onDetach = { file -> viewModel.detachFile(file) },
                         onSend = viewModel::sendMessage,
                         onAbort = viewModel::abortSession,
+                        onCompact = viewModel::compactConversation,
                         onModelChange = viewModel::changeModel,
                         onModeChange = viewModel::changePermissionMode,
                     )

@@ -131,6 +131,9 @@ fun buildContextSystemPrompt(
             is ChatMessage.Interrupted -> {
                 sb.appendLine("[System: Response was interrupted]")
             }
+            is ChatMessage.CompactBoundary -> {
+                sb.appendLine("[System: Conversation was compacted]")
+            }
         }
     }
 

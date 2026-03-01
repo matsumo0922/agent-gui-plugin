@@ -42,6 +42,10 @@ sealed interface StateAction {
         val newTree: ConversationTree,
     ) : StateAction
 
+    data class CompactBoundaryReceived(
+        val newTree: ConversationTree,
+    ) : StateAction
+
     // --- Edit / Navigate ---
     data class EditBranchCreated(
         val newTree: ConversationTree,
@@ -164,6 +168,9 @@ fun reduce(state: ChatUiState, action: StateAction): ChatUiState = when (action)
         session = state.session.copy(state = SessionState.WaitingForInput),
         conversationTree = action.newTree,
         conversationCursor = state.conversationCursor.copy(activeStreamingMessageId = null),
+    )
+    is StateAction.CompactBoundaryReceived -> state.copy(
+        conversationTree = action.newTree,
     )
 
     // --- Edit / Navigate ---
