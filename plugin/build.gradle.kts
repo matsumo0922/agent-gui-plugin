@@ -61,6 +61,12 @@ intellijPlatform {
         """.trimIndent()
     }
 
+    pluginVerification {
+        ides {
+            recommended()
+        }
+    }
+
     signing {
         certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
         privateKey = providers.environmentVariable("PRIVATE_KEY")
