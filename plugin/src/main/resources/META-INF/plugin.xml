@@ -30,7 +30,7 @@
                     factoryClass="me.matsumo.agentguiplugin.toolwindow.AgentToolWindowFactory"
                     anchor="right"
                     canCloseContents="true"
-                    icon="AllIcons.Actions.Execute"/>
+                    icon="/icons/ic_plugin.svg"/>
 
         <toolWindow.splitContentProvider
             toolWindowId="Agent GUI"
