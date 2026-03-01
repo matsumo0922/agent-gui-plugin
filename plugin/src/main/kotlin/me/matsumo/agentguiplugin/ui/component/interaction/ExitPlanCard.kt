@@ -29,11 +29,10 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.testFramework.LightVirtualFile
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.viewmodel.PendingPermission
 import me.matsumo.claude.agent.types.PermissionMode
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.typography
 
 private val allowColor = Color(0xFF22C55E)
 private val denyColor = Color(0xFFEF4444)
@@ -78,14 +77,14 @@ fun ExitPlanCard(
         ) {
             Text(
                 text = "Plan Review",
-                style = JewelTheme.typography.regular,
+                style = IdeaTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
             )
 
             Text(
                 text = "Claude wants to exit plan mode. Please review the plan in the editor and approve or deny.",
-                style = JewelTheme.typography.medium,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodyMedium,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -113,7 +112,7 @@ fun ExitPlanCard(
                 onClick = { onAllow(PermissionMode.DEFAULT) },
                 borderColor = allowColor.copy(alpha = 0.5f),
                 backgroundColor = allowColor.copy(alpha = 0.15f),
-                textColor = JewelTheme.globalColors.text.normal,
+                textColor = IdeaTheme.colorScheme.onSurface,
             )
 
             _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
@@ -121,7 +120,7 @@ fun ExitPlanCard(
                 onClick = { onAllow(PermissionMode.ACCEPT_EDITS) },
                 borderColor = allowColor.copy(alpha = 0.5f),
                 backgroundColor = allowColor.copy(alpha = 0.15f),
-                textColor = JewelTheme.globalColors.text.normal,
+                textColor = IdeaTheme.colorScheme.onSurface,
             )
 
             Spacer(
@@ -133,14 +132,14 @@ fun ExitPlanCard(
                 onClick = { onDeny(message) },
                 borderColor = denyColor.copy(alpha = 0.5f),
                 backgroundColor = denyColor.copy(alpha = 0.15f),
-                textColor = JewelTheme.globalColors.text.normal,
+                textColor = IdeaTheme.colorScheme.onSurface,
             )
 
             _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
                 text = "Message",
                 onClick = { showMessageField = true },
-                borderColor = JewelTheme.globalColors.borders.normal,
-                textColor = JewelTheme.globalColors.text.info,
+                borderColor = IdeaTheme.colorScheme.outline,
+                textColor = IdeaTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -152,20 +151,20 @@ private fun MessageField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val textColor = JewelTheme.globalColors.text.info
+    val textColor = IdeaTheme.colorScheme.onSurfaceVariant
 
     BasicTextField(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
             .border(
                 width = 1.dp,
-                color = JewelTheme.globalColors.borders.normal,
+                color = IdeaTheme.colorScheme.outline,
                 shape = RoundedCornerShape(4.dp),
             )
             .padding(8.dp),
         value = value,
         onValueChange = onValueChange,
-        textStyle = JewelTheme.typography.medium.copy(
+        textStyle = IdeaTheme.typography.bodyMedium.copy(
             color = textColor,
         ),
         cursorBrush = SolidColor(textColor),

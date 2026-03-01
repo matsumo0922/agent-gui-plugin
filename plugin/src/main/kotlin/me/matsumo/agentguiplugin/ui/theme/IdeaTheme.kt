@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.sp
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.theme.colorPalette
 import org.jetbrains.jewel.ui.typography
+import java.util.*
 
 /**
  * Material3 ColorScheme-style interface for IDE theme colors.
@@ -206,6 +207,14 @@ object IdeaTheme {
     val typography: IdeaTypography
         @Composable @ReadOnlyComposable
         get() = LocalIdeaTypography.current
+
+    val isDark: Boolean
+        @Composable @ReadOnlyComposable
+        get() = JewelTheme.isDark
+
+    val instanceUuid: UUID
+        @Composable @ReadOnlyComposable
+        get() = JewelTheme.instanceUuid
 }
 
 /**

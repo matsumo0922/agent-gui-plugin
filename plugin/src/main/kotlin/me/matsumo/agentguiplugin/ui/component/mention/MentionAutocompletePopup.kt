@@ -40,10 +40,8 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.ui.component.SwingIcon
-import org.jetbrains.jewel.foundation.theme.JewelTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun MentionAutocompletePopup(
@@ -84,10 +82,10 @@ fun MentionAutocompletePopup(
                 .clip(RoundedCornerShape(8.dp))
                 .border(
                     width = 1.dp,
-                    color = JewelTheme.globalColors.borders.normal,
+                    color = IdeaTheme.colorScheme.outline,
                     shape = RoundedCornerShape(8.dp),
                 )
-                .background(JewelTheme.colorPalette.gray(2))
+                .background(IdeaTheme.colorScheme.surfaceContainer)
                 .padding(4.dp)
                 .onSizeChanged {
                     listSize = it.height
@@ -97,8 +95,8 @@ fun MentionAutocompletePopup(
                 Text(
                     text = "一致するファイルがありません",
                     modifier = Modifier.padding(16.dp),
-                    style = JewelTheme.typography.medium,
-                    color = JewelTheme.globalColors.text.disabled,
+                    style = IdeaTheme.typography.bodyMedium,
+                    color = IdeaTheme.colorScheme.onSurfaceDisabled,
                 )
             } else {
                 LazyColumn(state = listState) {
@@ -132,8 +130,8 @@ private fun MentionFileItem(
     val isHovered by interactionSource.collectIsHoveredAsState()
 
     val backgroundColor = when {
-        isSelected -> JewelTheme.colorPalette.blue(2)
-        isHovered -> JewelTheme.colorPalette.blue(1)
+        isSelected -> IdeaTheme.colorScheme.primaryContainer
+        isHovered -> IdeaTheme.colorScheme.primaryContainer
         else -> Color.Transparent
     }
 
@@ -145,7 +143,7 @@ private fun MentionFileItem(
         }
     }
 
-    val highlightColor = JewelTheme.colorPalette.blue(7)
+    val highlightColor = IdeaTheme.colorScheme.primary
     val annotatedName = remember(file.name, query, highlightColor) {
         buildAnnotatedString {
             append(file.name)
@@ -190,14 +188,14 @@ private fun MentionFileItem(
 
         Text(
             text = annotatedName,
-            style = JewelTheme.typography.medium,
+            style = IdeaTheme.typography.bodyMedium,
             softWrap = false,
         )
 
         Text(
             text = relativePath,
-            style = JewelTheme.typography.small,
-            color = JewelTheme.globalColors.text.disabled,
+            style = IdeaTheme.typography.bodySmall,
+            color = IdeaTheme.colorScheme.onSurfaceDisabled,
             overflow = TextOverflow.Ellipsis,
             maxLines = 1,
         )

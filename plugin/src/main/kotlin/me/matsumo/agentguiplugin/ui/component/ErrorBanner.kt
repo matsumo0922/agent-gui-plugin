@@ -15,9 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import org.jetbrains.jewel.foundation.theme.JewelTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun ErrorBanner(
@@ -25,7 +24,7 @@ fun ErrorBanner(
     onReconnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val errorColor = JewelTheme.globalColors.text.error
+    val errorColor = IdeaTheme.colorScheme.error
 
     Row(
         modifier = modifier
@@ -40,7 +39,7 @@ fun ErrorBanner(
             Text(
                 modifier = Modifier.fillMaxWidth(),
                 text = message,
-                style = JewelTheme.typography.regular,
+                style = IdeaTheme.typography.bodyLarge,
                 color = errorColor,
             )
         }
@@ -60,7 +59,7 @@ fun ErrorBanner(
         ) {
             Text(
                 text = "Reconnect",
-                style = JewelTheme.typography.medium,
+                style = IdeaTheme.typography.bodyMedium,
                 color = errorColor,
             )
         }

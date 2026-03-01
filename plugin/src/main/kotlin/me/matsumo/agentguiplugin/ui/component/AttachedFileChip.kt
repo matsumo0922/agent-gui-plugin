@@ -18,12 +18,10 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.dp
 import com.intellij.util.IconUtil
 import me.matsumo.agentguiplugin.model.AttachedFile
-import org.jetbrains.jewel.foundation.theme.JewelTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 import javax.swing.Icon
 
 @Composable
@@ -35,10 +33,10 @@ fun AttachedFileChip(
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(JewelTheme.colorPalette.gray(1))
+            .background(IdeaTheme.colorScheme.surface)
             .border(
                 width = 1.dp,
-                color = JewelTheme.globalColors.borders.disabled,
+                color = IdeaTheme.colorScheme.outlineVariant,
                 shape = RoundedCornerShape(4.dp)
             )
             .padding(4.dp),
@@ -53,7 +51,7 @@ fun AttachedFileChip(
 
         Text(
             text = file.name,
-            style = JewelTheme.typography.small,
+            style = IdeaTheme.typography.bodySmall,
             maxLines = 1,
         )
 

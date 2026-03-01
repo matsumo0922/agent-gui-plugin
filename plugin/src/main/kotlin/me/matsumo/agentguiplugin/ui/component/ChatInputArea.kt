@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -52,6 +53,7 @@ import me.matsumo.agentguiplugin.ui.component.interaction.FileAttachPopup
 import me.matsumo.agentguiplugin.ui.component.mention.MentionAutocompletePopup
 import me.matsumo.agentguiplugin.ui.component.mention.MentionState
 import me.matsumo.agentguiplugin.ui.component.mention.MentionVisualTransformation
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.util.PluginIcons
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import me.matsumo.claude.agent.types.Model
@@ -61,8 +63,19 @@ import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 import javax.swing.Icon
+
+// ── コンテキスト使用量インジケーター固有カラー（IdeaTheme に汎用トークンが無いためローカル定義） ──
+
+@Suppress("DEPRECATION")
+private val contextWarningColor: Color
+    @Composable @androidx.compose.runtime.ReadOnlyComposable
+    get() = JewelTheme.colorPalette.yellow(7)
+
+@Suppress("DEPRECATION")
+private val contextDangerColor: Color
+    @Composable @androidx.compose.runtime.ReadOnlyComposable
+    get() = JewelTheme.colorPalette.red(7)
 
 @Composable
 fun ChatInputArea(
@@ -100,7 +113,7 @@ fun ChatInputArea(
             .clip(RoundedCornerShape(8.dp))
             .border(
                 width = 1.dp,
-                color = JewelTheme.globalColors.borders.disabled,
+                color = IdeaTheme.colorScheme.outlineVariant,
                 shape = RoundedCornerShape(8.dp),
             )
     ) {
@@ -155,7 +168,7 @@ private fun TopSection(
 
     Row(
         modifier = modifier
-            .background(JewelTheme.colorPalette.gray(2))
+            .background(IdeaTheme.colorScheme.surfaceContainer)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -203,8 +216,8 @@ private fun TopSection(
 
             Text(
                 text = "%,d tkn".format(totalInputTokens) + " (${(contextUsage * 100).toInt()}%)",
-                style = JewelTheme.typography.small,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodySmall,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -212,11 +225,11 @@ private fun TopSection(
 
 @Composable
 private fun ContextUsageIndicator(usage: Float, modifier: Modifier = Modifier) {
-    val trackColor = JewelTheme.globalColors.borders.disabled
+    val trackColor = IdeaTheme.colorScheme.outlineVariant
     val fillColor = when {
-        usage < 0.7f -> JewelTheme.colorPalette.green(7)
-        usage < 0.9f -> JewelTheme.colorPalette.yellow(7)
-        else -> JewelTheme.colorPalette.red(7)
+        usage < 0.7f -> IdeaTheme.colorScheme.success
+        usage < 0.9f -> contextWarningColor
+        else -> contextDangerColor
     }
 
     Canvas(modifier = modifier) {
@@ -259,14 +272,14 @@ private fun InputSection(
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val mentionColor = JewelTheme.colorPalette.blue(7)
+    val mentionColor = IdeaTheme.colorScheme.primary
     val showPopup = mentionState.activeQuery != null && mentionState.suggestions.isNotEmpty()
 
     Box(modifier = modifier) {
         BasicTextField(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(JewelTheme.globalColors.panelBackground)
+                .background(IdeaTheme.colorScheme.background)
                 .padding(8.dp)
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -313,8 +326,8 @@ private fun InputSection(
                 },
             value = value,
             onValueChange = onValueChanged,
-            textStyle = JewelTheme.typography.medium,
-            cursorBrush = SolidColor(JewelTheme.typography.medium.color),
+            textStyle = IdeaTheme.typography.bodyMedium,
+            cursorBrush = SolidColor(IdeaTheme.typography.bodyMedium.color),
             visualTransformation = MentionVisualTransformation(
                 confirmedMentions = mentionState.confirmedMentions,
                 activeMentionRange = mentionState.activeMentionRange,
@@ -325,7 +338,7 @@ private fun InputSection(
                 if (value.text.isEmpty()) {
                     Text(
                         text = "Send a message (Shift+Enter)",
-                        color = JewelTheme.globalColors.text.info,
+                        color = IdeaTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
@@ -368,7 +381,7 @@ private fun BottomSection(
 
     Row(
         modifier = modifier
-            .background(JewelTheme.globalColors.panelBackground)
+            .background(IdeaTheme.colorScheme.background)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -437,10 +450,10 @@ private fun <T> SelectorPopupButton(
                     modifier = Modifier
                         .width(IntrinsicSize.Max)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(JewelTheme.colorPalette.gray(2))
+                        .background(IdeaTheme.colorScheme.surfaceContainer)
                         .border(
                             width = 1.dp,
-                            color = JewelTheme.globalColors.borders.disabled,
+                            color = IdeaTheme.colorScheme.outlineVariant,
                             shape = RoundedCornerShape(8.dp)
                         )
                         .padding(8.dp),
@@ -477,11 +490,11 @@ private fun PopupButton(
             .clip(RoundedCornerShape(4.dp))
             .hoverable(interactionSource)
             .clickable(onClick = onClick)
-            .background(if (isHovered) JewelTheme.colorPalette.blue(1) else JewelTheme.colorPalette.gray(2))
+            .background(if (isHovered) IdeaTheme.colorScheme.primaryContainer else IdeaTheme.colorScheme.surfaceContainer)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         text = text,
-        style = JewelTheme.typography.small,
-        color = JewelTheme.globalColors.text.info,
+        style = IdeaTheme.typography.bodySmall,
+        color = IdeaTheme.colorScheme.onSurfaceVariant,
     )
 }
 
@@ -501,7 +514,7 @@ private fun PopupMenuItem(
             .clip(RoundedCornerShape(4.dp))
             .hoverable(interactionSource)
             .clickable { onClick() }
-            .background(if (isHovered) JewelTheme.colorPalette.blue(1) else JewelTheme.colorPalette.gray(2))
+            .background(if (isHovered) IdeaTheme.colorScheme.primaryContainer else IdeaTheme.colorScheme.surfaceContainer)
             .padding(8.dp, 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -517,13 +530,13 @@ private fun PopupMenuItem(
         ) {
             Text(
                 text = text,
-                style = JewelTheme.typography.small,
+                style = IdeaTheme.typography.bodySmall,
             )
 
             Text(
                 text = description,
-                style = JewelTheme.typography.small,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodySmall,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

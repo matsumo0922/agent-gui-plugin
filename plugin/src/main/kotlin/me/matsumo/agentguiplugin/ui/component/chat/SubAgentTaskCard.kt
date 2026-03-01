@@ -29,12 +29,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.intellij.openapi.project.Project
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.typography
 
 val LocalSubAgentDepth = compositionLocalOf { 0 }
 
@@ -63,22 +62,22 @@ fun SubAgentTaskCard(
         Icon(
             modifier = Modifier.size(16.dp),
             key = AllIconsKeys.Actions.Find,
-            tint = if (canExpand) JewelTheme.globalColors.text.info else JewelTheme.globalColors.text.disabled,
+            tint = if (canExpand) IdeaTheme.colorScheme.onSurfaceVariant else IdeaTheme.colorScheme.onSurfaceDisabled,
             contentDescription = null,
         )
 
         Text(
             text = "SubAgent",
-            style = JewelTheme.typography.medium,
-            color = if (canExpand) JewelTheme.globalColors.text.info else JewelTheme.globalColors.text.disabled,
+            style = IdeaTheme.typography.bodyMedium,
+            color = if (canExpand) IdeaTheme.colorScheme.onSurfaceVariant else IdeaTheme.colorScheme.onSurfaceDisabled,
             fontWeight = FontWeight.SemiBold,
         )
 
         if (messageCount > 0) {
             Text(
                 text = "($messageCount messages)",
-                style = JewelTheme.typography.medium,
-                color = JewelTheme.globalColors.text.disabled,
+                style = IdeaTheme.typography.bodyMedium,
+                color = IdeaTheme.colorScheme.onSurfaceDisabled,
             )
         }
 
@@ -92,16 +91,16 @@ fun SubAgentTaskCard(
         if (elapsedText != null) {
             Text(
                 text = "($elapsedText)",
-                style = JewelTheme.typography.medium,
-                color = JewelTheme.globalColors.text.disabled,
+                style = IdeaTheme.typography.bodyMedium,
+                color = IdeaTheme.colorScheme.onSurfaceDisabled,
             )
         }
 
         if (canExpand) {
             Text(
                 text = if (isPopupVisible) "\u25BE" else "\u25B8",
-                style = JewelTheme.typography.regular,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodyLarge,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -122,10 +121,10 @@ fun SubAgentTaskCard(
                         .clip(shape)
                         .border(
                             width = 1.dp,
-                            color = JewelTheme.globalColors.borders.normal,
+                            color = IdeaTheme.colorScheme.outline,
                             shape = shape,
                         )
-                        .background(JewelTheme.globalColors.panelBackground)
+                        .background(IdeaTheme.colorScheme.background)
                         .onPreviewKeyEvent { event ->
                             if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                                 isPopupVisible = false

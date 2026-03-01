@@ -31,13 +31,11 @@ import androidx.compose.ui.unit.sp
 import me.matsumo.agentguiplugin.ui.component.CodeBlock
 import me.matsumo.agentguiplugin.ui.component.DiffLine
 import me.matsumo.agentguiplugin.ui.component.computeDiffLines
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.viewmodel.PendingPermission
 import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 
 private val warningColor = Color(0xFFF59E0B)
 private val allowColor = Color(0xFF22C55E)
@@ -110,7 +108,7 @@ private fun HeaderSection(
     ) {
         Text(
             text = "Tool Permission Request",
-            style = JewelTheme.typography.regular,
+            style = IdeaTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
         )
 
@@ -119,16 +117,16 @@ private fun HeaderSection(
                 append("Tool: ")
 
                 withStyle(
-                    JewelTheme.typography.medium.copy(
-                        color = JewelTheme.colorPalette.blue(9),
+                    IdeaTheme.typography.bodyMedium.copy(
+                        color = IdeaTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.SemiBold,
                     ).toSpanStyle()
                 ) {
                     append(permission.toolName)
                 }
             },
-            style = JewelTheme.typography.medium,
-            color = JewelTheme.globalColors.text.info,
+            style = IdeaTheme.typography.bodyMedium,
+            color = IdeaTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -187,7 +185,7 @@ private fun InputParamSection(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(JewelTheme.colorPalette.gray(2))
+            .background(IdeaTheme.colorScheme.surfaceContainer)
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -197,15 +195,15 @@ private fun InputParamSection(
                     append("$key: ")
 
                     withStyle(
-                        JewelTheme.typography.medium.copy(
-                            color = JewelTheme.globalColors.text.normal,
+                        IdeaTheme.typography.bodyMedium.copy(
+                            color = IdeaTheme.colorScheme.onSurface,
                         ).toSpanStyle()
                     ) {
                         append(value?.toString()?.take(300) ?: "null")
                     }
                 },
-                style = JewelTheme.typography.medium,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodyMedium,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -217,20 +215,20 @@ private fun MessageField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val textColor = JewelTheme.globalColors.text.info
+    val textColor = IdeaTheme.colorScheme.onSurfaceVariant
 
     BasicTextField(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
             .border(
                 width = 1.dp,
-                color = JewelTheme.globalColors.borders.normal,
+                color = IdeaTheme.colorScheme.outline,
                 shape = RoundedCornerShape(4.dp)
             )
             .padding(8.dp),
         value = value,
         onValueChange = onValueChange,
-        textStyle = JewelTheme.typography.medium.copy(
+        textStyle = IdeaTheme.typography.bodyMedium.copy(
             color = textColor,
         ),
         cursorBrush = SolidColor(textColor),
@@ -266,7 +264,7 @@ private fun ButtonSection(
             onClick = onAllow,
             borderColor = allowColor.copy(alpha = 0.5f),
             backgroundColor = allowColor.copy(alpha = 0.15f),
-            textColor = JewelTheme.globalColors.text.normal,
+            textColor = IdeaTheme.colorScheme.onSurface,
         )
 
         _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
@@ -274,7 +272,7 @@ private fun ButtonSection(
             onClick = onDeny,
             borderColor = denyColor.copy(alpha = 0.5f),
             backgroundColor = denyColor.copy(alpha = 0.15f),
-            textColor = JewelTheme.globalColors.text.normal,
+            textColor = IdeaTheme.colorScheme.onSurface,
         )
 
         Spacer(
@@ -284,8 +282,8 @@ private fun ButtonSection(
         _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
             text = "Message",
             onClick = onMessage,
-            borderColor = JewelTheme.globalColors.borders.normal,
-            textColor = JewelTheme.globalColors.text.info,
+            borderColor = IdeaTheme.colorScheme.outline,
+            textColor = IdeaTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

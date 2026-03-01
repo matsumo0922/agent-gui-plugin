@@ -46,8 +46,8 @@ import kotlinx.coroutines.withContext
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.model.toAttachedFile
 import me.matsumo.agentguiplugin.ui.component.SwingIcon
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.util.FilePickerUtil
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.Icon
@@ -55,8 +55,6 @@ import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun FileAttachPopup(
@@ -81,10 +79,10 @@ fun FileAttachPopup(
                 .clip(RoundedCornerShape(8.dp))
                 .border(
                     width = 1.dp,
-                    color = JewelTheme.globalColors.borders.normal,
+                    color = IdeaTheme.colorScheme.outline,
                     shape = RoundedCornerShape(8.dp)
                 )
-                .background(JewelTheme.colorPalette.gray(2))
+                .background(IdeaTheme.colorScheme.surfaceContainer)
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                         onDismiss()
@@ -155,15 +153,15 @@ private fun PopupSearchBar(
             modifier = Modifier
                 .weight(1f)
                 .focusRequester(focusRequester),
-            textStyle = JewelTheme.typography.medium,
-            cursorBrush = SolidColor(JewelTheme.typography.medium.color),
+            textStyle = IdeaTheme.typography.bodyMedium,
+            cursorBrush = SolidColor(IdeaTheme.typography.bodyMedium.color),
             singleLine = true,
             decorationBox = { innerTextField ->
                 if (query.isEmpty()) {
                     Text(
                         text = "検索",
-                        style = JewelTheme.typography.medium,
-                        color = JewelTheme.globalColors.text.disabled,
+                        style = IdeaTheme.typography.bodyMedium,
+                        color = IdeaTheme.colorScheme.onSurfaceDisabled,
                     )
                 }
                 innerTextField.invoke()
@@ -230,8 +228,8 @@ private fun DefaultPopupContent(
                 Text(
                     text = "最近使用したファイル",
                     modifier = Modifier.padding(8.dp),
-                    style = JewelTheme.typography.small,
-                    color = JewelTheme.globalColors.text.disabled,
+                    style = IdeaTheme.typography.bodySmall,
+                    color = IdeaTheme.colorScheme.onSurfaceDisabled,
                 )
             }
         }
@@ -287,8 +285,8 @@ private fun SearchResultsContent(
                 Text(
                     text = "一致するファイルがありません",
                     modifier = Modifier.padding(16.dp),
-                    style = JewelTheme.typography.medium,
-                    color = JewelTheme.globalColors.text.disabled,
+                    style = IdeaTheme.typography.bodyMedium,
+                    color = IdeaTheme.colorScheme.onSurfaceDisabled,
                 )
             }
         }
@@ -314,7 +312,7 @@ private fun PopupMenuItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    val hoverColor = JewelTheme.colorPalette.blue(1)
+    val hoverColor = IdeaTheme.colorScheme.primaryContainer
 
     Row(
         modifier = Modifier
@@ -339,7 +337,7 @@ private fun PopupMenuItem(
         Text(
             text = text,
             modifier = Modifier.weight(1f),
-            style = JewelTheme.typography.medium,
+            style = IdeaTheme.typography.bodyMedium,
             overflow = TextOverflow.Ellipsis,
             maxLines = 1,
         )
@@ -354,7 +352,7 @@ private fun PopupFileItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    val hoverColor = JewelTheme.colorPalette.blue(1)
+    val hoverColor = IdeaTheme.colorScheme.primaryContainer
 
     val relativePath = remember(file.path, projectBasePath) {
         if (projectBasePath != null && file.path.startsWith(projectBasePath)) {
@@ -387,14 +385,14 @@ private fun PopupFileItem(
 
         Text(
             text = file.name,
-            style = JewelTheme.typography.medium,
+            style = IdeaTheme.typography.bodyMedium,
             softWrap = false,
         )
 
         Text(
             text = relativePath,
-            style = JewelTheme.typography.small,
-            color = JewelTheme.globalColors.text.disabled,
+            style = IdeaTheme.typography.bodySmall,
+            color = IdeaTheme.colorScheme.onSurfaceDisabled,
             overflow = TextOverflow.Ellipsis,
             maxLines = 1,
         )

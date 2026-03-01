@@ -16,9 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import org.jetbrains.jewel.foundation.theme.JewelTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun Button(
@@ -26,8 +25,8 @@ fun Button(
     onClick: () -> Unit,
     borderColor: Color = Color.Transparent,
     backgroundColor: Color = Color.Transparent,
-    textStyle: TextStyle = JewelTheme.typography.medium,
-    textColor: Color = JewelTheme.globalColors.text.normal,
+    textStyle: TextStyle = IdeaTheme.typography.bodyMedium,
+    textColor: Color = IdeaTheme.colorScheme.onSurface,
     shape: Shape = RoundedCornerShape(4.dp),
     icon: @Composable (() -> Unit)? = null,
     enabled: Boolean = true,

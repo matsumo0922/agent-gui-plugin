@@ -23,14 +23,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatMessage
 import me.matsumo.agentguiplugin.viewmodel.EditInfo
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import me.matsumo.agentguiplugin.viewmodel.ToolResultInfo
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun ChatMessageList(
@@ -62,8 +60,8 @@ fun ChatMessageList(
         ) {
             Text(
                 text = "Start a conversation...",
-                style = JewelTheme.typography.regular,
-                color = JewelTheme.globalColors.text.info
+                style = IdeaTheme.typography.bodyLarge,
+                color = IdeaTheme.colorScheme.onSurfaceVariant
             )
         }
     } else {
@@ -114,13 +112,13 @@ fun ChatMessageList(
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(1.dp)
-                                        .background(JewelTheme.colorPalette.gray(4)),
+                                        .background(IdeaTheme.colorScheme.outlineVariant),
                                 )
 
                                 Text(
                                     text = "Response interrupted",
-                                    style = JewelTheme.typography.small,
-                                    color = JewelTheme.colorPalette.gray(7),
+                                    style = IdeaTheme.typography.bodySmall,
+                                    color = IdeaTheme.colorScheme.onSurfaceDisabled,
                                     modifier = Modifier.padding(horizontal = 4.dp),
                                 )
 
@@ -128,7 +126,7 @@ fun ChatMessageList(
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(1.dp)
-                                        .background(JewelTheme.colorPalette.gray(4)),
+                                        .background(IdeaTheme.colorScheme.outlineVariant),
                                 )
                             }
                         }

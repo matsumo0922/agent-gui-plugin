@@ -29,13 +29,12 @@ import me.matsumo.agentguiplugin.ui.component.interaction.AskUserQuestionCard
 import me.matsumo.agentguiplugin.ui.component.interaction.AuthenticationCard
 import me.matsumo.agentguiplugin.ui.component.interaction.ExitPlanCard
 import me.matsumo.agentguiplugin.ui.component.interaction.PermissionCard
-import me.matsumo.agentguiplugin.ui.theme.ChatTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.viewmodel.ChatViewModel
 import me.matsumo.agentguiplugin.viewmodel.SessionState
 import me.matsumo.agentguiplugin.viewmodel.getAllEditInfo
 import me.matsumo.agentguiplugin.viewmodel.permission.ToolNames
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create
 import org.jetbrains.jewel.intui.markdown.bridge.styling.extensions.github.alerts.create
@@ -57,8 +56,6 @@ import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 
 @Suppress("UnstableApiUsage")
 @OptIn(ExperimentalJewelApi::class)
@@ -70,9 +67,9 @@ fun ChatPanel(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    val instanceUuid = JewelTheme.instanceUuid
-    val quoteTextColor = JewelTheme.globalColors.text.info
-    val quoteLineColor = JewelTheme.globalColors.borders.disabled
+    val instanceUuid = IdeaTheme.instanceUuid
+    val quoteTextColor = IdeaTheme.colorScheme.onSurfaceVariant
+    val quoteLineColor = IdeaTheme.colorScheme.outlineVariant
 
     val processor = remember {
         MarkdownProcessor(
@@ -96,10 +93,10 @@ fun ChatPanel(
     val tableStyling = remember(instanceUuid) { GfmTableStyling.create() }
     val alertStyling = remember(instanceUuid) { AlertStyling.create() }
 
-    val codeBlockBg = ChatTheme.CodeBlock.background
-    val codeHeaderBg = ChatTheme.CodeBlock.headerBackground
-    val codeBorderColor = ChatTheme.CodeBlock.border
-    val codeLabelColor = ChatTheme.Text.secondary
+    val codeBlockBg = IdeaTheme.colorScheme.surface
+    val codeHeaderBg = IdeaTheme.colorScheme.surfaceContainer
+    val codeBorderColor = IdeaTheme.colorScheme.outlineVariant
+    val codeLabelColor = IdeaTheme.colorScheme.onSurfaceVariant
 
     val rendererExtensions = remember(tableStyling, alertStyling) {
         listOf(
@@ -170,7 +167,7 @@ fun ChatPanel(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(JewelTheme.colorPalette.blue(2).copy(alpha = 0.15f))
+                            .background(IdeaTheme.colorScheme.primaryContainer.copy(alpha = 0.15f))
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -182,8 +179,8 @@ fun ChatPanel(
                         )
                         Text(
                             text = "Reconstructed context — tool execution history may be incomplete",
-                            style = JewelTheme.typography.small,
-                            color = JewelTheme.globalColors.text.info,
+                            style = IdeaTheme.typography.bodySmall,
+                            color = IdeaTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

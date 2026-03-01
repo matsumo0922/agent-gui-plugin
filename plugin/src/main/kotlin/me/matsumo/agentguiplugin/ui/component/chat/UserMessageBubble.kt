@@ -24,13 +24,11 @@ import com.intellij.openapi.ide.CopyPasteManager
 import me.matsumo.agentguiplugin.model.AttachedFile
 import me.matsumo.agentguiplugin.ui.component.MarkdownText
 import me.matsumo.agentguiplugin.ui.component.SwingIcon
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.viewmodel.EditInfo
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 import java.awt.datatransfer.StringSelection
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -57,10 +55,10 @@ fun UserMessageBubble(
             Column(
                 modifier = Modifier
                     .clip(shape)
-                    .background(JewelTheme.colorPalette.gray(1))
+                    .background(IdeaTheme.colorScheme.surface)
                     .border(
                         width = 1.dp,
-                        color = JewelTheme.globalColors.borders.normal,
+                        color = IdeaTheme.colorScheme.outline,
                         shape = shape
                     )
                     .padding(12.dp),
@@ -79,7 +77,7 @@ fun UserMessageBubble(
                             Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(JewelTheme.colorPalette.gray(2))
+                                    .background(IdeaTheme.colorScheme.surfaceContainer)
                                     .padding(horizontal = 6.dp, vertical = 3.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -92,7 +90,7 @@ fun UserMessageBubble(
 
                                 Text(
                                     text = file.name,
-                                    style = JewelTheme.typography.small,
+                                    style = IdeaTheme.typography.bodySmall,
                                     maxLines = 1,
                                 )
                             }
@@ -154,8 +152,8 @@ private fun UserMessageFooter(
 
             Text(
                 text = "${editInfo.currentIndex + 1} / ${editInfo.totalVersions}",
-                style = JewelTheme.typography.small,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodySmall,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
 
             IconActionButton(

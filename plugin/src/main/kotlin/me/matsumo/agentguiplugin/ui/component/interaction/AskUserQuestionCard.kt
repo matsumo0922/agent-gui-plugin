@@ -29,11 +29,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.viewmodel.PendingQuestion
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 
 private val questionAccentColor = Color(0xFF3B82F6)
 
@@ -151,7 +149,7 @@ private fun HeaderSection(
 
         Text(
             text = if (questionCount <= 1) "Claude has a question" else "Claude has $questionCount questions",
-            style = JewelTheme.typography.regular,
+            style = IdeaTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
         )
     }
@@ -177,16 +175,16 @@ private fun QuestionSection(
 
                 if (question.isMultiSelect) {
                     withStyle(
-                        JewelTheme.typography.small.copy(
-                            color = JewelTheme.globalColors.text.info
+                        IdeaTheme.typography.bodySmall.copy(
+                            color = IdeaTheme.colorScheme.onSurfaceVariant
                         ).toSpanStyle()
                     ) {
                         append(" (複数選択可能)")
                     }
                 }
             },
-            style = JewelTheme.typography.medium,
-            color = JewelTheme.globalColors.text.normal,
+            style = IdeaTheme.typography.bodyMedium,
+            color = IdeaTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
 
@@ -197,10 +195,10 @@ private fun QuestionSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(4.dp))
-                    .background(if (isSelected) questionAccentColor.copy(alpha = 0.10f) else JewelTheme.colorPalette.gray(2))
+                    .background(if (isSelected) questionAccentColor.copy(alpha = 0.10f) else IdeaTheme.colorScheme.surfaceContainer)
                     .border(
                         width = 1.dp,
-                        color = if (isSelected) questionAccentColor.copy(alpha = 0.45f) else JewelTheme.globalColors.borders.normal,
+                        color = if (isSelected) questionAccentColor.copy(alpha = 0.45f) else IdeaTheme.colorScheme.outline,
                         shape = RoundedCornerShape(4.dp)
                     )
                     .clickable { onOptionToggle(index) }
@@ -220,16 +218,16 @@ private fun QuestionSection(
                 ) {
                     Text(
                         text = option.label,
-                        style = JewelTheme.typography.medium,
+                        style = IdeaTheme.typography.bodyMedium,
                         fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                        color = JewelTheme.globalColors.text.normal
+                        color = IdeaTheme.colorScheme.onSurface
                     )
 
                     if (option.description.isNotEmpty()) {
                         Text(
                             text = option.description,
-                            style = JewelTheme.typography.medium,
-                            color = JewelTheme.globalColors.text.info,
+                            style = IdeaTheme.typography.bodyMedium,
+                            color = IdeaTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -242,22 +240,22 @@ private fun QuestionSection(
                 .clip(RoundedCornerShape(4.dp))
                 .border(
                     width = 1.dp,
-                    color = if (otherText.isNotEmpty()) questionAccentColor.copy(alpha = 0.45f) else JewelTheme.globalColors.borders.normal,
+                    color = if (otherText.isNotEmpty()) questionAccentColor.copy(alpha = 0.45f) else IdeaTheme.colorScheme.outline,
                     shape = RoundedCornerShape(4.dp)
                 )
-                .background(JewelTheme.colorPalette.gray(2))
+                .background(IdeaTheme.colorScheme.surfaceContainer)
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             value = otherText,
             onValueChange = onOtherTextChange,
-            textStyle = JewelTheme.typography.medium.copy(color = JewelTheme.globalColors.text.normal),
-            cursorBrush = SolidColor(JewelTheme.globalColors.text.normal),
+            textStyle = IdeaTheme.typography.bodyMedium.copy(color = IdeaTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(IdeaTheme.colorScheme.onSurface),
             decorationBox = { innerTextField ->
                 Box {
                     if (otherText.isEmpty()) {
                         Text(
                             text = "Other (free text)...",
-                            style = JewelTheme.typography.medium,
-                            color = JewelTheme.globalColors.text.info,
+                            style = IdeaTheme.typography.bodyMedium,
+                            color = IdeaTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     innerTextField()
@@ -269,7 +267,7 @@ private fun QuestionSection(
 
 @Composable
 private fun RadioIndicator(isSelected: Boolean) {
-    val borderColor = if (isSelected) questionAccentColor else JewelTheme.globalColors.text.info
+    val borderColor = if (isSelected) questionAccentColor else IdeaTheme.colorScheme.onSurfaceVariant
 
     Box(
         modifier = Modifier
@@ -289,7 +287,7 @@ private fun RadioIndicator(isSelected: Boolean) {
 
 @Composable
 private fun CheckboxIndicator(isSelected: Boolean) {
-    val borderColor = if (isSelected) questionAccentColor else  JewelTheme.globalColors.text.info
+    val borderColor = if (isSelected) questionAccentColor else  IdeaTheme.colorScheme.onSurfaceVariant
     val checkboxShape = RoundedCornerShape(3.dp)
 
     Box(
@@ -330,15 +328,15 @@ private fun ButtonSection(
             onClick = onSubmit,
             borderColor = questionAccentColor.copy(alpha = 0.5f),
             backgroundColor = questionAccentColor.copy(alpha = 0.15f),
-            textColor = JewelTheme.globalColors.text.normal,
+            textColor = IdeaTheme.colorScheme.onSurface,
             enabled = submitEnabled,
         )
 
         _root_ide_package_.me.matsumo.agentguiplugin.ui.component.Button(
             text = "Cancel",
             onClick = onCancel,
-            borderColor = JewelTheme.globalColors.borders.normal,
-            textColor = JewelTheme.globalColors.text.info,
+            borderColor = IdeaTheme.colorScheme.outline,
+            textColor = IdeaTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

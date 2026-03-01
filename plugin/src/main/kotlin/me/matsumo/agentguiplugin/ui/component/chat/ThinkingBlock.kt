@@ -19,11 +19,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import org.jetbrains.jewel.foundation.theme.JewelTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun ThinkingBlock(
@@ -44,14 +43,14 @@ fun ThinkingBlock(
         ) {
             Text(
                 text = "Thinking",
-                style = JewelTheme.typography.regular,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodyLarge,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
 
             Text(
                 text = if (isExpanded) "\u25BE" else "\u25B8",
-                style = JewelTheme.typography.regular,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodyLarge,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -74,8 +73,8 @@ fun ThinkingBlock(
                     Text(
                         modifier = Modifier.fillMaxWidth(),
                         text = text,
-                        style = JewelTheme.typography.medium,
-                        color = JewelTheme.globalColors.text.info,
+                        style = IdeaTheme.typography.bodyMedium,
+                        color = IdeaTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

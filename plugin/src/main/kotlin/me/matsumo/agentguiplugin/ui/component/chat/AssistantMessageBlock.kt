@@ -27,7 +27,7 @@ import me.matsumo.agentguiplugin.ui.component.CodeBlock
 import me.matsumo.agentguiplugin.ui.component.DiffLine
 import me.matsumo.agentguiplugin.ui.component.MarkdownText
 import me.matsumo.agentguiplugin.ui.component.computeDiffLines
-import me.matsumo.agentguiplugin.ui.theme.ChatTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import me.matsumo.agentguiplugin.viewmodel.EditDiffInfo
 import me.matsumo.agentguiplugin.viewmodel.SubAgentTask
 import me.matsumo.agentguiplugin.viewmodel.ToolResultInfo
@@ -149,7 +149,7 @@ private fun AssistantMessageFooter(
         Text(
             text = formattedTime,
             fontSize = 11.sp,
-            color = ChatTheme.Text.secondary,
+            color = IdeaTheme.colorScheme.onSurfaceVariant,
         )
 
         Row(

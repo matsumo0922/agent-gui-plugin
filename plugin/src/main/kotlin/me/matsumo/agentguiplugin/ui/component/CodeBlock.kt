@@ -27,15 +27,47 @@ import androidx.compose.ui.unit.dp
 import com.github.difflib.DiffUtils
 import com.github.difflib.patch.AbstractDelta
 import com.intellij.openapi.ide.CopyPasteManager
-import me.matsumo.agentguiplugin.ui.theme.ChatTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.code.highlighting.LocalCodeHighlighter
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.MarkdownBlock.CodeBlock.FencedCodeBlock
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.theme.colorPalette
 import java.awt.datatransfer.StringSelection
+
+// ── Diff 固有カラー（IdeaTheme に汎用トークンが無いためローカル定義） ──
+
+@Suppress("DEPRECATION")
+private val diffAddedBackground: Color
+    @Composable @androidx.compose.runtime.ReadOnlyComposable
+    get() = if (JewelTheme.isDark) {
+        JewelTheme.colorPalette.green(1).copy(alpha = 0.35f)
+    } else {
+        JewelTheme.colorPalette.green(12).copy(alpha = 0.45f)
+    }
+
+@Suppress("DEPRECATION")
+private val diffRemovedBackground: Color
+    @Composable @androidx.compose.runtime.ReadOnlyComposable
+    get() = if (JewelTheme.isDark) {
+        JewelTheme.colorPalette.red(1).copy(alpha = 0.35f)
+    } else {
+        JewelTheme.colorPalette.red(12).copy(alpha = 0.45f)
+    }
+
+@Suppress("DEPRECATION")
+private val diffAddedLabel: Color
+    @Composable @androidx.compose.runtime.ReadOnlyComposable
+    get() = if (JewelTheme.isDark) JewelTheme.colorPalette.green(9) else JewelTheme.colorPalette.green(3)
+
+@Suppress("DEPRECATION")
+private val diffRemovedLabel: Color
+    @Composable @androidx.compose.runtime.ReadOnlyComposable
+    get() = if (JewelTheme.isDark) JewelTheme.colorPalette.red(9) else JewelTheme.colorPalette.red(3)
 
 /** diff 表示時に前後に表示するコンテキスト行数 */
 const val DIFF_CONTEXT_LINES = 3
@@ -159,9 +191,9 @@ fun CodeBlock(
     styling: MarkdownStyling.Code.Fenced? = null,
 ) {
     val shape = RoundedCornerShape(8.dp)
-    val codeBlockBg = ChatTheme.CodeBlock.background
-    val headerBg = ChatTheme.CodeBlock.headerBackground
-    val borderColor = ChatTheme.CodeBlock.border
+    val codeBlockBg = IdeaTheme.colorScheme.surface
+    val headerBg = IdeaTheme.colorScheme.surfaceContainer
+    val borderColor = IdeaTheme.colorScheme.outlineVariant
 
     Column(
         modifier = modifier
@@ -182,7 +214,7 @@ fun CodeBlock(
                     .padding(horizontal = 4.dp)
                     .weight(1f),
                 text = language.ifEmpty { "code" },
-                color = ChatTheme.Text.secondary,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
 
             Row(
@@ -243,12 +275,12 @@ private fun DiffContent(
     showLineNumbers: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val addedBg = ChatTheme.Diff.addedBackground
-    val removedBg = ChatTheme.Diff.removedBackground
-    val addedLabel = ChatTheme.Diff.addedLabel
-    val removedLabel = ChatTheme.Diff.removedLabel
-    val contextColor = ChatTheme.Text.primary
-    val lineNumColor = ChatTheme.Text.secondary
+    val addedBg = diffAddedBackground
+    val removedBg = diffRemovedBackground
+    val addedLabel = diffAddedLabel
+    val removedLabel = diffRemovedLabel
+    val contextColor = IdeaTheme.colorScheme.onSurface
+    val lineNumColor = IdeaTheme.colorScheme.onSurfaceVariant
 
     Column(
         modifier = modifier

@@ -26,9 +26,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import me.matsumo.agentguiplugin.ui.component.Button
-import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 
 @Composable
 fun UserMessageEditBubble(
@@ -43,10 +41,10 @@ fun UserMessageEditBubble(
     Column(
         modifier = modifier
             .clip(shape)
-            .background(JewelTheme.colorPalette.gray(1))
+            .background(IdeaTheme.colorScheme.surface)
             .border(
                 width = 1.dp,
-                color = JewelTheme.globalColors.borders.normal,
+                color = IdeaTheme.colorScheme.outline,
                 shape = shape,
             )
             .padding(12.dp),
@@ -72,8 +70,8 @@ fun UserMessageEditBubble(
                 },
             value = value,
             onValueChange = { value = it },
-            textStyle = JewelTheme.typography.medium,
-            cursorBrush = SolidColor(JewelTheme.typography.medium.color),
+            textStyle = IdeaTheme.typography.bodyMedium,
+            cursorBrush = SolidColor(IdeaTheme.typography.bodyMedium.color),
             minLines = 2,
         )
 
@@ -88,14 +86,14 @@ fun UserMessageEditBubble(
             Button(
                 text = "Cancel",
                 onClick = onCancel,
-                borderColor = JewelTheme.globalColors.borders.normal,
+                borderColor = IdeaTheme.colorScheme.outline,
             )
 
             Button(
                 text = "Send",
                 onClick = { if (value.text.isNotBlank()) onConfirm(value.text.trim()) },
-                borderColor = JewelTheme.globalColors.borders.normal,
-                backgroundColor = JewelTheme.colorPalette.blue(3),
+                borderColor = IdeaTheme.colorScheme.outline,
+                backgroundColor = IdeaTheme.colorScheme.primary,
                 enabled = value.text.isNotBlank(),
             )
         }

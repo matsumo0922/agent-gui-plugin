@@ -32,10 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.matsumo.agentguiplugin.ui.component.Button
 import me.matsumo.agentguiplugin.ui.component.LinkableText
-import org.jetbrains.jewel.foundation.theme.JewelTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 
 private val warningColor = Color(0xFFF59E0B)
 private val doneColor = Color(0xFF22C55E)
@@ -74,21 +72,21 @@ fun AuthenticationCard(
         ) {
             Text(
                 text = "CLI Authentication Required",
-                style = JewelTheme.typography.regular,
+                style = IdeaTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
             )
 
             Text(
                 text = "The Claude CLI requires authentication before starting a session. Please complete the authentication below.",
-                style = JewelTheme.typography.medium,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodyMedium,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
         }
 
         // Output area
         val listState = rememberLazyListState()
-        val linkColor = JewelTheme.colorPalette.blue(9)
-        val textStyle = JewelTheme.typography.medium.copy(color = JewelTheme.globalColors.text.normal)
+        val linkColor = IdeaTheme.colorScheme.onPrimaryContainer
+        val textStyle = IdeaTheme.typography.bodyMedium.copy(color = IdeaTheme.colorScheme.onSurface)
 
         LaunchedEffect(outputLines.size) {
             if (outputLines.isNotEmpty()) {
@@ -102,10 +100,10 @@ fun AuthenticationCard(
                 .fillMaxWidth()
                 .weight(1f)
                 .clip(RoundedCornerShape(4.dp))
-                .background(JewelTheme.globalColors.panelBackground)
+                .background(IdeaTheme.colorScheme.background)
                 .border(
                     width = 1.dp,
-                    color = JewelTheme.globalColors.borders.normal,
+                    color = IdeaTheme.colorScheme.outline,
                     shape = RoundedCornerShape(4.dp),
                 )
                 .padding(8.dp),
@@ -123,8 +121,8 @@ fun AuthenticationCard(
                 item {
                     Text(
                         text = "Waiting for CLI output...",
-                        style = JewelTheme.typography.medium,
-                        color = JewelTheme.globalColors.text.info,
+                        style = IdeaTheme.typography.bodyMedium,
+                        color = IdeaTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -138,7 +136,7 @@ fun AuthenticationCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val textColor = JewelTheme.globalColors.text.normal
+            val textColor = IdeaTheme.colorScheme.onSurface
 
             // Text field with inline send icon
             Row(
@@ -147,7 +145,7 @@ fun AuthenticationCard(
                     .clip(RoundedCornerShape(4.dp))
                     .border(
                         width = 1.dp,
-                        color = JewelTheme.globalColors.borders.normal,
+                        color = IdeaTheme.colorScheme.outline,
                         shape = RoundedCornerShape(4.dp),
                     )
                     .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -159,7 +157,7 @@ fun AuthenticationCard(
                         .padding(vertical = 4.dp),
                     value = inputText,
                     onValueChange = { inputText = it },
-                    textStyle = JewelTheme.typography.medium.copy(color = textColor),
+                    textStyle = IdeaTheme.typography.bodyMedium.copy(color = textColor),
                     keyboardOptions = KeyboardOptions(
                         imeAction = ImeAction.Done,
                     ),
@@ -174,7 +172,7 @@ fun AuthenticationCard(
                                 Text(
                                     text = "Type response and press Send...",
                                     fontSize = 12.sp,
-                                    color = JewelTheme.globalColors.text.info,
+                                    color = IdeaTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             innerTextField()
@@ -189,7 +187,7 @@ fun AuthenticationCard(
                 onClick = onDone,
                 borderColor = doneColor.copy(alpha = 0.5f),
                 backgroundColor = doneColor.copy(alpha = 0.15f),
-                textColor = JewelTheme.globalColors.text.normal,
+                textColor = IdeaTheme.colorScheme.onSurface,
             )
         }
     }

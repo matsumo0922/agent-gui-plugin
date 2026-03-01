@@ -29,14 +29,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.JsonObject
-import org.jetbrains.jewel.foundation.theme.JewelTheme
+import me.matsumo.agentguiplugin.ui.theme.IdeaTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.theme.colorPalette
-import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun ToolUseBlock(
@@ -62,14 +60,14 @@ fun ToolUseBlock(
             Icon(
                 modifier = Modifier.size(16.dp),
                 key = AllIconsKeys.Actions.Find,
-                tint = JewelTheme.globalColors.text.info,
+                tint = IdeaTheme.colorScheme.onSurfaceVariant,
                 contentDescription = null,
             )
 
             Text(
                 text = name,
-                style = JewelTheme.typography.medium,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodyMedium,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.SemiBold,
             )
 
@@ -77,8 +75,8 @@ fun ToolUseBlock(
                 Text(
                     modifier = Modifier.weight(1f),
                     text = "(${inputMap.toList().joinToString { "${it.first}: ${it.second}" }})",
-                    style = JewelTheme.typography.medium,
-                    color = JewelTheme.globalColors.text.disabled,
+                    style = IdeaTheme.typography.bodyMedium,
+                    color = IdeaTheme.colorScheme.onSurfaceDisabled,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -86,8 +84,8 @@ fun ToolUseBlock(
 
             Text(
                 text = if (isExpanded) "\u25BE" else "\u25B8",
-                style = JewelTheme.typography.regular,
-                color = JewelTheme.globalColors.text.info,
+                style = IdeaTheme.typography.bodyLarge,
+                color = IdeaTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -105,7 +103,7 @@ fun ToolUseBlock(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(4.dp))
-                        .background(JewelTheme.colorPalette.gray(2))
+                        .background(IdeaTheme.colorScheme.surfaceContainer)
                         .padding(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -115,15 +113,15 @@ fun ToolUseBlock(
                                 append("$key: ")
 
                                 withStyle(
-                                    JewelTheme.typography.medium.copy(
-                                        color = JewelTheme.globalColors.text.normal,
+                                    IdeaTheme.typography.bodyMedium.copy(
+                                        color = IdeaTheme.colorScheme.onSurface,
                                     ).toSpanStyle()
                                 ) {
                                     append(value.take(300))
                                 }
                             },
-                            style = JewelTheme.typography.medium,
-                            color = JewelTheme.globalColors.text.info,
+                            style = IdeaTheme.typography.bodyMedium,
+                            color = IdeaTheme.colorScheme.onSurfaceVariant,
                         )
                     }
 
@@ -131,7 +129,7 @@ fun ToolUseBlock(
                         Divider(
                             modifier = Modifier.fillMaxWidth(),
                             orientation = Orientation.Horizontal,
-                            color = JewelTheme.colorPalette.gray(4),
+                            color = IdeaTheme.colorScheme.outlineVariant,
                         )
 
                         Text(
@@ -139,19 +137,19 @@ fun ToolUseBlock(
                                 append("Result: ")
 
                                 withStyle(
-                                    JewelTheme.typography.medium.copy(
+                                    IdeaTheme.typography.bodyMedium.copy(
                                         color = if (isResultError) {
-                                            JewelTheme.globalColors.text.error
+                                            IdeaTheme.colorScheme.error
                                         } else {
-                                            JewelTheme.globalColors.text.normal
+                                            IdeaTheme.colorScheme.onSurface
                                         },
                                     ).toSpanStyle()
                                 ) {
                                     append(resultContent)
                                 }
                             },
-                            style = JewelTheme.typography.medium,
-                            color = JewelTheme.globalColors.text.info,
+                            style = IdeaTheme.typography.bodyMedium,
+                            color = IdeaTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
