@@ -1,10 +1,8 @@
 package me.matsumo.agentguiplugin.ui
 
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -215,8 +213,8 @@ fun ChatPanel(
                 ) {
                     AnimatedNullableVisibility(
                         value = uiState.pendingPermission,
-                        enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
+                        enter = fadeIn(tween(delayMillis = 300)),
+                        exit = fadeOut(tween(durationMillis = 200)),
                     ) { permission ->
                         if (permission.toolName == ToolNames.EXIT_PLAN_MODE) {
                             ExitPlanCard(
@@ -239,8 +237,8 @@ fun ChatPanel(
 
                     AnimatedNullableVisibility(
                         value = uiState.pendingQuestion,
-                        enter = fadeIn(tween(delayMillis = 300)) + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
+                        enter = fadeIn(tween(delayMillis = 300)),
+                        exit = fadeOut(tween(durationMillis = 200)),
                     ) {
                         AskUserQuestionCard(
                             modifier = Modifier.padding(bottom = 12.dp),
