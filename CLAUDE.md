@@ -57,7 +57,7 @@ IntelliJ プラグイン本体。Compose for IDE (Jewel) で UI を描画。
 - `ui/component/ErrorBanner.kt` — エラーバナー
 - `ui/component/FileAttachPopup.kt` — ファイル添付ポップアップ
 - `ui/component/AttachedFileChip.kt` — 添付ファイルチップ
-- `ui/theme/ChatTheme.kt` — チャットテーマ定義
+- `ui/theme/IdeaTheme.kt` — テーマ定義 (IdeaColorScheme, IdeaTypography)
 - `model/AttachedFile.kt` — 添付ファイルモデル
 - `util/FilePickerUtil.kt` — ファイルピッカーユーティリティ
 
@@ -83,6 +83,58 @@ IntelliJ プラグイン本体。Compose for IDE (Jewel) で UI を描画。
 - `Modifier` は呼び出し時には第一引数に記述する。引数の定義時には必ずデフォルト引数で `Modifier` を渡しデフォルト引数が指定されている引数の中で先頭に定義する。
 - `TextFieldValue(text)` を recomposition ごとに再生成するとカーソル位置がリセットされる
 - `mutableStateOf(TextFieldValue)` でローカル管理し、外部変更は `LaunchedEffect` で同期する
+
+### テーマ (`IdeaTheme`)
+
+プロジェクト全体で **`IdeaTheme`** を唯一のテーマ参照先として使用する。`JewelTheme` や旧 `ChatTheme` を UI コンポーネントから直接参照してはならない。
+
+#### 基本ルール
+- **色** → `IdeaTheme.colorScheme.*` を使う（例: `IdeaTheme.colorScheme.onSurface`）
+- **テキストスタイル** → `IdeaTheme.typography.*` を使う（例: `IdeaTheme.typography.bodyMedium`）
+- **ダークモード判定** → `IdeaTheme.isDark`
+- **テーマ変更検知キー** → `IdeaTheme.instanceUuid`（`remember` の key に使用）
+
+#### Provider
+全ての Compose エントリポイント（`JewelComposePanel` 内）で `IdeaTheme { ... }` を wrap する。
+- `TabManager.createContent()` — メインチャット画面
+- `AgentGuiSettingsConfigurable.createComponent()` — 設定画面
+
+#### IdeaColorScheme トークン一覧
+| カテゴリ | トークン | 用途 |
+|---|---|---|
+| Surface | `background` | パネル/ウィンドウ背景 |
+| | `surface` | カード、コードブロック背景 |
+| | `surfaceContainer` | ヘッダー、セカンダリパネル背景 |
+| On Surface | `onSurface` | 主テキスト/アイコン |
+| | `onSurfaceVariant` | 副テキスト/アイコン |
+| | `onSurfaceDisabled` | 無効テキスト/プレースホルダー |
+| Outline | `outline` | デフォルト枠線/区切り線 |
+| | `outlineVariant` | 控えめな枠線/区切り線 |
+| Primary | `primary` | アクセントカラー（ボタン、リンク） |
+| | `primaryContainer` | アクセント由来のコンテナ色 |
+| | `onPrimaryContainer` | primaryContainer 上のコンテンツ色 |
+| Semantic | `error` / `warning` / `success` | 状態表示 |
+
+#### IdeaTypography トークン一覧
+| トークン | Jewel ベース | 用途 |
+|---|---|---|
+| `titleLarge` | regular + SemiBold 16sp | セクションヘッダー |
+| `titleMedium` | regular + SemiBold | カードタイトル |
+| `titleSmall` | medium + SemiBold | サブセクションヘッダー |
+| `bodyLarge` | regular (≈ 13sp) | 本文テキスト |
+| `bodyMedium` | medium (≈ 12sp) | 標準 UI テキスト |
+| `bodySmall` | small (≈ 11sp) | 補助テキスト |
+| `labelLarge` | medium + Medium | ボタンラベル |
+| `labelMedium` | small | フォームラベル |
+| `labelSmall` | small 10sp | キャプション、バッジ |
+
+#### IdeaTheme にトークンが無い特殊カラー
+以下の色は `IdeaTheme` のロールベーストークンに適合しないため、使用箇所のファイル内で **private トップレベル Composable プロパティ** として定義し、`JewelTheme.colorPalette` を直接参照する。
+
+- **Diff 色** (`CodeBlock.kt`): `diffAddedBackground`, `diffRemovedBackground`, `diffAddedLabel`, `diffRemovedLabel`
+- **コンテキスト使用量インジケーター** (`ChatInputArea.kt`): `contextWarningColor`, `contextDangerColor`
+
+新たに特殊カラーが必要な場合も同じパターンに従うこと。`IdeaTheme` にコンポーネント固有のトークンを追加しない。
 
 ## アーキテクチャ
 
