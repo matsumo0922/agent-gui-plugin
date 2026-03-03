@@ -1,14 +1,21 @@
 [versions]
 kotlin = "2.3.0"
+kotlinx-coroutines = "1.10.1"
 kotlinx-serialization = "1.8.1"
 kotlinx-collections-immutable = "0.3.8"
 intellij-platform = "2.10.2"
+intellij-idea = "2025.3.3"
 java-diff-utils = "4.12"
+mockk = "1.13.16"
+turbine = "1.2.0"
 
 [libraries]
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinx-collections-immutable" }
 java-diff-utils = { module = "io.github.java-diff-utils:java-diff-utils", version.ref = "java-diff-utils" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

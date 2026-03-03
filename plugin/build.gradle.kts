@@ -21,9 +21,9 @@ dependencies {
     implementation(libs.kotlinx.collections.immutable)
 
     testImplementation(kotlin("test"))
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
-    testImplementation("io.mockk:mockk:1.13.16")
-    testImplementation("app.cash.turbine:turbine:1.2.0")
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
+    testImplementation(libs.turbine)
     testRuntimeOnly(libs.kotlinx.serialization.json)
 
     implementation("me.matsumo.claude.agent:agent:local") {
@@ -36,7 +36,7 @@ dependencies {
     }
 
     intellijPlatform {
-        intellijIdea("2025.3.3")
+        intellijIdea(libs.versions.intellij.idea.get())
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.JUnit5)
         composeUI()
