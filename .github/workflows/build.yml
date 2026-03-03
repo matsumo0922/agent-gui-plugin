@@ -158,7 +158,7 @@ jobs:
       - name: Get Plugin Version
         id: version
         run: |
-          VERSION=$(./gradlew :plugin:properties --property version --quiet --console=plain | tail -n 1 | tr -d '[:space:]')
+          VERSION=$(./gradlew :plugin:properties --property version --quiet --console=plain | tail -n 1 | cut -d ':' -f 2 | tr -d '[:space:]')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Remove Old Release Drafts
